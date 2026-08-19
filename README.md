@@ -134,7 +134,7 @@ Create a `.env` file inside the `backend/` directory based on [`backend/.env.exa
 ```env
 # Supabase Configuration
 SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_KEY=your-supabase-anon-or-service-role-key
+SUPABASE_KEY=your-supabase-key
 
 # Pinecone Vector Database Configuration
 PINECONE_API_KEY=your-pinecone-api-key
@@ -188,6 +188,3 @@ Once the server is running, visit:
 - ✅ **Document Ingestion Pipeline**: Parses PDFs (PyMuPDF), creates hierarchical parent-child chunks, generates embeddings, and indexes into Pinecone & Supabase.
 - ✅ **Corrective RAG & Verification**: Computes citation coverage, verifies grounded claims, and computes confidence scores.
 - ✅ **FastAPI Integration**: Clean REST API endpoints for document upload, Q&A queries, product metadata, and human-in-the-loop task handling.
-#   F i n E x p l a i n  
- #   F i n E x p l a i n  
- 

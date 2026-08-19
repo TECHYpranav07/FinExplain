@@ -7,12 +7,11 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "FinExplain Backend"
     API_V1_STR: str = "/api/v1"
 
-    # Supabase (PostgreSQL & Storage)
+    # Supabase
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
     SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
-    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = os.getenv("SUPABASE_SERVICE_ROLE_KEY", None)
 
-    # Pinecone (Vector Database)
+    # Pinecone
     PINECONE_API_KEY: str = os.getenv("PINECONE_API_KEY", "")
     PINECONE_INDEX_NAME: str = os.getenv("PINECONE_INDEX_NAME", "fine-explain")
 
@@ -23,7 +22,7 @@ class Settings(BaseSettings):
     REDIS_URL: Optional[str] = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
     # Storage Bucket
-    STORAGE_BUCKET: str = os.getenv("STORAGE_BUCKET")
+    STORAGE_BUCKET: str = os.getenv("STORAGE_BUCKET", "loan_docs")
 
     class Config:
         env_file = ".env"
