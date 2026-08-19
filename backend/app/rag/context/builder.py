@@ -6,33 +6,34 @@ def build_context(
 ) -> str:
     """
     Builds the final context for the LLM.
-    - Merges child chunks with their parent text for full context.
-    - Orders chunks by relevance (highest first).
-    - Truncates to max_tokens.
+    - Prioritizes Parent chunks over Child chunks (better context).
+    - Truncates intelligently to max_tokens.
     """
     if not chunks:
         return ""
     
-    # Estimate token count (rough: 4 chars = 1 token)
+    # Helper to estimate tokens (rough: 4 chars = 1 token)
     def estimate_tokens(text: str) -> int:
         return len(text) // 4
     
     context_parts = []
     current_tokens = 0
     
-    for chunk in chunks:
+    # We want to prioritize Parent chunks for better context
+    # Sort: put parent chunks first, then child chunks (for diversity)
+    sorted_chunks = sorted(chunks, key=lambda x: 0 if x.get("chunk_type") == "parent" else 1)
+    
+    for chunk in sorted_chunks:
         text = chunk.get("text", "")
         
-        # If this is a child chunk and we have the parent text, use parent instead
-        # (Parent text is stored in metadata during ingestion)
-        parent_text = chunk.get("parent_text")
-        if parent_text:
-            text = parent_text
-        
-        # Add section/page metadata
+        # If we have a parent_text stored in metadata, use that instead for better context
+        if "parent_text" in chunk and chunk["parent_text"]:
+            text = chunk["parent_text"]
+            
+        # Add page number context if available
         page_num = chunk.get("page_number") or chunk.get("page_num")
         if page_num:
-            text = f"[Page {page_num}] {text}"
+            text = f"[Page {page_num}]\n{text}"
         
         chunk_tokens = estimate_tokens(text)
         
@@ -41,11 +42,17 @@ def build_context(
             context_parts.append(text)
             current_tokens += chunk_tokens
         else:
-            # Try to truncate the chunk to fit remaining space
+            # Try to truncate to fit remaining space
             remaining = max_tokens - current_tokens
-            if remaining > 100:  # Only include if we have at least 100 tokens left
-                truncated = text[:remaining * 4] + "..."
+            if remaining > 50:  # Only include if at least 50 tokens fit
+                # Estimate character limit
+                char_limit = remaining * 4
+                truncated = text[:char_limit] + "..." if len(text) > char_limit else text
                 context_parts.append(truncated)
             break
+    
+    # If no context could be built, return empty
+    if not context_parts:
+        return ""
     
     return "\n\n---\n\n".join(context_parts)

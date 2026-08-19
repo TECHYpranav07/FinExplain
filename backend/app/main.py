@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from langsmith import Client
+# Automatically traces LangChain calls if env vars are set
 
 from app.api.routes.v1 import documents, queries, hilt, products, feedback
 
