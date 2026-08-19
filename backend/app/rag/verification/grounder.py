@@ -3,18 +3,22 @@ from typing import List, Dict, Any, Tuple
 
 def extract_citations(answer: str) -> List[str]:
     """Extract page/section citations from the answer text."""
-    # Look for patterns like [Page 3], [Section 2.1], [Page 5, Section 3]
-    pattern = r'\[Page\s*(\d+)(?:,\s*Section\s*([\d.]+))?\]|\[Section\s*([\d.]+)\]|\[p\.\s*(\d+)\]'
+    # Look for patterns like [Page 3], 【Page 1.0】, [Section 2.1], Page 2
+    pattern = r'[\[【]Page\s*([\d.]+)(?:,\s*Section\s*([\d.]+))?[\]】]|\[Section\s*([\d.]+)\]|[\[【]p\.\s*([\d.]+)[\]】]|Page\s+(\d+)'
     matches = re.findall(pattern, answer)
     citations = []
     for match in matches:
-        page = match[0] or match[3]
+        raw_page = match[0] or match[3] or match[4]
         section = match[1] or match[2]
-        if page:
-            if section:
-                citations.append({"page": int(page), "section": section})
-            else:
-                citations.append({"page": int(page)})
+        if raw_page:
+            try:
+                page_int = int(float(raw_page))
+                if section:
+                    citations.append({"page": page_int, "section": section})
+                else:
+                    citations.append({"page": page_int})
+            except ValueError:
+                pass
     return citations
 
 def verify_citation(citation: Dict[str, Any], retrieved_chunks: List[Dict[str, Any]]) -> bool:

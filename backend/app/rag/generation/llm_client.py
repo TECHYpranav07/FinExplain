@@ -7,7 +7,7 @@ class LLMClient:
     def __init__(self, api_key: Optional[str] = None):
         key = api_key or settings.GROQ_API_KEY
         self.client = Groq(api_key=key) if key else None
-        self.default_model = "llama3-70b-8192"
+        self.default_model = "openai/gpt-oss-120b"
 
     def complete(
         self,

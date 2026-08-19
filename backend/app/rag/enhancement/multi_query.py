@@ -13,7 +13,7 @@ Return ONLY a JSON array of strings, e.g., ["query1", "query2", "query3"]
 """
     try:
         response = client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="openai/gpt-oss-120b",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.5,
             max_tokens=150

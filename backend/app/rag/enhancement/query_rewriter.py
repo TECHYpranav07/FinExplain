@@ -21,11 +21,12 @@ Return ONLY the rewritten query, nothing else.
 """
     try:
         response = client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="openai/gpt-oss-120b",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             max_tokens=100
         )
-        return response.choices[0].message.content.strip()
+        rewritten = response.choices[0].message.content.strip()
+        return rewritten if rewritten else query
     except Exception:
         return query  # Fallback to original

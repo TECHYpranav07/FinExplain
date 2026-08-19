@@ -28,18 +28,20 @@ def process_query(
 
     # Step 1: Classify intent
     intent_result = classify_intent(question)
-    print(f"📊 Intent: {intent_result.intent}, Confidence: {intent_result.confidence}")
+    print(f"[Orchestrator] Intent: {intent_result.intent}, Confidence: {intent_result.confidence}")
 
     # Step 2: Rewrite query
-    rewritten_query = rewrite_query(question, intent_result.intent)
-    print(f"✏️ Rewritten: {rewritten_query}")
+    rewritten_query = rewrite_query(question, intent_result.intent) or question
+    print(f"[Orchestrator] Rewritten Query: {rewritten_query}")
 
     # Step 3: Generate multi-queries
     queries = generate_multi_queries(rewritten_query, num_queries=3)
-    print(f"🔍 Multi-queries: {queries}")
+    print(f"[Orchestrator] Multi-queries: {queries}")
 
-    # Step 4: Hybrid retrieval (use first query for now)
-    retrieved_chunks = hybrid_search(queries[0], product_ids, top_k=max_retrieval)
+    # Step 4: Hybrid retrieval
+    retrieved_chunks = hybrid_search(rewritten_query, product_ids, top_k=max_retrieval)
+    if not retrieved_chunks and rewritten_query != question:
+        retrieved_chunks = hybrid_search(question, product_ids, top_k=max_retrieval)
 
     if not retrieved_chunks:
         return {
@@ -53,10 +55,10 @@ def process_query(
     # Step 5: Detect conflicts
     conflicts = detect_conflicts(retrieved_chunks)
     if conflicts:
-        print(f"⚠️ Conflicts detected: {len(conflicts)}")
+        print(f"[Orchestrator] Conflicts detected: {len(conflicts)}")
 
     # Step 6: Rerank
-    reranked_chunks = rerank_chunks(queries[0], retrieved_chunks, top_k=10)
+    reranked_chunks = rerank_chunks(rewritten_query, retrieved_chunks, top_k=10)
     rerank_scores = [c.get("rerank_score", 0.5) for c in reranked_chunks]
 
     # Step 7: Build context
