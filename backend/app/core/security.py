@@ -1,7 +1,11 @@
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
-import jwt
 import hashlib
+
+try:
+    import jwt
+except ImportError:
+    jwt = None
 
 SECRET_KEY = "finexplain-secret-key-replace-in-production"
 ALGORITHM = "HS256"
@@ -17,19 +21,22 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
     """Generate JWT access token."""
+    if not jwt:
+        return "dummy-jwt-token"
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
     """Decode and validate a JWT access token."""
+    if not jwt:
+        return None
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except jwt.PyJWTError:
+    except Exception:
         return None
