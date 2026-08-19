@@ -1,0 +1,84 @@
+# ==============================================
+# WEB FRAMEWORK & SERVER
+# ==============================================
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# ==============================================
+# DATABASE (Supabase PostgreSQL)
+# ==============================================
+supabase==2.11.0
+postgrest==0.19.2
+
+# ==============================================
+# CONFIGURATION & ENVIRONMENT
+# ==============================================
+pydantic-settings==2.7.0
+python-dotenv==1.0.1
+
+# ==============================================
+# AI / RAG CORE (LangChain + Groq)
+# ==============================================
+langchain==0.3.15
+langchain-community==0.3.15
+langchain-groq==0.2.0
+langchain-core==0.3.31
+
+# ==============================================
+# VECTOR DATABASE (Pinecone)
+# ==============================================
+pinecone-client==5.0.1
+
+# ==============================================
+# EMBEDDINGS & RERANKING (Hugging Face)
+# ==============================================
+sentence-transformers==3.3.1
+transformers==4.47.1
+torch==2.5.1
+accelerate==1.2.1
+
+# ==============================================
+# DOCUMENT PROCESSING (PDF)
+# ==============================================
+PyMuPDF==1.24.14
+pypdf==5.1.0             # Fallback PDF parser
+
+# ==============================================
+# CACHING & MESSAGE QUEUE (Async Tasks)
+# ==============================================
+redis==5.2.1
+celery==5.4.0
+flower==2.0.1            # Celery monitoring UI (optional)
+
+# ==============================================
+# CLOUD STORAGE (AWS S3 or Supabase Storage)
+# ==============================================
+boto3==1.35.76           # For AWS S3 (skip if using Supabase Storage)
+
+# ==============================================
+# HTTP CLIENT & UTILITIES
+# ==============================================
+httpx==0.28.1
+requests==2.32.3
+tiktoken==0.8.0          # For token counting (LLM context window management)
+tenacity==9.0.0          # Retry logic for API calls
+
+# ==============================================
+# OBSERVABILITY & MONITORING (LangSmith)
+# ==============================================
+langsmith==0.3.2
+prometheus-client==0.21.0
+
+# ==============================================
+# DATA VALIDATION & TYPES
+# ==============================================
+pydantic==2.10.4
+typing-extensions==4.12.2
+python-json-logger==3.2.1   # Structured JSON logging
+
+# ==============================================
+# TESTING
+# ==============================================
+pytest==8.3.4
+pytest-asyncio==0.25.2
