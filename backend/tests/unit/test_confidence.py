@@ -106,3 +106,60 @@ def test_before_confirmation_deterministic_fallback():
     assert "Actionable Questions to Ask Your Lender" in markdown
     assert "10.5%" in markdown
 
+
+def test_loan_fact_comparison():
+    from app.tools.comparator import compare_loan_facts
+    from app.core.loan_categories import LoanFact, EvidenceStatus
+    facts_a = [
+        LoanFact(field="interest_rate", category="interest_rate", value="10.5", unit="percent", status=EvidenceStatus.EXPLICIT),
+        LoanFact(field="processing_fee", category="processing_fee", value="1.0", unit="percent", status=EvidenceStatus.EXPLICIT),
+    ]
+    facts_b = [
+        LoanFact(field="interest_rate", category="interest_rate", value="11.5", unit="percent", status=EvidenceStatus.EXPLICIT),
+        LoanFact(field="processing_fee", category="processing_fee", value="0.5", unit="percent", status=EvidenceStatus.EXPLICIT),
+    ]
+
+    res = compare_loan_facts(facts_a, facts_b)
+    assert len(res["field_comparison"]) > 0
+
+    # Rate comparison
+    rate_comp = next((fc for fc in res["field_comparison"] if fc["field"] == "interest_rate"), None)
+    assert rate_comp is not None
+    assert rate_comp["winner"] in ("product_a", "A")  # 10.5 < 11.5
+
+    # Fee comparison
+    fee_comp = next((fc for fc in res["field_comparison"] if fc["field"] == "processing_fee"), None)
+    assert fee_comp is not None
+    assert fee_comp["winner"] in ("product_b", "B")  # 0.5 < 1.0
+
+
+
+def test_deterministic_comparison_fallback():
+    from app.rag.generation.generator import _synthesize_deterministic_comparison
+    products = [
+        {"id": "1", "name": "HDFC Home Loan", "issuer": "HDFC Bank"},
+        {"id": "2", "name": "SBI Term Loan", "issuer": "State Bank of India"},
+    ]
+    field_comps = [
+        {
+            "field": "interest_rate",
+            "product_a": {"value": "9.5", "unit": "%"},
+            "product_b": {"value": "10.2", "unit": "%"},
+            "winner": "A",
+        },
+        {
+            "field": "processing_fee",
+            "product_a": {"value": "5000", "unit": "INR"},
+            "product_b": {"value": "2500", "unit": "INR"},
+            "winner": "B",
+        }
+    ]
+
+    markdown = _synthesize_deterministic_comparison(products, field_comps)
+    assert "Comparative Loan Benchmark Analysis" in markdown
+    assert "HDFC Home Loan" in markdown
+    assert "SBI Term Loan" in markdown
+    assert "9.5 %" in markdown
+    assert "Strategic Negotiation Levers" in markdown
+
+

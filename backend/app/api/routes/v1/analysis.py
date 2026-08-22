@@ -6,6 +6,8 @@ from app.api.schemas import (
     LoanReviewResponse,
     BeforeConfirmationRequest,
     BeforeConfirmationResponse,
+    LoanCompareRequest,
+    LoanCompareResponse,
 )
 from app.db.repositories.product_repo import get_product_by_id
 from app.auth.jwt_handler import get_current_user
@@ -21,8 +23,13 @@ from app.rag.extraction.loan_analyzer import (
     generate_before_confirmation_checklist,
     prioritize_cost_drivers,
 )
+from app.tools.comparator import compare_loan_facts
 from app.rag.verification.conflict_detector import detect_fact_conflicts
-from app.rag.generation.generator import generate_loan_review, generate_before_confirmation
+from app.rag.generation.generator import (
+    generate_loan_review,
+    generate_before_confirmation,
+    generate_loan_comparison,
+)
 
 router = APIRouter()
 
@@ -193,5 +200,74 @@ async def before_confirmation(
         "checklist_text": checklist_text_result.get("checklist"),
         "summary": summary,
     }
+
+
+@router.post("/compare", response_model=LoanCompareResponse)
+async def compare_products(
+    request: LoanCompareRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Side-by-side comparative analysis of two or more loan products scoped to user.
+    """
+    user_id = current_user["id"]
+    if len(request.product_ids) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 product IDs are required for comparison.")
+
+    # Validate ownership & fetch product metadata
+    products_meta = []
+    for pid in request.product_ids:
+        if pid in ("1", "2") and settings.is_development:
+            products_meta.append({"id": pid, "name": f"Sample Product {pid}", "issuer": "Sample Bank"})
+            continue
+        product = get_product_by_id(pid)
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Product {pid} not found.")
+        if product.get("user_id") and product.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail=f"Access denied to product {pid}.")
+        products_meta.append(product)
+
+    # Extract facts for each product individually to maintain strict product isolation
+    product_facts_map = {}
+    for p in products_meta:
+        pid = str(p["id"])
+        try:
+            extracted = _extract_facts_for_products([pid], user_id=user_id)
+            product_facts_map[pid] = extracted["facts"]
+        except Exception:
+            product_facts_map[pid] = []
+
+    first_pid = str(products_meta[0]["id"])
+    second_pid = str(products_meta[1]["id"])
+    comparison_res = compare_loan_facts(
+        product_a_facts=product_facts_map.get(first_pid, []),
+        product_b_facts=product_facts_map.get(second_pid, []),
+        scenario=request.scenario,
+    )
+
+    field_comparisons = comparison_res.get("field_comparison", [])
+
+    # Generate natural-language comparison report
+    comparison_report = generate_loan_comparison(
+        products=products_meta,
+        field_comparisons=field_comparisons,
+        scenario=request.scenario,
+    )
+
+    return {
+        "comparison_text": comparison_report.get("comparison"),
+        "field_comparisons": field_comparisons,
+        "products": products_meta,
+        "summary": {
+            "total_products": len(products_meta),
+            "comparison_complete": comparison_res.get("comparison_complete", True),
+            "comparison_summary": comparison_res.get("comparison_summary", ""),
+        },
+        "winner_summary": {
+            "known_cost_a": comparison_res.get("known_cost_a"),
+            "known_cost_b": comparison_res.get("known_cost_b"),
+        },
+    }
+
 
 

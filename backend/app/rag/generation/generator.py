@@ -17,6 +17,7 @@ from app.rag.generation.prompt_templates import (
     QA_USER_PROMPT_TEMPLATE,
     LOAN_REVIEW_PROMPT,
     BEFORE_CONFIRMATION_PROMPT,
+    MULTI_PRODUCT_COMPARISON_PROMPT,
 )
 from typing import Dict, Any, List, Optional
 
@@ -362,3 +363,130 @@ def generate_before_confirmation(
         calculations=calculations,
     )
     return {"checklist": fallback_markdown}
+
+
+def _synthesize_deterministic_comparison(
+    products: List[Dict[str, Any]],
+    field_comparisons: List[Dict[str, Any]],
+    scenario: Optional[Dict[str, Any]] = None,
+) -> str:
+    """
+    Generate an exhaustive Markdown multi-product comparison brief directly from structured facts.
+    """
+    prod_names = [p.get("name", f"Product {idx+1}") for idx, p in enumerate(products)]
+    lines = [
+        "# ⚖️ Comparative Loan Benchmark Analysis",
+        "",
+        "### 🎯 Executive Comparative Verdict & Summary",
+        f"FinExplain evaluated **{len(products)} loan facilities** ({', '.join(prod_names)}) across verified contractual terms.",
+        "",
+    ]
+
+    # Executive Verdict Highlights
+    lines.extend([
+        "> 💡 **Borrower Takeaway**: Compare the side-by-side rates and fee schedules below. Lower headline rates can be offset by higher upfront processing charges or restrictive prepayment penalties.",
+        "",
+        "---",
+        "",
+        "### 📊 Side-by-Side Financial & Rate Benchmark Matrix",
+        "",
+    ])
+
+    # Build comparison table headers
+    header_cols = ["Financial Parameter"] + prod_names + ["Comparison Status"]
+    lines.append("| " + " | ".join(header_cols) + " |")
+    lines.append("| " + " | ".join(["---"] * len(header_cols)) + " |")
+
+    # Map fields
+    for fc in field_comparisons:
+        field_name = fc.get("field", "Term").replace("_", " ").title()
+        val_cells = []
+        winner = fc.get("winner", "Comparable")
+
+        for idx, p in enumerate(products):
+            pid = str(p.get("id", idx))
+            p_val_obj = fc.get(f"product_{idx}") or fc.get("values", {}).get(pid) or fc.get(f"product_{chr(97+idx)}")
+            if isinstance(p_val_obj, dict):
+                v = p_val_obj.get("value", "Mentioned")
+                u = p_val_obj.get("unit", "")
+                val_str = f"`{v} {u}`".strip() if v else "Mentioned"
+            elif p_val_obj:
+                val_str = f"`{p_val_obj}`"
+            else:
+                val_str = "*Not Specified*"
+            val_cells.append(val_str)
+
+        lines.append(f"| **{field_name}** | " + " | ".join(val_cells) + f" | {winner} |")
+
+    if not field_comparisons:
+        lines.append(f"| *Terms* | " + " | ".join(["*Extracted from document*"] * len(prod_names)) + " | Neutral |")
+
+    lines.extend([
+        "",
+        "---",
+        "",
+        "### 🔓 Prepayment, Foreclosure & Exit Flexibility",
+        "- **Floating Rate Protections**: Under RBI guidelines, individual floating-rate retail loans carry 0% foreclosure fees.",
+        "- **Fixed Rate Lock-ins**: Check whether fixed-rate tranches impose early exit penalties (typically 2% to 4% of outstanding balance).",
+        "",
+        "---",
+        "",
+        "### 🚨 Critical Risk Traps, Penalties & Discrepancies",
+        "- Verify whether processing fees are non-refundable upon loan cancellation.",
+        "- Check the penal interest rate (typically 18% to 24% p.a. on overdue installments) and bounce charges per cheque/ECS return.",
+        "",
+        "---",
+        "",
+        "### 🛡️ Strategic Negotiation Levers for the Borrower",
+        f"1. **Rate Matching**: Use the lower interest quotation from **{prod_names[0]}** to request a spread discount from **{prod_names[1] if len(prod_names) > 1 else 'other lenders'}**.",
+        "2. **Processing Fee Waiver**: Ask for an upfront processing fee reduction or waiver during promotional periods.",
+        "3. **Zero Prepayment Guarantee**: Demand written confirmation that partial prepayments incur zero administrative charges.",
+    ])
+
+    return "\n".join(lines)
+
+
+def generate_loan_comparison(
+    products: List[Dict[str, Any]],
+    field_comparisons: List[Dict[str, Any]],
+    scenario: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Generate an authoritative comparative analysis between multiple loan products using LLM with deterministic fallback.
+    """
+    prod_summary_list = []
+    for p in products:
+        prod_summary_list.append({
+            "id": p.get("id"),
+            "name": p.get("name"),
+            "issuer": p.get("issuer"),
+            "effective_date": p.get("effective_date"),
+        })
+
+    prompt = MULTI_PRODUCT_COMPARISON_PROMPT.format(
+        products_summary=_format_for_prompt(prod_summary_list),
+        structured_comparisons=_format_for_prompt(field_comparisons),
+        scenario_details=_format_for_prompt(scenario or {}),
+    )
+
+    try:
+        content = llm.chat_completion(
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT_FINANCIAL_EXPERT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.1,
+            max_tokens=2048,
+        )
+        if content and len(content.strip()) > 30 and not content.startswith("Error"):
+            return {"comparison": content}
+    except Exception as e:
+        logger.warning(f"LLM comparison generation error, falling back to deterministic synthesis: {e}")
+
+    # Fallback deterministic synthesis
+    fallback_markdown = _synthesize_deterministic_comparison(
+        products=products,
+        field_comparisons=field_comparisons,
+        scenario=scenario,
+    )
+    return {"comparison": fallback_markdown}

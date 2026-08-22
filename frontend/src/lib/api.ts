@@ -135,6 +135,42 @@ export interface BeforeConfirmationResponse {
   questions?: string[];
 }
 
+export interface ComparisonFieldItem {
+  field: string;
+  product_a?: { value?: any; unit?: string; condition?: string };
+  product_b?: { value?: any; unit?: string; condition?: string };
+  status_a?: string;
+  status_b?: string;
+  winner?: string;
+  [key: string]: any;
+}
+
+export interface LoanCompareRequest {
+  product_ids: string[];
+  scenario?: {
+    loan_amount?: number;
+    tenure_months?: number;
+    prepayment_month?: number;
+    [key: string]: any;
+  };
+}
+
+export interface LoanCompareResponse {
+  comparison_text?: string;
+  field_comparisons?: ComparisonFieldItem[];
+  products?: Product[];
+  summary?: {
+    total_products?: number;
+    comparison_complete?: boolean;
+    comparison_summary?: string;
+  };
+  winner_summary?: {
+    known_cost_a?: number;
+    known_cost_b?: number;
+  };
+}
+
+
 
 export interface DocumentUploadResponse {
   message: string;
@@ -287,6 +323,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  compare: (payload: LoanCompareRequest) =>
+    request<LoanCompareResponse>("/api/v1/analysis/compare", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
 
   // HITL & Feedback
   listHitlTasks: () => request<any[]>("/api/v1/hilt/tasks"),
