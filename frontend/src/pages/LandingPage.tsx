@@ -403,8 +403,9 @@ export function LandingPage() {
 
           <div className="mt-12 rounded-3xl border border-white/10 bg-surface/50 p-6 sm:p-10 backdrop-blur-xl shadow-2xl space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-              <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-center space-y-2">
-                <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/10 text-white font-bold text-sm">
+              {/* Step 1 */}
+              <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-center space-y-2 hover:border-white/20 transition-colors">
+                <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/10 text-white font-bold text-sm shadow-inner">
                   1
                 </div>
                 <h4 className="text-xs font-bold text-white">Your Documents</h4>
@@ -415,8 +416,9 @@ export function LandingPage() {
                 <ChevronRight className="h-6 w-6" />
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-center space-y-2">
-                <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/10 text-white font-bold text-sm">
+              {/* Step 2 */}
+              <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-center space-y-2 hover:border-white/20 transition-colors">
+                <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/10 text-white font-bold text-sm shadow-inner">
                   2
                 </div>
                 <h4 className="text-xs font-bold text-white">Hybrid Retrieval</h4>
@@ -427,18 +429,20 @@ export function LandingPage() {
                 <ChevronRight className="h-6 w-6" />
               </div>
 
-              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-center space-y-2">
-                <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-amber-400 text-black font-bold text-sm shadow-md">
+              {/* Step 3 */}
+              <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-center space-y-2 hover:border-white/20 transition-colors">
+                <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/10 text-white font-bold text-sm shadow-inner">
                   3
                 </div>
-                <h4 className="text-xs font-bold text-amber-300">Conflict Engine</h4>
-                <p className="text-[11px] text-amber-200/70">Deterministic cross-document discrepancy detector</p>
+                <h4 className="text-xs font-bold text-white">Conflict Engine</h4>
+                <p className="text-[11px] text-muted-foreground">Deterministic cross-document discrepancy detector</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-              <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-center space-y-2">
-                <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/10 text-white font-bold text-sm">
+              {/* Step 4 */}
+              <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-center space-y-2 hover:border-white/20 transition-colors">
+                <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/10 text-white font-bold text-sm shadow-inner">
                   4
                 </div>
                 <h4 className="text-xs font-bold text-white">Evidence Scoring</h4>
@@ -449,24 +453,26 @@ export function LandingPage() {
                 <ChevronRight className="h-6 w-6" />
               </div>
 
-              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-center space-y-2">
-                <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-emerald-400 text-black font-bold text-sm shadow-md">
+              {/* Step 5 */}
+              <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-center space-y-2 hover:border-white/20 transition-colors">
+                <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/10 text-white font-bold text-sm shadow-inner">
                   5
                 </div>
-                <h4 className="text-xs font-bold text-emerald-300">Claim Verification</h4>
-                <p className="text-[11px] text-emerald-200/70">Every numeric fact verified against source page & chunk</p>
+                <h4 className="text-xs font-bold text-white">Claim Verification</h4>
+                <p className="text-[11px] text-muted-foreground">Every numeric fact verified against source page & chunk</p>
               </div>
 
               <div className="hidden md:flex justify-center text-white/30">
                 <ChevronRight className="h-6 w-6" />
               </div>
 
-              <div className="rounded-2xl border border-white/20 bg-white text-black p-4 text-center space-y-2 shadow-xl">
-                <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-black text-white font-bold text-sm">
+              {/* Step 6 */}
+              <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-center space-y-2 hover:border-white/20 transition-colors">
+                <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/10 text-white font-bold text-sm shadow-inner">
                   6
                 </div>
-                <h4 className="text-xs font-bold text-black">Verified Answer</h4>
-                <p className="text-[11px] text-black/70">Clear explanation with exact citations and risk rating</p>
+                <h4 className="text-xs font-bold text-white">Verified Answer</h4>
+                <p className="text-[11px] text-muted-foreground">Clear explanation with exact citations and risk rating</p>
               </div>
             </div>
           </div>
