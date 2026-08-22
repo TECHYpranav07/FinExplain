@@ -13,6 +13,10 @@ from app.core.constants import DEFAULT_LLM_MODEL
 
 logger = logging.getLogger(__name__)
 from app.rag.generation.prompt_templates import (
+    SYSTEM_PROMPT_ASK_AI,
+    SYSTEM_PROMPT_LOAN_REVIEW,
+    SYSTEM_PROMPT_BEFORE_CONFIRMATION,
+    SYSTEM_PROMPT_LOAN_COMPARE,
     SYSTEM_PROMPT_FINANCIAL_EXPERT,
     QA_USER_PROMPT_TEMPLATE,
     LOAN_REVIEW_PROMPT,
@@ -68,7 +72,7 @@ def generate_answer(
     try:
         answer_text = llm.chat_completion(
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT_FINANCIAL_EXPERT},
+                {"role": "system", "content": SYSTEM_PROMPT_ASK_AI},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.1,
@@ -199,7 +203,7 @@ def generate_loan_review(
     try:
         content = llm.chat_completion(
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT_FINANCIAL_EXPERT},
+                {"role": "system", "content": SYSTEM_PROMPT_LOAN_REVIEW},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.1,
@@ -344,7 +348,7 @@ def generate_before_confirmation(
     try:
         content = llm.chat_completion(
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT_FINANCIAL_EXPERT},
+                {"role": "system", "content": SYSTEM_PROMPT_BEFORE_CONFIRMATION},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.1,
@@ -472,7 +476,7 @@ def generate_loan_comparison(
     try:
         content = llm.chat_completion(
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT_FINANCIAL_EXPERT},
+                {"role": "system", "content": SYSTEM_PROMPT_LOAN_COMPARE},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.1,
