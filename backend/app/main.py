@@ -35,21 +35,29 @@ app.include_router(feedback.router, prefix="/api/v1/feedback", tags=["Feedback"]
 app.include_router(analysis.router, prefix="/api/v1/analysis", tags=["Analysis"])
 
 import os
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, FileResponse
+
+frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "dist")
+frontend_assets = os.path.join(frontend_dist, "assets")
+
+if os.path.exists(frontend_assets):
+    app.mount("/assets", StaticFiles(directory=frontend_assets), name="assets")
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    frontend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "index.html")
-    if os.path.exists(frontend_path):
-        return FileResponse(frontend_path)
-    return {"message": "FinExplain API is running", "status": "healthy"}
+    index_path = os.path.join(frontend_dist, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return HTMLResponse("<h1>FinExplain API</h1><p>Frontend built bundle not found. Run 'npm run build' or use Vite dev server.</p>")
 
+@app.get("/app/{full_path:path}", response_class=HTMLResponse)
 @app.get("/app", response_class=HTMLResponse)
 async def serve_app():
-    frontend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "index.html")
-    if os.path.exists(frontend_path):
-        return FileResponse(frontend_path)
-    return HTMLResponse("<h1>FinExplain Frontend Console</h1><p>frontend/index.html not found.</p>")
+    index_path = os.path.join(frontend_dist, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return HTMLResponse("<h1>FinExplain Frontend Console</h1><p>Run 'npm run build' in frontend/ to generate dist bundle.</p>")
 
 @app.get("/health")
 async def health_check():
