@@ -66,14 +66,6 @@ def vector_search(
         return formatted_results
 
     except Exception as e:
-        logger.warning(f"Pinecone vector search failed: {e}")
+        logger.error(f"Pinecone cloud vector search error: {e}")
 
-    # FIN-019: Return empty list on failure instead of unranked local chunks.
-    # In development mode, fall back to local chunks for testing convenience.
-    if settings.is_development:
-        from app.db.repositories.chunk_repo import get_all_local_chunks
-        local = get_all_local_chunks(product_ids)
-        logger.info(f"[DEV MODE] Falling back to {len(local)} local chunks")
-        return local[:top_k]
-    
     return []
