@@ -174,11 +174,13 @@ export function DocumentAnalysisPage() {
                   <ScoreGauge
                     value={Math.round((analysisResult.confidence_score || 0.85) * 100)}
                     label="Confidence Score"
+                    description="Evidence & Provenance-Based (Measures retrieval relevance, metadata quality, and citation certainty)."
                     tone="success"
                   />
                   <ScoreGauge
                     value={analysisResult.risk_score || 25}
-                    label="Risk Level"
+                    label="Risk Rating"
+                    description="Document-Based (Derived deterministically from clauses and disclosure gaps found in your uploaded agreement)."
                     tone={analysisResult.risk_score && analysisResult.risk_score > 60 ? "danger" : "warning"}
                   />
                   <div className="flex flex-col gap-1">

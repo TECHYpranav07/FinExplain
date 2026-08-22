@@ -205,11 +205,13 @@ export function SkeletonRows({ rows = 4, className }: { rows?: number; className
 export function ScoreGauge({
   value,
   label,
+  description,
   tone = "neutral",
   max = 100,
 }: {
   value: number;
   label: string;
+  description?: string;
   tone?: "neutral" | "success" | "warning" | "danger" | "info";
   max?: number;
 }) {
@@ -227,8 +229,8 @@ export function ScoreGauge({
   const r = 34;
   const c = 2 * Math.PI * r;
   return (
-    <div className="flex items-center gap-3">
-      <svg width="80" height="80" viewBox="0 0 84 84" role="img" aria-label={`${label}: ${value}`}>
+    <div className="flex items-start gap-3">
+      <svg width="74" height="74" viewBox="0 0 84 84" className="shrink-0" role="img" aria-label={`${label}: ${value}`}>
         <circle cx="42" cy="42" r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="6" />
         <circle
           cx="42"
@@ -254,9 +256,14 @@ export function ScoreGauge({
           {Math.round(value)}
         </text>
       </svg>
-      <div>
-        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
-        <p className="text-xs text-white/70">{value}/{max}</p>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+        <p className="text-xs text-white/90 font-medium">{value}/{max}</p>
+        {description && (
+          <p className="text-[10px] text-white/60 leading-tight mt-1 line-clamp-2" title={description}>
+            {description}
+          </p>
+        )}
       </div>
     </div>
   );

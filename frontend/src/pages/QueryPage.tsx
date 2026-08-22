@@ -146,11 +146,13 @@ export function QueryPage() {
             <ScoreGauge
               value={Math.round((currentResult.confidence_score || 0.9) * 100)}
               label="Confidence Score"
+              description="Evidence & Provenance-Based (Measures retrieval relevance, metadata quality, and citation certainty)."
               tone="success"
             />
             <ScoreGauge
               value={currentResult.risk_score || 20}
               label="Risk Rating"
+              description="Document-Based (Derived deterministically from clauses and disclosure gaps found in your uploaded agreement)."
               tone={currentResult.risk_score && currentResult.risk_score > 50 ? "danger" : "warning"}
             />
             <div className="flex flex-col justify-center gap-2">
