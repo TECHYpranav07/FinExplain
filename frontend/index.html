@@ -689,6 +689,26 @@
       el.style.display = el.style.display === "none" ? "block" : "none";
     }
 
+    async function safeFetchJson(url, options = {}) {
+      const res = await fetch(url, options);
+      let data;
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        try {
+          data = await res.json();
+        } catch (e) {
+          data = { detail: `Failed to parse response JSON: ${e.message}` };
+        }
+      } else {
+        const text = await res.text();
+        data = { detail: text || `Server returned status ${res.status} (${res.statusText})` };
+      }
+      if (!res.ok) {
+        throw new Error(data.detail || `Server error: HTTP ${res.status}`);
+      }
+      return data;
+    }
+
     // TAB 1: Submit Ask Query
     async function submitQuery() {
       dismissError();
@@ -707,17 +727,11 @@
       document.getElementById("query-results").style.display = "none";
 
       try {
-        const res = await fetch(`${API_BASE}/api/v1/queries/ask`, {
+        const data = await safeFetchJson(`${API_BASE}/api/v1/queries/ask`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ question, product_ids }),
         });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.detail || `Server returned status ${res.status}`);
-        }
 
         renderQueryResults(data);
       } catch (err) {
@@ -842,13 +856,11 @@
       btn.innerHTML = "<span>Analyzing Terms...</span>";
 
       try {
-        const res = await fetch(`${API_BASE}/api/v1/analysis/review`, {
+        const data = await safeFetchJson(`${API_BASE}/api/v1/analysis/review`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ product_ids }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
 
         document.getElementById("review-results").style.display = "block";
         document.getElementById("review-text").innerText = data.review_text || JSON.stringify(data.review, null, 2);
@@ -886,13 +898,11 @@
       btn.innerHTML = "<span>Building Checklist...</span>";
 
       try {
-        const res = await fetch(`${API_BASE}/api/v1/analysis/before-confirmation`, {
+        const data = await safeFetchJson(`${API_BASE}/api/v1/analysis/before-confirmation`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ product_ids }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
 
         document.getElementById("checklist-results").style.display = "block";
         document.getElementById("checklist-text").innerText = data.checklist_text || "Checklist generated.";
@@ -940,12 +950,10 @@
       btn.innerHTML = "<span>Uploading & Indexing...</span>";
 
       try {
-        const res = await fetch(`${API_BASE}/api/v1/documents/upload`, {
+        const data = await safeFetchJson(`${API_BASE}/api/v1/documents/upload`, {
           method: "POST",
           body: formData,
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
 
         document.getElementById("upload-results").style.display = "block";
         document.getElementById("upload-json").innerText = JSON.stringify(data, null, 2);
@@ -962,9 +970,8 @@
       const out = document.getElementById("diag-output");
       out.innerText = `Pinging ${API_BASE}${path}...`;
       try {
-        const res = await fetch(`${API_BASE}${path}`);
-        const data = await res.json();
-        out.innerText = `STATUS: HTTP ${res.status}\n\nRESPONSE:\n${JSON.stringify(data, null, 2)}`;
+        const data = await safeFetchJson(`${API_BASE}${path}`);
+        out.innerText = `STATUS: HTTP 200 OK\n\nRESPONSE:\n${JSON.stringify(data, null, 2)}`;
       } catch (err) {
         out.innerText = `REQUEST FAILED:\n\n${err.message}`;
         showError(`Diagnostic Ping Failed (${path})`, err.message);

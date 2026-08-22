@@ -28,7 +28,10 @@ Pipeline stages:
   20. Cache storage
 """
 
+import logging
 from typing import List, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 from app.rag.retrieval.hybrid_retriever import hybrid_search
 from app.rag.retrieval.reranker import rerank_chunks
@@ -77,19 +80,19 @@ def process_query(
     # Step 1: Classify intent
     # ===================================================================
     intent_result = classify_intent(question)
-    print(f"[Orchestrator] Intent: {intent_result.intent}, Confidence: {intent_result.confidence}")
+    logger.info(f"[Orchestrator] Intent: {intent_result.intent}, Confidence: {intent_result.confidence}")
 
     # ===================================================================
     # Step 2: Rewrite query
     # ===================================================================
     rewritten_query = rewrite_query(question, intent_result.intent) or question
-    print(f"[Orchestrator] Rewritten Query: {rewritten_query}")
+    logger.info(f"[Orchestrator] Rewritten Query: {rewritten_query}")
 
     # ===================================================================
     # Step 3: Generate multi-queries
     # ===================================================================
     queries = generate_multi_queries(rewritten_query, num_queries=3)
-    print(f"[Orchestrator] Multi-queries: {queries}")
+    logger.info(f"[Orchestrator] Multi-queries: {queries}")
 
     # ===================================================================
     # Step 4: Hybrid retrieval
@@ -116,7 +119,7 @@ def process_query(
     # ===================================================================
     chunk_conflicts = detect_conflicts(retrieved_chunks)
     if chunk_conflicts:
-        print(f"[Orchestrator] Chunk-level conflicts detected: {len(chunk_conflicts)}")
+        logger.info(f"[Orchestrator] Chunk-level conflicts detected: {len(chunk_conflicts)}")
 
     # ===================================================================
     # Step 6: Rerank
@@ -146,7 +149,7 @@ def process_query(
     # ===================================================================
     # Step 8: Structured fact extraction
     # ===================================================================
-    print("[Orchestrator] Extracting structured facts...")
+    logger.info("[Orchestrator] Extracting structured facts...")
     product_name = None
     document_name = None
     if reranked_chunks:
@@ -159,7 +162,7 @@ def process_query(
         product_name=product_name,
         document_name=document_name,
     )
-    print(f"[Orchestrator] Extracted {len(structured_facts)} structured facts")
+    logger.info(f"[Orchestrator] Extracted {len(structured_facts)} structured facts")
 
     # ===================================================================
     # Step 9: Condition annotation (deterministic)
@@ -171,7 +174,7 @@ def process_query(
     # ===================================================================
     missing_info = detect_missing_information(structured_facts)
     if missing_info:
-        print(f"[Orchestrator] Missing information: {[m['field'] for m in missing_info]}")
+        logger.info(f"[Orchestrator] Missing information: {[m['field'] for m in missing_info]}")
 
     # ===================================================================
     # Step 11: Fact-level conflict detection (deterministic)
@@ -179,7 +182,7 @@ def process_query(
     fact_conflicts = detect_fact_conflicts(structured_facts)
     all_conflicts = chunk_conflicts + fact_conflicts
     if fact_conflicts:
-        print(f"[Orchestrator] Fact-level conflicts detected: {len(fact_conflicts)}")
+        logger.info(f"[Orchestrator] Fact-level conflicts detected: {len(fact_conflicts)}")
 
     # ===================================================================
     # Step 12: Scenario extraction (if calculation intent)
@@ -188,7 +191,7 @@ def process_query(
     if intent_result.intent in ("calculation", "comparison"):
         scenario = extract_user_scenario(question)
         if scenario:
-            print(f"[Orchestrator] Extracted scenario: {scenario}")
+            logger.info(f"[Orchestrator] Extracted scenario: {scenario}")
 
     # ===================================================================
     # Step 13: Calculation engine (deterministic)
@@ -217,7 +220,7 @@ def process_query(
             processing_fee=processing_fee_rate,
             evidence_ids=[f.source_chunk_id for f in structured_facts if f.source_chunk_id],
         )
-        print(f"[Orchestrator] Calculation complete. Unknown costs: {calculation_result.get('unknown_costs', [])}")
+        logger.info(f"[Orchestrator] Calculation complete. Unknown costs: {calculation_result.get('unknown_costs', [])}")
 
     # ===================================================================
     # Step 14: Cost driver & Risk factor detection (deterministic)
@@ -271,9 +274,9 @@ def process_query(
     # ===================================================================
     # Step 16: Claim-level verification
     # ===================================================================
-    print("[Orchestrator] Verifying claims...")
+    logger.info("[Orchestrator] Verifying claims...")
     claim_results = verify_all_claims(answer_text, structured_facts, reranked_chunks)
-    print(
+    logger.info(
         f"[Orchestrator] Claims: {claim_results['total_claims']}, "
         f"Supported: {claim_results['supported_claims']}, "
         f"Unsupported: {claim_results['unsupported_claims']}"
@@ -290,7 +293,7 @@ def process_query(
         calculation_result=calculation_result,
         rerank_scores=rerank_scores,
     )
-    print(f"[Orchestrator] Evidence score: {evidence_score_result['score']}/100 ({evidence_score_result['label']})")
+    logger.info(f"[Orchestrator] Evidence score: {evidence_score_result['score']}/100 ({evidence_score_result['label']})")
 
     # ===================================================================
     # Step 18: Response validation (deterministic)
@@ -303,7 +306,7 @@ def process_query(
         calculation_result,
     )
     if not validation["valid"]:
-        print(f"[Orchestrator] Validation issues: {validation['issues']}")
+        logger.info(f"[Orchestrator] Validation issues: {validation['issues']}")
         answer_text = validation["sanitized_answer"]
 
     # ===================================================================

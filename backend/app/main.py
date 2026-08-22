@@ -1,7 +1,17 @@
 import os
+import sys
+
+# Ensure UTF-8 output encoding across Windows consoles
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 os.environ["USE_TF"] = "0"
 os.environ["USE_TORCH"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["PYTHONIOENCODING"] = "utf-8"
+os.environ["PYTHONUTF8"] = "1"
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
