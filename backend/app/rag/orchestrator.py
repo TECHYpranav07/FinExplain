@@ -472,11 +472,11 @@ def process_query(
             f"Discrepancy detected across document sources ({len(all_conflicts)} conflict(s) identified). "
             "Borrower or loan officer verification required before executing agreement."
         )
-    elif risk_score_result.get("score", 0) >= 70 and intent_result.intent in ("review", "summary", "comparison"):
+    elif (risk_score_result.get("score") or 0) >= 70 and intent_result.intent in ("review", "summary", "comparison"):
         hitl_required = True
         hitl_type = "RISK_ACCEPTANCE"
         hitl_reason = (
-            f"Document-derived Risk Rating is {risk_score_result.get('score', 0)}/100 ({risk_score_result.get('level', 'HIGH')}). "
+            f"Document-derived Risk Rating is {risk_score_result.get('score') or 0}/100 ({risk_score_result.get('level') or 'HIGH'}). "
             "Predatory penalty terms or significant cost disclosure gaps require explicit acknowledgment."
         )
     elif targeted_missing:
