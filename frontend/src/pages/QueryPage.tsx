@@ -139,7 +139,12 @@ export function QueryPage() {
 
       // Remove any pending temporary message
       const cleanedMessages = activeSession.messages.filter((m) => !m.isPending);
-      const updatedMessages = [...cleanedMessages, userMessage, assistantMessage];
+      const hasUserMessage = cleanedMessages.some(
+        (m) => m.role === "user" && m.content.trim() === variables.q.trim()
+      );
+      const updatedMessages = hasUserMessage
+        ? [...cleanedMessages, assistantMessage]
+        : [...cleanedMessages, userMessage, assistantMessage];
 
       // Auto-title if it was the first query
       const newTitle =

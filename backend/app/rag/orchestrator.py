@@ -411,12 +411,17 @@ def process_query(
     grounded = ground_answer(answer_text, reranked_chunks, rerank_scores)
 
     # Construct transparent why_this_answer explanation
-    if not validation["valid"] or overall_status == "NOT_SPECIFIED":
+    if overall_status == "NOT_SPECIFIED" and intent_result.intent == "recommendation":
         why_this_answer = (
             "You asked for subjective recommendation advice (e.g. why to choose or avoid this loan) with exact citations. "
             "Because loan agreements only contain legal terms, fees, and interest benchmarks—not promotional advice—"
             "synthesized claims could not be verified against the source text. "
             "To prevent AI hallucinations, FinExplain blocked ungrounded statements and generated actionable lender questions instead."
+        )
+    elif not validation["valid"] and claim_results.get("unsupported_claims", 0) > 0:
+        why_this_answer = (
+            "Certain claims could not be verified with complete evidence from the document. "
+            "FinExplain flagged unverified aspects to maintain accuracy."
         )
     elif overall_status in ("CONFLICTED", "MIXED"):
         why_this_answer = (
@@ -425,12 +430,12 @@ def process_query(
         )
     elif overall_status == "PARTIAL":
         why_this_answer = (
-            "The retrieved evidence supports only part of your inquiry. "
-            "FinExplain provided the verified facts and flagged the unverified aspects."
+            "The retrieved evidence supports part of your inquiry. "
+            "FinExplain provided the verified facts and flagged unverified terms."
         )
     elif overall_status == "CONDITIONAL":
         why_this_answer = (
-            "Terms are subject to preconditions (e.g. fee waivers based on tenure). "
+            "Terms are subject to specific preconditions (e.g. conditional fees or penalty terms). "
             "FinExplain validated that clauses only apply under specific circumstances."
         )
     else:
@@ -445,25 +450,33 @@ def process_query(
     hitl_reason = None
     hitl_type = "GENERAL"
 
-    if overall_status in ("CONFLICTED", "MIXED") or all_conflicts:
+    # Check if user query directly targets a missing field
+    q_lower = clean_question.lower()
+    targeted_missing = [
+        m for m in missing_info 
+        if m.get("field") in ("apr", "interest_rate", "repayment_schedule") 
+        and (m.get("field", "").replace("_", " ") in q_lower or (m.get("field") == "apr" and "apr" in q_lower))
+    ]
+
+    if overall_status in ("CONFLICTED", "MIXED") or (all_conflicts and len(all_conflicts) > 0 and ("conflict" in q_lower or intent_result.intent in ("comparison", "review"))):
         hitl_required = True
         hitl_type = "CONFLICT_REVIEW"
         hitl_reason = (
             f"Discrepancy detected across document sources ({len(all_conflicts)} conflict(s) identified). "
             "Borrower or loan officer verification required before executing agreement."
         )
-    elif risk_score_result.get("score", 0) >= 70:
+    elif risk_score_result.get("score", 0) >= 70 and intent_result.intent in ("review", "summary", "comparison"):
         hitl_required = True
         hitl_type = "RISK_ACCEPTANCE"
         hitl_reason = (
             f"Document-derived Risk Rating is {risk_score_result.get('score', 0)}/100 ({risk_score_result.get('level', 'HIGH')}). "
             "Predatory penalty terms or significant cost disclosure gaps require explicit acknowledgment."
         )
-    elif missing_info and any(m.get("field") in ("apr", "interest_rate", "repayment_schedule") for m in missing_info):
+    elif targeted_missing:
         hitl_required = True
         hitl_type = "DISCLOSURE_GAP"
         hitl_reason = (
-            "Mandatory regulatory disclosure parameters (such as APR or repayment schedule) are missing from the uploaded documents."
+            f"The requested parameter ('{targeted_missing[0].get('field', '').replace('_', ' ').upper()}') is missing from the uploaded documents."
         )
 
     result: Dict[str, Any] = {
