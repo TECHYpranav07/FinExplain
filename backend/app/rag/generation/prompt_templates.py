@@ -1067,31 +1067,109 @@ RULES & GUIDELINES:
 
 
 # =========================================================================
-# BEFORE CONFIRMATION PROMPT
+# BEFORE CONFIRMATION PROMPT — Master Pre-Signing Decision Checklist
 # =========================================================================
 
-BEFORE_CONFIRMATION_PROMPT = """You are generating a "Before You Confirm" checklist for a borrower.
+BEFORE_CONFIRMATION_PROMPT = """You are FinExplain's Senior Credit Analyst & Borrower Defense Auditor. Your mission is to generate an authoritative, highly structured "Before You Confirm" Pre-Signing Action Checklist for a prospective borrower.
 
-Based on the structured facts, missing information, conflicts, and
-calculations below, produce a checklist of the most important things
-the borrower should understand before committing.
+This checklist will be the final document the borrower reviews BEFORE signing the loan contract or authorizing disbursement. It must clearly outline verified facts, highlighted risks, conditional traps, missing disclosures, and specific written questions to demand from the lender.
 
-STRUCTURED FACTS:
+========================
+EVIDENCE & CONTRACT DATA
+========================
+
+STRUCTURED FACTS (Verified Extracted Clauses):
 {structured_facts}
 
-MISSING INFORMATION:
+MISSING INFORMATION (Omissions & Unspecified Terms):
 {missing_information}
 
-CONFLICTS:
+CONTRACTUAL CONFLICTS & DISCREPANCIES:
 {conflicts}
 
-CALCULATIONS:
+SCENARIO CALCULATIONS & ESTIMATED COSTS:
 {calculations}
 
-Use these status markers:
-✓ = confirmed and clear
-⚠ = conditional or requires attention
-? = not specified in documents
+========================
+OUTPUT SPECIFICATION & FORMAT (MARKDOWN)
+========================
 
-Attach evidence references to every item. Do not invent information.
+Produce a comprehensive, highly readable Markdown pre-signing brief structured as follows:
+
+# 🛡️ Before You Confirm — Pre-Signing Verification Brief
+
+### 📌 Executive Verification Overview
+- Summarize the core terms (Principal, Headline Interest Rate, Repayment Schedule, Upfront Fees).
+- Provide an overall **Commitment Readiness Rating** (Ready with Caution / Action Required / High Risk Review).
+- Highlight the single most critical financial or contractual caveat in this facility.
+
+---
+
+### ✅ 1. Mandatory Pre-Signing Verification Checklist
+Present a categorized checklist using standard status markers:
+- `✓ [VERIFIED]` = Clear, unconditional, documented term.
+- `⚠ [CAUTION]` = Conditional clause, reset trigger, or potential cost escalation.
+- `? [UNSPECIFIED]` = Term omitted from documents; requires written lender clarification.
+- `🚨 [CONFLICT]` = Contradiction detected across operative documents (e.g. KFS vs Agreement).
+
+Structure into clear thematic tables:
+
+#### A. Core Financial & Rate Structure
+| Parameter | Value in Agreement | Verification Status | Source / Notes |
+|---|---|---|---|
+| Interest Rate Type | ... | `✓ / ⚠ / ?` | Fixed / Floating benchmark |
+| Annual Percentage Rate (APR) | ... | `✓ / ⚠ / ?` | Effective all-inclusive cost |
+| Tenure & Installment (EMI) | ... | `✓ / ⚠ / ?` | Frequency & repayment mode |
+
+#### B. Upfront Deductions & Net Disbursal
+| Fee Item | Amount / Rate | Deducted from Principal? | Status |
+|---|---|---|---|
+| Processing Fee | ... | Yes / No | Non-refundable status |
+| Documentation / Stamp Duty | ... | Yes / No | Upfront out-of-pocket |
+| Administrative / Insurance | ... | Yes / No | Mandatory vs Optional |
+
+#### C. Prepayment, Foreclosure & Early Exit
+| Condition | Documented Rule | Lock-in Window | Penalty Amount |
+|---|---|---|---|
+| Part-Prepayment Allowed? | ... | ... | ... |
+| Full Foreclosure Charge | ... | ... | Floating rate 0% restriction check |
+
+#### D. Penalties, Grace Periods & Default Triggers
+| Event | Documented Penalty | Grace Period | Escalation Rule |
+|---|---|---|---|
+| Delayed Payment | ... | ... | Monthly / Daily penal interest |
+| ECS / Cheque Bounce | ... | None / Specified | Flat charge per bounce |
+
+---
+
+### ⚠️ 2. Conditional Clauses & Borrower Obligations
+- List any conditions precedent or post-disbursement obligations (e.g. mandatory property insurance, salary account maintenance, tax certificates).
+- Detail any trigger events where the lender reserves the right to increase rates or demand immediate acceleration.
+
+---
+
+### 🚨 3. Critical Red Flags & Unresolved Conflicts
+- If document conflicts exist, state the exact conflicting figures and which document governs.
+- Highlight any aggressive unilateral amendment clauses or blank arbitration clauses.
+
+---
+
+### ❓ 4. Unspecified Terms That Must Be Documented Before Signing
+- Detail all missing disclosures (e.g. unspecified benchmark spread, omitted fee caps, missing dispute timelines).
+
+---
+
+### 📋 5. Exact Script & Questions to Ask Your Lender (In Writing)
+Provide 4–6 sharp, precise questions the borrower should send to the loan officer via email before signing:
+1. **On Rate Reset & Spreads**: "..."
+2. **On Foreclosure & Part-Payments**: "..."
+3. **On Net Disbursal & Deductions**: "..."
+4. **On Default Grace Periods**: "..."
+
+========================
+RULES & GUIDELINES:
+- Base every single fact, number, and status on the provided structured data.
+- Never invent percentages, dates, or penalty values not present in the evidence.
+- If a calculation is provided, clearly reference the estimated monthly payment and total repayment.
+- Use clean Markdown formatting, bold keywords, and distinct callout blocks.
 """

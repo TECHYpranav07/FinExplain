@@ -5,7 +5,7 @@ Generates a structured review of extracted facts, missing information,
 conflicts, and cost drivers — without requiring a user question.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 from app.core.loan_categories import LoanFact, EvidenceStatus
 
@@ -77,47 +77,91 @@ def generate_before_confirmation_checklist(
     calculations: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Produce the ✓ / ⚠ / ? checklist items with evidence attached.
-
-    Returns a list of checklist items::
-
-        [
-            {
-                "item": "APR: 10.5%",
-                "marker": "✓",
-                "status": "EXPLICIT",
-                "evidence": { ... },
-            },
-            ...
-        ]
+    Produce the ✓ / ⚠ / ? / 🚨 checklist items with rich actionable metadata and evidence.
     """
     checklist: List[Dict[str, Any]] = []
 
+    def _get_category_and_action(category: str, field: str, value: Any, condition: Optional[str]) -> Tuple[str, str, str, str]:
+        cat_lower = category.lower()
+        field_lower = field.lower()
+
+        if "interest" in cat_lower or "rate" in cat_lower or "apr" in cat_lower:
+            return (
+                "Interest & Rates",
+                "HIGH",
+                f"Verify that {field.replace('_', ' ')} is locked and matches the agreed rate sheet.",
+                "Is this rate fixed for the full tenure or linked to an external benchmark spread?",
+            )
+        elif "processing" in cat_lower or "origination" in cat_lower or "documentation" in cat_lower or "fee" in cat_lower:
+            return (
+                "Upfront Fees & Deductions",
+                "MEDIUM",
+                f"Confirm whether {field.replace('_', ' ')} is deducted from loan principal at disbursement.",
+                "Will this fee be deducted from the disbursed amount or collected separately?",
+            )
+        elif "prepay" in cat_lower or "foreclosure" in cat_lower or "early" in cat_lower:
+            return (
+                "Prepayment & Exit Rules",
+                "HIGH",
+                "Check for minimum lock-in periods and confirm zero penalty rules for floating rates.",
+                "Can I make partial prepayments at any time without advance notice penalties?",
+            )
+        elif "late" in cat_lower or "penalty" in cat_lower or "default" in cat_lower or "bounce" in cat_lower:
+            return (
+                "Penalties & Default Terms",
+                "HIGH",
+                "Verify the exact grace period duration before penal interest or default charges accrue.",
+                "What is the exact grace period in days before late charges are applied?",
+            )
+        elif "tenure" in cat_lower or "repayment" in cat_lower:
+            return (
+                "Tenure & Repayment",
+                "MEDIUM",
+                "Verify the total number of installments, EMI amount, and auto-debit dates.",
+                "What is the exact monthly EMI due date and auto-debit process?",
+            )
+        else:
+            return (
+                "General Conditions",
+                "LOW",
+                "Review clause terms against lender policy.",
+                "Are there any additional conditions attached to this clause?",
+            )
+
+    # 1. Add factual items from document
     for fact in facts:
         if fact.category in (
             "interest_rate", "apr", "processing_fee", "other_fee",
             "early_repayment", "prepayment", "late_payment", "default_penalty",
-            "fee_waiver", "eligibility", "loan_tenure",
+            "fee_waiver", "eligibility", "loan_tenure", "condition", "exception",
         ):
             if fact.status == EvidenceStatus.EXPLICIT:
                 marker = "✓"
-            elif fact.status == EvidenceStatus.CONDITIONAL:
-                marker = "⚠"
-            elif fact.status == EvidenceStatus.MIXED:
+            elif fact.status in (EvidenceStatus.CONDITIONAL, EvidenceStatus.MIXED):
                 marker = "⚠"
             else:
                 marker = "?"
 
             label = fact.field.replace("_", " ").title()
-            value_str = f"{fact.value}" if fact.value else "see document"
+            value_str = f"{fact.value}" if fact.value else "Mentioned in document"
             if fact.unit:
                 value_str += f" {fact.unit}"
 
+            group_cat, priority, action, question = _get_category_and_action(
+                fact.category, fact.field, fact.value, fact.condition
+            )
+
             checklist.append({
                 "item": f"{label}: {value_str}",
+                "title": label,
+                "value": value_str,
+                "category": group_cat,
+                "priority": priority,
                 "marker": marker,
                 "status": fact.status.value,
                 "condition": fact.condition,
+                "action_guidance": action,
+                "suggested_question": question,
                 "evidence": {
                     "document": fact.source_document,
                     "page": fact.page,
@@ -126,23 +170,39 @@ def generate_before_confirmation_checklist(
                 },
             })
 
-    # Add missing fields
+    # 2. Add material omissions / missing fields
     for m in missing:
+        field_name = m.get("field", "Item").replace("_", " ").title()
+        reason = m.get("reason", "Not specified in document.")
         checklist.append({
-            "item": m["field"].replace("_", " ").title(),
+            "item": f"{field_name}: Not Documented",
+            "title": field_name,
+            "value": "Not Specified",
+            "category": "Missing Disclosures",
+            "priority": "HIGH",
             "marker": "?",
             "status": "NOT_SPECIFIED",
-            "condition": None,
+            "condition": reason,
+            "action_guidance": f"Request written clarification for {field_name.lower()} before loan confirmation.",
+            "suggested_question": f"Can you provide the official schedule and policy for {field_name.lower()} in writing?",
             "evidence": None,
         })
 
-    # Add conflicts
+    # 3. Add contractual conflicts
     for c in conflicts:
+        field_name = c.get("field", "Contract Clause").replace("_", " ").title()
+        desc = c.get("description", "Discrepancy detected across operative documents.")
         checklist.append({
-            "item": f"{c.get('field', 'Unknown')}: conflict detected",
-            "marker": "⚠",
+            "item": f"CONFLICT: {field_name}",
+            "title": f"Conflict in {field_name}",
+            "value": "Contradictory Values",
+            "category": "Contract Discrepancies",
+            "priority": "HIGH",
+            "marker": "🚨",
             "status": "MIXED",
-            "condition": None,
+            "condition": desc,
+            "action_guidance": "Resolve the discrepancy between the Key Fact Statement and Loan Agreement prior to signing.",
+            "suggested_question": f"Which document takes legal precedence regarding {field_name.lower()}?",
             "evidence": c.get("values"),
         })
 

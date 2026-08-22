@@ -81,3 +81,4 @@ class BeforeConfirmationRequest(BaseModel):
 class BeforeConfirmationResponse(BaseModel):
     checklist: List[Dict[str, Any]] = Field(default_factory=list)
     checklist_text: Optional[str] = None
+    summary: Optional[Dict[str, Any]] = None

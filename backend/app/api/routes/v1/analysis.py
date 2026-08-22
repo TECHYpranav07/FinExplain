@@ -173,8 +173,25 @@ async def before_confirmation(
         conflicts=extracted["conflicts"],
     )
 
+    # Compute summary metrics
+    verified_count = sum(1 for c in checklist if c.get("marker") == "✓")
+    caution_count = sum(1 for c in checklist if c.get("marker") == "⚠")
+    missing_count = sum(1 for c in checklist if c.get("marker") == "?")
+    conflict_count = sum(1 for c in checklist if c.get("marker") == "🚨")
+
+    summary = {
+        "total_items": len(checklist),
+        "verified_items": verified_count,
+        "caution_items": caution_count,
+        "missing_items": missing_count,
+        "conflict_items": conflict_count,
+        "total_facts_reviewed": len(extracted["facts"]),
+    }
+
     return {
         "checklist": checklist,
         "checklist_text": checklist_text_result.get("checklist"),
+        "summary": summary,
     }
+
 

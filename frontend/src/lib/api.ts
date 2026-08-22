@@ -107,20 +107,34 @@ export interface ChecklistItem {
   marker?: string;
   item?: string;
   title?: string;
+  value?: string;
+  category?: string;
+  priority?: "HIGH" | "MEDIUM" | "LOW" | string;
   condition?: string;
   status?: string;
-  evidence?: { document?: string; page?: number };
+  action_guidance?: string;
+  suggested_question?: string;
+  evidence?: { document?: string; page?: number; section?: string; chunk_id?: string };
 }
 
 export interface BeforeConfirmationResponse {
   checklist_text?: string;
   checklist?: ChecklistItem[];
+  summary?: {
+    total_items?: number;
+    verified_items?: number;
+    caution_items?: number;
+    missing_items?: number;
+    conflict_items?: number;
+    total_facts_reviewed?: number;
+  };
   risk_factors?: RiskFactor[];
   cost_drivers?: CostDriver[];
   key_facts?: StructuredFact[];
   missing_information?: MissingInformation[];
   questions?: string[];
 }
+
 
 export interface DocumentUploadResponse {
   message: string;
