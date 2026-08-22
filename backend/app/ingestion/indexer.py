@@ -22,7 +22,8 @@ def index_document_chunks(
             "metadata": {
                 "document_id": document_id,
                 "product_id": product_id,
-                "page_number": chunk.get("page_number", 1),
+                "page_num": chunk.get("page_number", chunk.get("page_num", 1)),
+                "section_title": chunk.get("section_name", chunk.get("section_title", "")),
                 "text": chunk.get("text", "")[:1000]  # Store preview in Pinecone
             }
         })
@@ -36,9 +37,9 @@ def index_document_chunks(
         db_chunks.append({
             "id": chunk["id"],
             "document_id": document_id,
-            "parent_id": chunk.get("parent_id"),
-            "chunk_index": chunk.get("chunk_index", 0),
-            "content": chunk.get("text", ""),
+            "parent_chunk_id": chunk.get("parent_chunk_id", chunk.get("parent_id")),
+            "section_name": chunk.get("section_name", chunk.get("section_title")),
+            "text": chunk.get("text", chunk.get("content", "")),
             "page_number": chunk.get("page_number", 1),
             "token_count": len(chunk.get("text", "")) // 4
         })

@@ -1,119 +1,198 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import re
+import uuid
 
 # Default token estimation (rough: 4 chars per token)
 def estimate_tokens(text: str) -> int:
     return len(text) // 4
 
+
+def _resolve_section_title(
+    page_sections: List[Dict[str, Any]],
+    text_position: int,
+    page_text: str,
+) -> Optional[str]:
+    """
+    Given a list of section headings detected on a page and a character
+    position within the page text, return the most recent heading that
+    appears before (or at) *text_position*.  If none is found, return None.
+    """
+    best_title: Optional[str] = None
+    for sec in page_sections:
+        title = sec.get("title", "")
+        idx = page_text.find(title)
+        if idx != -1 and idx <= text_position:
+            best_title = title
+    return best_title
+
+
 def chunk_hierarchical(
-    pages: List[Dict[str, Any]], 
-    child_token_size: int = 200, 
-    parent_token_size: int = 800
+    pages: List[Dict[str, Any]],
+    child_token_size: int = 200,
+    parent_token_size: int = 800,
+    document_name: Optional[str] = None,
+    product_name: Optional[str] = None,
+    effective_date: Optional[str] = None,
+    document_version: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Creates hierarchical chunks:
     - Child chunks: small (200 tokens) for high-precision retrieval.
     - Parent chunks: larger (800 tokens) providing full context.
-    
+
+    Each chunk carries rich metadata:
+    - ``chunk_id``      – stable UUID
+    - ``section_title`` – nearest heading from the page
+    - ``document_name`` / ``product_name`` / ``effective_date`` / ``document_version``
+
     Returns a list of chunks with metadata.
     """
-    chunks = []
-    chunk_id_counter = 0
-    
+    chunks: List[Dict[str, Any]] = []
+
     for page in pages:
         page_num = page["page_num"]
         text = page["text"]
-        
-        # Split text into sentences (rough split by periods/newlines)
+        page_sections = page.get("sections", [])
+
+        # Split text into sentences (rough split by periods/newlines).
+        # IMPORTANT: Do NOT strip conditional language ("if", "unless",
+        # "subject to", etc.) — they are financially significant.
         sentences = re.split(r'(?<=[.!?])\s+|(?<=\n)\s*', text)
         sentences = [s.strip() for s in sentences if s.strip()]
-        
+
         # Build child chunks
         current_child = ""
         current_child_tokens = 0
-        child_chunks_for_page = []
-        
+        current_child_start_pos = 0  # char offset in page text
+        child_chunks_for_page: List[Dict[str, Any]] = []
+
         for sentence in sentences:
             sentence_tokens = estimate_tokens(sentence)
-            
+
             if current_child_tokens + sentence_tokens > child_token_size and current_child:
                 # Save current child chunk
+                section = _resolve_section_title(
+                    page_sections, current_child_start_pos, text
+                )
                 child_chunks_for_page.append({
+                    "chunk_id": str(uuid.uuid4()),
                     "text": current_child.strip(),
                     "token_count": current_child_tokens,
                     "page_num": page_num,
+                    "section_title": section,
+                    "document_name": document_name,
+                    "product_name": product_name,
+                    "effective_date": effective_date,
+                    "document_version": document_version,
                 })
+                current_child_start_pos = text.find(sentence, current_child_start_pos)
                 current_child = sentence
                 current_child_tokens = sentence_tokens
             else:
+                if not current_child:
+                    current_child_start_pos = text.find(sentence)
                 current_child += " " + sentence
                 current_child_tokens += sentence_tokens
-        
+
         # Add the last child chunk
         if current_child:
+            section = _resolve_section_title(
+                page_sections, current_child_start_pos, text
+            )
             child_chunks_for_page.append({
+                "chunk_id": str(uuid.uuid4()),
                 "text": current_child.strip(),
                 "token_count": current_child_tokens,
                 "page_num": page_num,
+                "section_title": section,
+                "document_name": document_name,
+                "product_name": product_name,
+                "effective_date": effective_date,
+                "document_version": document_version,
             })
-        
+
         # Now build parent chunks by grouping child chunks
-        parent_chunks = []
+        parent_chunks: List[Dict[str, Any]] = []
         current_parent_text = ""
         current_parent_tokens = 0
-        parent_child_ids = []
-        
-        for i, child in enumerate(child_chunks_for_page):
+        parent_child_ids: List[str] = []
+        parent_section: Optional[str] = None
+
+        for child in child_chunks_for_page:
             child_text = child["text"]
             child_tokens = child["token_count"]
-            
+
             if current_parent_tokens + child_tokens > parent_token_size and current_parent_text:
-                # Save parent chunk with its child ids
                 parent_chunks.append({
+                    "chunk_id": str(uuid.uuid4()),
                     "text": current_parent_text.strip(),
                     "token_count": current_parent_tokens,
                     "page_num": page_num,
-                    "child_indices": parent_child_ids
+                    "section_title": parent_section,
+                    "child_ids": parent_child_ids,
+                    "document_name": document_name,
+                    "product_name": product_name,
+                    "effective_date": effective_date,
+                    "document_version": document_version,
                 })
                 current_parent_text = child_text
                 current_parent_tokens = child_tokens
-                parent_child_ids = [i]
+                parent_child_ids = [child["chunk_id"]]
+                parent_section = child.get("section_title")
             else:
                 current_parent_text += "\n\n" + child_text
                 current_parent_tokens += child_tokens
-                parent_child_ids.append(i)
-        
+                parent_child_ids.append(child["chunk_id"])
+                if child.get("section_title"):
+                    parent_section = child["section_title"]
+
         if current_parent_text:
             parent_chunks.append({
+                "chunk_id": str(uuid.uuid4()),
                 "text": current_parent_text.strip(),
                 "token_count": current_parent_tokens,
                 "page_num": page_num,
-                "child_indices": parent_child_ids
+                "section_title": parent_section,
+                "child_ids": parent_child_ids,
+                "document_name": document_name,
+                "product_name": product_name,
+                "effective_date": effective_date,
+                "document_version": document_version,
             })
-        
-        # Flatten structure: we store child chunks separately,
-        # but we maintain parent_id for each child.
-        # For simplicity, we just create a combined list of all chunks
-        # with a 'type' field.
+
+        # Flatten structure with a 'type' field
         for child in child_chunks_for_page:
             chunks.append({
                 "type": "child",
+                "chunk_id": child["chunk_id"],
                 "text": child["text"],
                 "token_count": child["token_count"],
                 "page_num": child["page_num"],
+                "section_title": child.get("section_title"),
+                "document_name": document_name,
+                "product_name": product_name,
+                "effective_date": effective_date,
+                "document_version": document_version,
                 "parent_text": None,  # will be linked later
             })
-        
+
         for parent in parent_chunks:
             chunks.append({
                 "type": "parent",
+                "chunk_id": parent["chunk_id"],
                 "text": parent["text"],
                 "token_count": parent["token_count"],
                 "page_num": parent["page_num"],
-                "child_indices": parent["child_indices"],
+                "section_title": parent.get("section_title"),
+                "child_ids": parent.get("child_ids", []),
+                "document_name": document_name,
+                "product_name": product_name,
+                "effective_date": effective_date,
+                "document_version": document_version,
             })
-    
+
     return chunks
+
 
 def get_parent_for_child(child_chunk: Dict[str, Any], all_chunks: List[Dict[str, Any]]) -> str:
     """

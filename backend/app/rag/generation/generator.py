@@ -1,55 +1,151 @@
+"""
+LLM generation layer for FinExplain.
+
+Uses Groq API with centralized prompt templates.
+Supports both the legacy ``(query, context)`` signature and the new
+enriched signature with structured facts, calculations, conflicts, etc.
+"""
+
+import json
 from groq import Groq
 from app.core.config import settings
-from typing import Dict, Any
+from app.rag.generation.prompt_templates import (
+    SYSTEM_PROMPT_FINANCIAL_EXPERT,
+    QA_USER_PROMPT_TEMPLATE,
+    LOAN_REVIEW_PROMPT,
+    BEFORE_CONFIRMATION_PROMPT,
+)
+from typing import Dict, Any, List, Optional
 
 # Initialize Groq client
 client = Groq(api_key=settings.GROQ_API_KEY)
 
-def generate_answer(query: str, context: str) -> Dict[str, Any]:
+
+def _format_for_prompt(data: Any) -> str:
+    """Safely format data for insertion into a prompt template."""
+    if data is None:
+        return "None"
+    if isinstance(data, str):
+        return data
+    try:
+        return json.dumps(data, indent=2, default=str)
+    except Exception:
+        return str(data)
+
+
+def generate_answer(
+    query: str,
+    context: str,
+    *,
+    structured_facts: Optional[List[Dict[str, Any]]] = None,
+    calculation_results: Optional[Dict[str, Any]] = None,
+    conflicts: Optional[List[Dict[str, Any]]] = None,
+    missing_information: Optional[List[Dict[str, Any]]] = None,
+    claim_verification: Optional[Dict[str, Any]] = None,
+    evidence_score: Optional[Dict[str, Any]] = None,
+    scenario: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """
-    Generate an answer using Groq Llama-3 with evidence-first prompting.
+    Generate an answer using Groq LLM with evidence-first prompting.
+
+    Backward-compatible: callers passing only ``(query, context)`` still work.
+    When the enriched kwargs are provided, uses the full structured QA prompt.
     """
-    prompt = f"""
-You are FinExplain, an AI assistant that helps consumers compare loan products. 
-Your answers must be evidence-based, clear, and include citations.
+    # Build the user prompt
+    prompt = QA_USER_PROMPT_TEMPLATE.format(
+        question=query,
+        scenario=_format_for_prompt(scenario),
+        context=context,
+        structured_facts=_format_for_prompt(structured_facts),
+        calculation_results=_format_for_prompt(calculation_results),
+        conflicts=_format_for_prompt(conflicts),
+        missing_information=_format_for_prompt(missing_information),
+        claim_verification=_format_for_prompt(claim_verification),
+        evidence_score=_format_for_prompt(evidence_score),
+    )
 
-CONTEXT:
-{context}
-
-USER QUESTION:
-{query}
-
-INSTRUCTIONS:
-1. Answer the question using ONLY the provided context.
-2. If the context does not contain the answer, say "Not specified in the provided documents."
-3. For every factual statement, include a citation in square brackets: [Page X] or [Section Y].
-4. If there are conflicting terms, mention both and flag the conflict.
-5. Be concise but thorough.
-6. Structure your answer with clear sections (e.g., Rates, Fees, Repayment Terms).
-
-ANSWER:
-"""
-    
     try:
         response = client.chat.completions.create(
             model="openai/gpt-oss-120b",
             messages=[
-                {"role": "system", "content": "You are an evidence-first financial assistant. Never invent information."},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": SYSTEM_PROMPT_FINANCIAL_EXPERT},
+                {"role": "user", "content": prompt},
             ],
             temperature=0.1,
-            max_tokens=1024
+            max_tokens=2048,
         )
-        
+
         answer_text = response.choices[0].message.content
-        
+
         return {
             "answer": answer_text,
-            "raw_response": response
+            "raw_response": response,
         }
-    
+
     except Exception as e:
         return {
             "answer": f"Error generating answer: {str(e)}",
-            "error": str(e)
+            "error": str(e),
         }
+
+
+def generate_loan_review(
+    structured_facts: List[Dict[str, Any]],
+    missing_information: List[Dict[str, Any]],
+    conflicts: List[Dict[str, Any]],
+    cost_drivers: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    Generate a proactive loan document review using the LOAN_REVIEW_PROMPT.
+    """
+    prompt = LOAN_REVIEW_PROMPT.format(
+        structured_facts=_format_for_prompt(structured_facts),
+        missing_information=_format_for_prompt(missing_information),
+        conflicts=_format_for_prompt(conflicts),
+        cost_drivers=_format_for_prompt(cost_drivers),
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT_FINANCIAL_EXPERT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.1,
+            max_tokens=2048,
+        )
+        return {"review": response.choices[0].message.content}
+    except Exception as e:
+        return {"review": f"Error generating review: {str(e)}", "error": str(e)}
+
+
+def generate_before_confirmation(
+    structured_facts: List[Dict[str, Any]],
+    missing_information: List[Dict[str, Any]],
+    conflicts: List[Dict[str, Any]],
+    calculations: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Generate a "Before You Confirm" checklist.
+    """
+    prompt = BEFORE_CONFIRMATION_PROMPT.format(
+        structured_facts=_format_for_prompt(structured_facts),
+        missing_information=_format_for_prompt(missing_information),
+        conflicts=_format_for_prompt(conflicts),
+        calculations=_format_for_prompt(calculations),
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT_FINANCIAL_EXPERT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.1,
+            max_tokens=2048,
+        )
+        return {"checklist": response.choices[0].message.content}
+    except Exception as e:
+        return {"checklist": f"Error generating checklist: {str(e)}", "error": str(e)}

@@ -7,11 +7,12 @@ def build_context(
     """
     Builds the final context for the LLM.
     - Prioritizes Parent chunks over Child chunks (better context).
+    - Includes [Product Name, Page X, Section Y] headers per chunk.
     - Truncates intelligently to max_tokens.
     """
     if not chunks:
         return ""
-    
+
     # Helper to estimate tokens (rough: 4 chars = 1 token)
     def estimate_tokens(text: str) -> int:
         return len(text) // 4
@@ -24,16 +25,41 @@ def build_context(
     sorted_chunks = sorted(chunks, key=lambda x: 0 if x.get("chunk_type") == "parent" else 1)
     
     for chunk in sorted_chunks:
+        metadata = chunk.get("metadata") or {}
         text = chunk.get("text", "")
-        
+
         # If we have a parent_text stored in metadata, use that instead for better context
         if "parent_text" in chunk and chunk["parent_text"]:
             text = chunk["parent_text"]
-            
-        # Add page number context if available
-        page_num = chunk.get("page_number") or chunk.get("page_num")
+
+        # Build rich source header: [Product Name, Page X, Section Y]
+        header_parts = []
+        product_name = chunk.get("product_name") or metadata.get("product_name")
+        if product_name:
+            header_parts.append(product_name)
+
+        page_num = (
+            chunk.get("page_number")
+            or chunk.get("page_num")
+            or metadata.get("page_num")
+        )
         if page_num:
-            text = f"[Page {page_num}]\n{text}"
+            header_parts.append(f"Page {page_num}")
+
+        section_title = (
+            chunk.get("section_title")
+            or metadata.get("section_title")
+        )
+        if section_title:
+            header_parts.append(f"Section: {section_title}")
+
+        document_name = chunk.get("document_name") or metadata.get("document_name")
+        if document_name and not product_name:
+            header_parts.insert(0, document_name)
+
+        if header_parts:
+            header = f"[{', '.join(header_parts)}]"
+            text = f"{header}\n{text}"
         
         chunk_tokens = estimate_tokens(text)
         

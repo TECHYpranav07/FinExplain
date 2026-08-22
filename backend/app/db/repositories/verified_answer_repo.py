@@ -11,7 +11,7 @@ class VerifiedAnswerRepository:
         response = client.table(self.table_name).insert(answer.model_dump()).execute()
         return response.data[0] if response.data else {}
 
-    def get_by_id(self, answer_id: int) -> Optional[Dict[str, Any]]:
+    def get_by_id(self, answer_id: str) -> Optional[Dict[str, Any]]:
         client = get_supabase_client()
         response = client.table(self.table_name).select("*").eq("id", answer_id).execute()
         return response.data[0] if response.data else None

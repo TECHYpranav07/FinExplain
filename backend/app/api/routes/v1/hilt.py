@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any
 from app.db.repositories.hilt_repo import create_hilt_task, resolve_hilt_task
+from app.core.constants import DEFAULT_DEMO_USER_ID
 
 router = APIRouter()
 
@@ -16,7 +17,7 @@ class HILTResolveRequest(BaseModel):
 async def create_task(request: HILTRequest) -> Dict[str, Any]:
     """Create a HILT task (e.g., for conflict resolution)."""
     # For testing, use a fixed user ID
-    user_id = "test-user-123"
+    user_id = DEFAULT_DEMO_USER_ID
     task = create_hilt_task(user_id, request.task_type, request.payload)
     return task
 

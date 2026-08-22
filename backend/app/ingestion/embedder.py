@@ -1,24 +1,25 @@
-from sentence_transformers import SentenceTransformer
-from typing import List
+from typing import List, Optional
 import numpy as np
+from app.external.huggingface_client import (
+    generate_hf_embeddings,
+    generate_hf_embedding,
+    get_sentence_transformer,
+)
 
-# Load the model once (all-MiniLM-L6-v2 - 384 dimensions)
-_model = None
-
+# Load the local model fallback once if needed
 def get_embedder():
-    global _model
-    if _model is None:
-        _model = SentenceTransformer('all-MiniLM-L6-v2')
-    return _model
+    return get_sentence_transformer()
 
-def generate_embeddings(texts: List[str]) -> List[List[float]]:
-    """Generate embeddings for a list of text chunks."""
-    model = get_embedder()
-    embeddings = model.encode(texts, convert_to_numpy=True)
-    return embeddings.tolist()
+def generate_embeddings(texts: List[str], model_name: Optional[str] = None) -> List[List[float]]:
+    """
+    Generate embeddings for a list of text chunks using Hugging Face API
+    with local SentenceTransformer fallback.
+    """
+    return generate_hf_embeddings(texts, model_name=model_name)
 
-def generate_embedding(text: str) -> List[float]:
-    """Generate embedding for a single text string."""
-    model = get_embedder()
-    embedding = model.encode(text, convert_to_numpy=True)
-    return embedding.tolist()
+def generate_embedding(text: str, model_name: Optional[str] = None) -> List[float]:
+    """
+    Generate embedding for a single text string using Hugging Face API
+    with local SentenceTransformer fallback.
+    """
+    return generate_hf_embedding(text, model_name=model_name)
