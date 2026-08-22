@@ -7,6 +7,16 @@ export interface Product {
   created_at?: string;
 }
 
+export interface DocumentUploadResponse {
+  status?: string;
+  document_id?: string;
+  task_id?: string;
+  total_chunks?: number;
+  chunks_count?: number;
+  document_metadata?: Record<string, any>;
+  message?: string;
+}
+
 export interface RiskFactor {
   category?: string;
   title?: string;
@@ -168,15 +178,6 @@ export interface LoanCompareResponse {
     known_cost_a?: number;
     known_cost_b?: number;
   };
-}
-
-
-
-export interface DocumentUploadResponse {
-  message: string;
-  chunks_count: number;
-  document_id?: string;
-  product_id?: string;
 }
 
 export interface HealthResponse {

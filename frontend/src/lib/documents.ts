@@ -4,7 +4,7 @@ export interface DocRecord {
   productId: string;
   productName: string;
   uploadedAt: string;
-  status: "processed" | "processing" | "failed";
+  status: "processed" | "processing" | "failed" | "indexed";
   chunks: number;
   sizeBytes?: number;
   message?: string;

@@ -17,10 +17,44 @@ try:
 except ImportError:
     CELERY_AVAILABLE = False
 
+from app.db.repositories.document_repo import (
+    get_documents_by_user,
+    get_document_by_id,
+    delete_document_by_id,
+)
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
+
+
+@router.get("/")
+def list_user_documents(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """List all documents for products owned by the authenticated user."""
+    return get_documents_by_user(current_user["id"])
+
+
+@router.get("/{document_id}")
+def get_document(document_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Retrieve document details by ID."""
+    doc = get_document_by_id(document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return doc
+
+
+@router.delete("/{document_id}")
+def delete_document(document_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Delete a document by ID."""
+    doc = get_document_by_id(document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    success = delete_document_by_id(document_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete document")
+    return {"message": "Document deleted successfully"}
+
 
 @router.post("/upload")
 async def upload_document(

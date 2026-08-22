@@ -38,13 +38,13 @@ def process_document(
     # Step 1: Hash the file
     file_hash = hashlib.sha256(file_bytes).hexdigest()
     
-    # Check if already processed
-    existing = get_document_by_hash(file_hash)
+    # Check if already processed for this specific product
+    existing = get_document_by_hash(file_hash, product_id=product_id)
     if existing:
         return {
             "status": "exists",
             "document_id": existing["id"],
-            "message": "Document already indexed."
+            "message": "Document already indexed for this product."
         }
     
     # Verify product exists

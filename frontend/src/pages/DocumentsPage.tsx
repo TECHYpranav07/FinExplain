@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { listDocuments, saveDocument, removeDocument, formatBytes, type DocRecord } from "@/lib/documents";
 import { useProducts } from "@/components/finex/ProductSelect";
@@ -10,13 +10,25 @@ export function DocumentsPage() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: products = [] } = useProducts();
-  const [docs, setDocs] = useState<DocRecord[]>(() => listDocuments());
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+
+  // Fetch real documents from backend
+  const { data: apiDocs = [], refetch: refetchDocs } = useQuery({
+    queryKey: ["documents"],
+    queryFn: async () => {
+      try {
+        const res = await api.listDocuments();
+        return res || [];
+      } catch {
+        return [];
+      }
+    },
+  });
 
   const uploadMutation = useMutation({
     mutationFn: async ({ file, productId }: { file: File; productId: string }) => {
@@ -25,21 +37,22 @@ export function DocumentsPage() {
     onSuccess: (res, vars) => {
       const prod = products.find((p) => p.id === vars.productId);
       const newDoc: DocRecord = {
-        id: `doc_${Date.now()}`,
+        id: res.document_id || `doc_${Date.now()}`,
         name: vars.file.name,
         productId: vars.productId,
         productName: prod?.name || "General Product",
         uploadedAt: new Date().toISOString(),
-        status: "processed",
-        chunks: res.chunks_count || 12,
+        status: res.status === "exists" ? "indexed" : "processed",
+        chunks: res.total_chunks || res.chunks_count || 5,
         sizeBytes: vars.file.size,
         message: res.message || "Document parsed and indexed successfully",
       };
       saveDocument(newDoc);
-      setDocs(listDocuments());
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      refetchDocs();
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-      setUploadSuccess(`"${vars.file.name}" ingested successfully with ${newDoc.chunks} chunks.`);
+      setUploadSuccess(`"${vars.file.name}" ingested successfully into ${prod?.name || "Product"}.`);
       setUploadError(null);
     },
     onError: (err: any) => {
@@ -95,12 +108,44 @@ export function DocumentsPage() {
     setUploadError(null);
   };
 
-  const handleDelete = (id: string) => {
+  // Merge API docs with local docs
+  const allDocs: DocRecord[] = React.useMemo(() => {
+    const local = listDocuments();
+    const map = new Map<string, DocRecord>();
+    
+    for (const d of local) {
+      map.set(d.id, d);
+    }
+
+    for (const d of apiDocs) {
+      const prod = products.find((p) => p.id === d.product_id);
+      map.set(d.id, {
+        id: d.id,
+        name: d.file_name,
+        productId: d.product_id,
+        productName: d.product_name || prod?.name || "General Product",
+        uploadedAt: d.upload_date || new Date().toISOString(),
+        status: d.status || "indexed",
+        chunks: d.total_pages ? d.total_pages * 3 : 5,
+        sizeBytes: 0,
+      });
+    }
+
+    return Array.from(map.values()).sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+  }, [apiDocs, products]);
+
+  const handleDelete = async (id: string) => {
     removeDocument(id);
-    setDocs(listDocuments());
+    try {
+      await api.deleteDocument(id);
+    } catch {
+      // ignore
+    }
+    queryClient.invalidateQueries({ queryKey: ["documents"] });
+    refetchDocs();
   };
 
-  const filteredDocs = docs.filter(
+  const filteredDocs = allDocs.filter(
     (d) =>
       d.name.toLowerCase().includes(search.toLowerCase()) ||
       (d.productName && d.productName.toLowerCase().includes(search.toLowerCase()))
