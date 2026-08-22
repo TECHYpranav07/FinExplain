@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/authContext";
-import { ShieldCheck, Sparkles, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ShieldCheck, Mail, Lock, User, ArrowRight, AlertCircle } from "lucide-react";
 
 export function AuthPage() {
   const [isRegister, setIsRegister] = useState(false);
@@ -50,19 +50,6 @@ export function AuthPage() {
       navigate(from, { replace: true });
     } catch (err: any) {
       setError(err.message || "Google Authentication failed.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDemoAccess = async () => {
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      await login("demo@finexplain.ai", "demo1234");
-      navigate(from, { replace: true });
-    } catch (err: any) {
-      setError(err.message || "Demo login failed.");
     } finally {
       setIsSubmitting(false);
     }
@@ -216,13 +203,16 @@ export function AuthPage() {
               <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </form>
-
-          {/* Divider */}
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-white/10 w-full" />
-            <span className="bg-surface px-2.5 text-[10px] uppercase tracking-widest text-muted-foreground relative">
-              or continue with
-            </span>
+          {/* Centered Divider */}
+          <div className="relative flex items-center justify-center my-1">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/10" />
+            </div>
+            <div className="relative flex justify-center text-center">
+              <span className="bg-[#111111] px-3 text-[10px] uppercase tracking-widest text-muted-foreground font-medium">
+                or continue with
+              </span>
+            </div>
           </div>
 
           {/* Google Sign In Button */}
@@ -232,7 +222,7 @@ export function AuthPage() {
             disabled={isSubmitting}
             className="w-full flex items-center justify-center gap-3 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-xs font-semibold text-white hover:bg-white/10 hover:border-white/25 transition-all"
           >
-            <svg className="h-4 w-4" viewBox="0 0 24 24">
+            <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -251,16 +241,6 @@ export function AuthPage() {
               />
             </svg>
             <span>Continue with Google</span>
-          </button>
-
-          {/* Quick Demo Access */}
-          <button
-            type="button"
-            onClick={handleDemoAccess}
-            className="w-full flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[11px] font-semibold text-amber-300 hover:bg-amber-500/20 transition-all"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>⚡ Instant Demo Auditor Sign-In</span>
           </button>
         </div>
 
