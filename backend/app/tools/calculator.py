@@ -257,3 +257,52 @@ def calculate_loan_scenario(
         "assumptions": assumptions,
         "evidence_ids": evidence_ids or [],
     }
+
+
+def calculate_early_repayment_penalty(
+    penalty_rate: float,
+    outstanding_principal: Optional[float] = None,
+    original_principal: Optional[float] = None,
+    lock_in_months: Optional[int] = None,
+    current_month: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Calculate early repayment/foreclosure penalty with explicit principal distinction.
+
+    CRITICAL RULE:
+    Never assume original_principal == outstanding_principal unless explicitly proven.
+    If outstanding_principal is missing, return formula and flag unknown.
+    """
+    result: Dict[str, Any] = {
+        "type": "early_repayment_penalty",
+        "penalty_rate": penalty_rate,
+        "lock_in_months": lock_in_months,
+        "is_waived": False,
+        "formula": "",
+        "result": None,
+        "unknown_inputs": [],
+        "notes": [],
+    }
+
+    # Check lock-in / waiver timing
+    if lock_in_months and current_month:
+        if current_month > lock_in_months:
+            result["is_waived"] = True
+            result["result"] = 0.0
+            result["formula"] = f"Waiver applies after {lock_in_months} months (Current month: {current_month}) → ₹0 penalty"
+            return result
+
+    if outstanding_principal is not None:
+        amount = round(outstanding_principal * (penalty_rate / 100.0), 2)
+        result["formula"] = f"{outstanding_principal} × {penalty_rate}% = {amount}"
+        result["result"] = amount
+    else:
+        result["unknown_inputs"].append("current_outstanding_principal")
+        result["formula"] = f"{penalty_rate}% × [Current Outstanding Principal]"
+        result["notes"].append(
+            "Current outstanding principal is not specified in the documents. "
+            "Original sanctioned loan amount cannot be used as outstanding balance without proof of 0 EMIs paid."
+        )
+
+    return result
+
