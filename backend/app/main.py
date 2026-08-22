@@ -20,7 +20,7 @@ import logging
 
 from app.core.config import settings
 
-from app.api.routes.v1 import documents, queries, hilt, products, feedback, analysis
+from app.api.routes.v1 import documents, queries, hilt, products, feedback, analysis, auth
 
 app = FastAPI(
     title="FinExplain API",
@@ -39,6 +39,7 @@ app.add_middleware(
 )
 
 # Register all route handlers
+app.include_router(auth.router, prefix="/api/v1", tags=["Auth"])
 app.include_router(documents.router, prefix="/api/v1/documents", tags=["Documents"])
 app.include_router(queries.router, prefix="/api/v1/queries", tags=["Queries"])
 app.include_router(hilt.router, prefix="/api/v1/hilt", tags=["HILT"])

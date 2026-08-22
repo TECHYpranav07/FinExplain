@@ -134,7 +134,22 @@ export interface HealthResponse {
   environment?: string;
 }
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  role?: string;
+  picture?: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user: AuthUser;
+}
+
 const STORAGE_API_KEY = "finexplain_api_base_url";
+const STORAGE_AUTH_TOKEN = "finexplain_auth_token";
 
 export function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
@@ -150,6 +165,23 @@ export function setApiBaseUrl(url: string): void {
   }
 }
 
+export function getStoredToken(): string | null {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem(STORAGE_AUTH_TOKEN);
+  }
+  return null;
+}
+
+export function setStoredToken(token: string | null): void {
+  if (typeof window !== "undefined") {
+    if (token) {
+      localStorage.setItem(STORAGE_AUTH_TOKEN, token);
+    } else {
+      localStorage.removeItem(STORAGE_AUTH_TOKEN);
+    }
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const base = getApiBaseUrl();
   const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
@@ -157,6 +189,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers || {});
   if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
+  }
+
+  const token = getStoredToken();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
   const res = await fetch(url, { ...options, headers });
@@ -245,4 +282,22 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  // Auth
+  login: (credentials: { email: string; password: string }) =>
+    request<AuthResponse>("/api/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify(credentials),
+    }),
+  register: (data: { email: string; password: string; name?: string }) =>
+    request<AuthResponse>("/api/v1/auth/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  googleAuth: (data: { credential?: string; email?: string; name?: string; google_id?: string; picture?: string }) =>
+    request<AuthResponse>("/api/v1/auth/google", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getMe: () => request<{ user: AuthUser }>("/api/v1/auth/me"),
 };

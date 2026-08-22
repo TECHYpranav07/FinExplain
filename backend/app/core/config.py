@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     # Storage Bucket
     STORAGE_BUCKET: str = "loan_docs"
 
+    # Authentication & JWT Configuration
+    JWT_SECRET_KEY: str = "finexplain_super_secret_jwt_key_development_32chars_min"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
+    GOOGLE_CLIENT_ID: Optional[str] = None
+
     @property
     def effective_gemini_api_key(self) -> str:
         return self.GEMINI_API_KEY or self.GOOGLE_API_KEY or ""
