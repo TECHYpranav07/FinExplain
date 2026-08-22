@@ -27,6 +27,10 @@ import {
   Trash2,
   Menu,
   X,
+  AlertTriangle,
+  Check,
+  Layers,
+  HelpCircle,
 } from "lucide-react";
 
 const QUICK_PROMPTS = [
@@ -44,6 +48,7 @@ export function QueryPage() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [productError, setProductError] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -76,6 +81,22 @@ export function QueryPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeSession?.messages, activeSession?.messages.length]);
+
+  const handleProductChange = (newSelected: string[]) => {
+    setSelectedProducts(newSelected);
+    if (newSelected.length > 0) {
+      setProductError(false);
+    }
+    if (activeSession) {
+      const updated: ChatSession = {
+        ...activeSession,
+        selectedProductIds: newSelected,
+        updatedAt: new Date().toISOString(),
+      };
+      updateSession(updated);
+      setSessions(loadChatSessions());
+    }
+  };
 
   const askMutation = useMutation({
     mutationFn: async ({
@@ -114,7 +135,6 @@ export function QueryPage() {
 
       // Remove any pending temporary message
       const cleanedMessages = activeSession.messages.filter((m) => !m.isPending);
-
       const updatedMessages = [...cleanedMessages, userMessage, assistantMessage];
 
       // Auto-title if it was the first query
@@ -148,7 +168,16 @@ export function QueryPage() {
     const queryText = (textToSend || question).trim();
     if (!queryText || askMutation.isPending) return;
 
+    // Check if products are selected
+    if (selectedProducts.length === 0) {
+      setProductError(true);
+      setShowProductPicker(true);
+      return;
+    }
+
     if (!activeSession) return;
+
+    setProductError(false);
 
     // Immediately insert optimistic pending state
     const pendingAssistantMessage: ChatMessage = {
@@ -196,6 +225,7 @@ export function QueryPage() {
     setActiveId(newSession.id);
     setMobileSidebarOpen(false);
     setQuestion("");
+    setProductError(false);
   };
 
   const handleSelectSession = (id: string) => {
@@ -206,6 +236,7 @@ export function QueryPage() {
       setSelectedProducts(target.selectedProductIds);
     }
     setMobileSidebarOpen(false);
+    setProductError(false);
   };
 
   const handleDeleteSession = (id: string) => {
@@ -305,23 +336,38 @@ export function QueryPage() {
               <Sparkles className="h-4 w-4 text-primary-light shrink-0" />
               <span>{activeSession?.title || "New Conversation"}</span>
             </h2>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Evidence-First RAG • {activeSession?.messages.length || 0} turn
-              {activeSession?.messages.length !== 1 ? "s" : ""}
-            </p>
+            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
+              <span>Evidence-First RAG</span>
+              <span>•</span>
+              <span>
+                {selectedProducts.length > 0 ? (
+                  <span className="text-emerald-400 font-medium">
+                    {selectedProducts.length} product{selectedProducts.length > 1 ? "s" : ""} selected
+                  </span>
+                ) : (
+                  <span className="text-amber-400 font-medium flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" /> No product selected
+                  </span>
+                )}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setShowProductPicker(!showProductPicker)}
-              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 transition-colors"
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
+                selectedProducts.length === 0
+                  ? "border-amber-500/50 bg-amber-500/15 text-amber-300 animate-pulse shadow-sm"
+                  : "border-white/10 bg-white/5 text-white hover:bg-white/10"
+              }`}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
               <span>
-                {selectedProducts.length > 0
-                  ? `${selectedProducts.length} Product${selectedProducts.length > 1 ? "s" : ""}`
-                  : "All Products"}
+                {selectedProducts.length === 0
+                  ? "Select Product First"
+                  : `${selectedProducts.length} Product${selectedProducts.length > 1 ? "s" : ""}`}
               </span>
               {showProductPicker ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </button>
@@ -351,11 +397,14 @@ export function QueryPage() {
 
         {/* Collapsible Target Products Picker */}
         {showProductPicker && (
-          <div className="p-4 border-b border-white/10 bg-surface-3 animate-in fade-in duration-200">
-            <p className="text-xs font-semibold text-white mb-2">Target Loan Products for this Chat:</p>
+          <div className="p-4 border-b border-white/10 bg-surface-3 animate-in fade-in duration-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-white">Target Loan Products for this Chat:</span>
+              <span className="text-[11px] text-white/60">Select 1 or more products</span>
+            </div>
             <ProductPicker
               selected={selectedProducts}
-              onChange={setSelectedProducts}
+              onChange={handleProductChange}
               multiple={true}
             />
           </div>
@@ -364,20 +413,74 @@ export function QueryPage() {
         {/* Scrollable Message History Area */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar">
           {(!activeSession || activeSession.messages.length === 0) && (
-            <div className="h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto py-12 space-y-4 animate-in fade-in duration-300">
+            <div className="h-full flex flex-col items-center justify-center text-center max-w-xl mx-auto py-8 space-y-5 animate-in fade-in duration-300">
               <div className="h-12 w-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white">
                 <Sparkles className="h-6 w-6 text-primary-light" />
               </div>
               <div>
                 <h3 className="text-base font-bold text-white">Ask Evidence-First AI</h3>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  Ask multiple consecutive questions about interest rates, hidden fee structures, prepayment conditions, and floating rate benchmarks.
+                  Analyze loan agreements with claim-level citations, mathematical verification, and risk auditing.
                 </p>
               </div>
 
-              <div className="w-full pt-4 space-y-2">
+              {/* Step 1: Prominent Product Selection Card */}
+              <div
+                className={`w-full rounded-2xl border p-4 sm:p-5 text-left transition-all ${
+                  selectedProducts.length === 0
+                    ? "border-amber-500/40 bg-amber-500/10 shadow-lg shadow-amber-500/5"
+                    : "border-emerald-500/30 bg-emerald-500/5"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${
+                        selectedProducts.length === 0
+                          ? "bg-amber-400 text-black"
+                          : "bg-emerald-400 text-black"
+                      }`}
+                    >
+                      1
+                    </span>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                      Step 1: Choose Target Loan Product(s)
+                    </h4>
+                  </div>
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-white/60">
+                    {selectedProducts.length > 0 ? "Multi-Select Active" : "Action Required"}
+                  </span>
+                </div>
+
+                <p className="text-xs text-white/70 leading-relaxed mb-3">
+                  Select <strong className="text-white">1 product</strong> for a focused single-loan audit, or select <strong className="text-white">2+ products</strong> to compare terms and detect cross-document conflicts.
+                </p>
+
+                <div className="pt-1">
+                  <ProductPicker
+                    selected={selectedProducts}
+                    onChange={handleProductChange}
+                    multiple={true}
+                  />
+                </div>
+
+                {selectedProducts.length === 0 ? (
+                  <p className="text-[11px] text-amber-300 font-medium flex items-center gap-1.5 pt-3 mt-3 border-t border-amber-500/20">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <span>Please select at least one product above before asking a question.</span>
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1.5 pt-3 mt-3 border-t border-emerald-500/20">
+                    <Check className="h-3.5 w-3.5 shrink-0" />
+                    <span>{selectedProducts.length} product(s) selected. You can now submit inquiries below.</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Step 2: Suggested Auditing Prompts */}
+              <div className="w-full space-y-2">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground text-left">
-                  Suggested Auditing Prompts:
+                  Step 2: Pick a Common Query or Type Your Own
                 </p>
                 <div className="grid grid-cols-1 gap-2 text-left">
                   {QUICK_PROMPTS.map((p, idx) => (
@@ -409,6 +512,23 @@ export function QueryPage() {
 
         {/* Sticky Bottom Input Area */}
         <footer className="p-3 sm:p-4 border-t border-white/10 bg-surface-2 space-y-3 shrink-0">
+          {/* Missing Product Warning Banner */}
+          {productError && selectedProducts.length === 0 && (
+            <div className="flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300 animate-in fade-in duration-200">
+              <span className="flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <span>Please select at least one loan product above before submitting your query.</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowProductPicker(true)}
+                className="underline font-semibold hover:text-white ml-2 shrink-0"
+              >
+                Choose Product
+              </button>
+            </div>
+          )}
+
           {/* Quick Preset Buttons (if active chat has messages) */}
           {activeSession && activeSession.messages.length > 0 && (
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar text-[11px]">
@@ -430,14 +550,29 @@ export function QueryPage() {
           )}
 
           {/* Textarea Input Container */}
-          <div className="relative flex items-end gap-2 rounded-xl border border-white/15 bg-surface p-2 shadow-inner focus-within:border-white/30 transition-colors">
+          <div
+            className={`relative flex items-end gap-2 rounded-xl border bg-surface p-2 shadow-inner transition-colors ${
+              productError && selectedProducts.length === 0
+                ? "border-amber-500/50"
+                : "border-white/15 focus-within:border-white/30"
+            }`}
+          >
             <textarea
               ref={textareaRef}
               rows={2}
               value={question}
-              onChange={(e) => setQuestion(e.target.value)}
+              onChange={(e) => {
+                setQuestion(e.target.value);
+                if (selectedProducts.length > 0) setProductError(false);
+              }}
               onKeyDown={handleKeyDown}
-              placeholder="Ask a question about your loan document (e.g. What is the prepayment fee? Is APR disclosed?)..."
+              placeholder={
+                selectedProducts.length === 0
+                  ? "Choose a product above first, then ask about loan terms, interest rates, reset clauses..."
+                  : `Ask a question about ${
+                      selectedProducts.length === 1 ? "this loan document" : "these loan products"
+                    } (e.g. What is the prepayment fee? Is APR disclosed?)...`
+              }
               disabled={askMutation.isPending}
               className="flex-1 bg-transparent px-2 py-1 text-xs sm:text-sm text-white placeholder:text-muted-foreground focus:outline-none resize-none leading-relaxed"
             />
@@ -446,19 +581,33 @@ export function QueryPage() {
               type="button"
               onClick={() => handleSend()}
               disabled={askMutation.isPending || !question.trim()}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-black hover:bg-white/90 disabled:opacity-30 transition-all shadow-sm"
-              title="Send (Enter)"
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-bold transition-all shadow-sm ${
+                selectedProducts.length === 0
+                  ? "bg-amber-400 text-black hover:bg-amber-300"
+                  : "bg-white text-black hover:bg-white/90 disabled:opacity-30"
+              }`}
+              title={selectedProducts.length === 0 ? "Select Product First" : "Send (Enter)"}
             >
               {askMutation.isPending ? (
                 <i className="fa-solid fa-spinner fa-spin text-xs" />
+              ) : selectedProducts.length === 0 ? (
+                <AlertTriangle className="h-4 w-4" />
               ) : (
                 <Send className="h-4 w-4" />
               )}
             </button>
           </div>
           <div className="flex items-center justify-between px-1 text-[10px] text-muted-foreground">
-            <span>Press <kbd className="bg-white/10 px-1 py-0.5 rounded text-white font-mono">Enter</kbd> to send, <kbd className="bg-white/10 px-1 py-0.5 rounded text-white font-mono">Shift+Enter</kbd> for new line</span>
-            <span>All responses grounded with claim-level evidence</span>
+            <span>
+              Press <kbd className="bg-white/10 px-1 py-0.5 rounded text-white font-mono">Enter</kbd> to send, <kbd className="bg-white/10 px-1 py-0.5 rounded text-white font-mono">Shift+Enter</kbd> for new line
+            </span>
+            <span>
+              {selectedProducts.length > 0 ? (
+                <span className="text-emerald-400/90 font-medium">✓ {selectedProducts.length} Product{selectedProducts.length > 1 ? "s" : ""} Bound</span>
+              ) : (
+                <span className="text-amber-400 font-medium">⚠️ Select product first</span>
+              )}
+            </span>
           </div>
         </footer>
       </main>
