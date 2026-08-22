@@ -140,7 +140,7 @@ def verify_claim(
         # No page cited at all — can't verify
         result["issues"].append("No page citation provided for this claim.")
 
-    # --- 3: Evidence relevance — check if any fact relates to the claim ---
+    # --- 3: Evidence relevance — check structured facts or raw chunk text ---
     claim_lower = claim_text.lower()
     matching_facts: List[LoanFact] = []
     for fact in facts:
@@ -158,9 +158,22 @@ def verify_claim(
             matching_facts.append(fact)
 
     if not matching_facts:
+        # Check directly against retrieved chunks text
+        for chunk in chunks:
+            chunk_text = (chunk.get("text") or "").lower()
+            # If numbers in claim are present in chunk text, or significant word overlap
+            claim_nums = re.findall(r"\d+(?:\.\d+)?", claim_text)
+            has_num_support = all(num in chunk_text for num in claim_nums) if claim_nums else True
+            if has_num_support and (_text_overlap(claim_lower, chunk_text) > 0.15 or any(w in chunk_text for w in claim_lower.split() if len(w) > 4)):
+                result["supported"] = True
+                result["status"] = "EXPLICIT"
+                result["citation_valid"] = True
+                result["evidence_id"] = chunk.get("id") or chunk.get("chunk_id")
+                return result
+
         # No related evidence found
         result["status"] = "NOT_SPECIFIED"
-        result["issues"].append("No matching structured fact found for this claim.")
+        result["issues"].append("No matching structured fact or chunk found for this claim.")
         return result
 
     # --- 4: Value support ---

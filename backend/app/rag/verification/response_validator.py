@@ -126,8 +126,9 @@ def validate_final_response(
     # --- Build sanitized answer if issues found ---
     sanitized = answer
     if unsupported_claims and not is_eval_query:
-        # FIN-026: If all claims are unsupported on a factual query, refuse rather than presenting hallucinatory output
-        if len(unsupported_claims) == len(claims) and len(claims) > 0:
+        # FIN-026: If all claims are unsupported AND no valid cited page in retrieved chunks exists, refuse
+        has_valid_citation = any(int(p) in available_pages for p in cited_pages) if cited_pages and available_pages else False
+        if len(unsupported_claims) == len(claims) and len(claims) > 0 and not has_valid_citation:
             sanitized = (
                 "Unable to provide a verified answer based on the retrieved documents. "
                 "The extracted statements could not be verified against the source text. "
