@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     # Redis (Caching)
     REDIS_URL: Optional[str] = "redis://localhost:6379/0"
 
+    # Hugging Face (Embeddings API)
+    HUGGINGFACE_API_KEY: Optional[str] = None
+    HF_TOKEN: Optional[str] = None
+    HF_EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+
     # Storage Bucket
     STORAGE_BUCKET: str = "loan_docs"
 
