@@ -13,6 +13,7 @@ import {
   CitationChip,
   ErrorState,
 } from "@/components/finex/primitives";
+import { FormattedMarkdown } from "@/components/finex/FormattedMarkdown";
 
 const QUICK_PROMPTS = [
   "What is the processing fee and APR calculation?",
@@ -177,9 +178,7 @@ export function QueryPage() {
           {/* Plain Language Explanation */}
           {currentResult.plain_language_explanation && (
             <Panel title="Plain-Language Executive Summary">
-              <p className="text-sm text-white leading-relaxed">
-                {currentResult.plain_language_explanation}
-              </p>
+              <FormattedMarkdown content={currentResult.plain_language_explanation} />
             </Panel>
           )}
 
@@ -199,9 +198,7 @@ export function QueryPage() {
 
           {/* Detailed Synthesized Answer */}
           <Panel title="Verified Analysis">
-            <div className="text-sm text-white/90 whitespace-pre-line leading-relaxed">
-              {currentResult.answer}
-            </div>
+            <FormattedMarkdown content={currentResult.answer} />
           </Panel>
 
           {/* Citations & Evidence Chunks */}

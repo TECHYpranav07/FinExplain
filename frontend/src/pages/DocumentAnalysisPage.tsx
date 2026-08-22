@@ -5,6 +5,7 @@ import { api, type QueryResponse } from "@/lib/api";
 import { useMutation } from "@tanstack/react-query";
 import { Info } from "lucide-react";
 import { PageHeader, Panel, Badge, EvidenceBadge, ScoreGauge, KeyValue, CitationChip, EmptyState } from "@/components/finex/primitives";
+import { FormattedMarkdown } from "@/components/finex/FormattedMarkdown";
 
 export function DocumentAnalysisPage() {
   const { id } = useParams<{ id: string }>();
@@ -196,9 +197,7 @@ export function DocumentAnalysisPage() {
                     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                       Plain Language Summary
                     </h4>
-                    <p className="text-sm text-white leading-relaxed">
-                      {analysisResult.plain_language_explanation}
-                    </p>
+                    <FormattedMarkdown content={analysisResult.plain_language_explanation} />
                   </div>
                 )}
 
@@ -211,7 +210,7 @@ export function DocumentAnalysisPage() {
                     </div>
                     <p className="text-white/85 leading-relaxed">
                       {analysisResult.why_this_answer ||
-                        "You requested subjective advice (e.g. why to choose or avoid this loan) with exact citations. Because loan documents only contain binding legal and numerical clauses rather than promotional advice, synthesized advisory claims could not be verified against the source text. To protect you from AI hallucinations, FinExplain blocked ungrounded statements, assigned NOT_SPECIFIED status, and generated actionable lender questions instead."}
+                        "You requested subjective advice (e.g. why to choose or avoid this loan) with exact citations. Because loan documents contain binding legal and numerical clauses rather than promotional advice, synthesized advisory claims could not be verified against the source text. To protect you from AI hallucinations, FinExplain blocked ungrounded statements, assigned NOT_SPECIFIED status, and generated actionable lender questions instead."}
                     </p>
                   </div>
                 )}
@@ -222,9 +221,7 @@ export function DocumentAnalysisPage() {
                     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                       AI Analysis Findings
                     </h4>
-                    <p className="text-sm text-white whitespace-pre-line leading-relaxed">
-                      {analysisResult.answer}
-                    </p>
+                    <FormattedMarkdown content={analysisResult.answer} />
                   </div>
                 )}
 

@@ -6,10 +6,23 @@ import {
   PageHeader,
   Panel,
   Badge,
+  EvidenceBadge,
   SeverityBadge,
   EmptyState,
   ErrorState,
 } from "@/components/finex/primitives";
+import { FormattedMarkdown } from "@/components/finex/FormattedMarkdown";
+
+function parseCostDriver(cd: any) {
+  if (typeof cd === "string") {
+    try {
+      return JSON.parse(cd);
+    } catch {
+      return { description: cd };
+    }
+  }
+  return cd || {};
+}
 
 export function ReviewPage() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
@@ -47,49 +60,47 @@ export function ReviewPage() {
             {reviewMutation.isPending ? (
               <>
                 <i className="fa-solid fa-spinner fa-spin text-xs" />
-                <span>Auditing Agreement...</span>
+                Auditing Agreement...
               </>
             ) : (
               <>
-                <i className="fa-solid fa-shield-halved text-xs" />
-                <span>Run Proactive Review</span>
+                <i className="fa-solid fa-bolt text-xs" />
+                Run Proactive Review
               </>
             )}
           </button>
         }
       />
 
-      {/* Target Products */}
-      <Panel title="Select Loan Products to Audit" subtitle="Pick one or more products to cross-examine">
+      {/* Product Selection */}
+      <Panel
+        title="Select Target Loan Product"
+        subtitle="Choose which registered credit facility to audit"
+      >
         <ProductPicker
           selected={selectedProducts}
           onChange={setSelectedProducts}
-          multiple={true}
+          multiple={false}
         />
       </Panel>
 
+      {/* Review Output Area */}
       {reviewMutation.isError && (
         <ErrorState
-          message={(reviewMutation.error as any)?.message || "Failed to execute proactive review."}
+          message={
+            reviewMutation.error instanceof Error
+              ? reviewMutation.error.message
+              : "Unable to complete loan review."
+          }
           onRetry={handleRunReview}
         />
       )}
 
-      {!reviewResult && !reviewMutation.isPending && (
+      {!reviewResult && !reviewMutation.isPending && !reviewMutation.isError && (
         <EmptyState
-          icon="fa-solid fa-shield-halved"
-          title="No review generated yet"
+          title="No Active Audit Results"
           description="Select a loan product above and click 'Run Proactive Review' to scan for hidden fees, penalty structures, and legal risks."
-          action={
-            <button
-              type="button"
-              disabled={selectedProducts.length === 0}
-              onClick={handleRunReview}
-              className="rounded-lg bg-white px-4 py-2 text-xs font-bold text-black hover:bg-white/90 disabled:opacity-40"
-            >
-              Analyze Selected Products
-            </button>
-          }
+          icon="fa-shield-halved"
         />
       )}
 
@@ -108,9 +119,13 @@ export function ReviewPage() {
             title="Proactive Audit Executive Summary"
             subtitle="Synthesized legal and financial risk profile"
           >
-            <div className="text-sm text-white whitespace-pre-line leading-relaxed">
-              {reviewResult.review_text || JSON.stringify(reviewResult.review, null, 2)}
-            </div>
+            <FormattedMarkdown
+              content={
+                typeof reviewResult.review === "string"
+                  ? reviewResult.review
+                  : reviewResult.review_text || ""
+              }
+            />
           </Panel>
 
           {/* Cost Drivers */}
@@ -120,29 +135,53 @@ export function ReviewPage() {
               subtitle="All direct and indirect expenses found in document"
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {reviewResult.cost_drivers.map((cd: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="rounded-lg border border-white/10 bg-surface-2 p-4 flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-white">
-                          {cd.name || cd.fee_name || `Cost Factor #${idx + 1}`}
+                {reviewResult.cost_drivers.map((rawCd: any, idx: number) => {
+                  const cd = parseCostDriver(rawCd);
+                  const title =
+                    cd.field
+                      ? cd.field.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())
+                      : cd.name || cd.category?.toUpperCase() || `Cost Factor #${idx + 1}`;
+                  const formattedValue =
+                    cd.value !== undefined && cd.value !== null && cd.value !== ""
+                      ? `${cd.value}${cd.unit === "percent" || String(cd.value).includes("%") ? "%" : cd.currency ? " " + cd.currency : ""}`
+                      : cd.amount || "Refer to condition";
+                  const conditionText = cd.condition || cd.description || cd.details || "Applicable under document clauses.";
+                  const status = cd.status || "CONDITIONAL";
+
+                  return (
+                    <div
+                      key={idx}
+                      className="rounded-lg border border-white/10 bg-surface-2 p-4 flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-2 gap-2">
+                          <span className="text-xs font-semibold text-white truncate" title={title}>
+                            {title}
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {cd.priority === "HIGH" && <Badge tone="danger">HIGH PRIORITY</Badge>}
+                            <EvidenceBadge status={status} />
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {conditionText}
+                        </p>
+                      </div>
+                      <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between">
+                        {cd.page ? (
+                          <span className="text-[10px] text-white/50">
+                            Page {cd.page} {cd.source_document ? `(${cd.source_document})` : ""}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-white/40">Source Verified</span>
+                        )}
+                        <span className="font-mono text-xs font-semibold text-white">
+                          {formattedValue}
                         </span>
-                        <Badge tone="warning">{cd.type || "Fee"}</Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        {cd.description || cd.details || JSON.stringify(cd)}
-                      </p>
                     </div>
-                    {cd.amount && (
-                      <div className="mt-3 pt-2 border-t border-white/5 text-right font-mono text-xs text-white">
-                        {cd.amount}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </Panel>
           )}
@@ -154,24 +193,35 @@ export function ReviewPage() {
               subtitle="Critical items verified or requiring human sign-off"
             >
               <div className="space-y-3">
-                {reviewResult.checklist.map((item: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="flex items-start gap-3 rounded-lg border border-white/10 bg-surface-2 p-3.5"
-                  >
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-bold text-white mt-0.5">
-                      {idx + 1}
-                    </span>
-                    <div className="flex-1">
-                      <p className="text-xs font-medium text-white">
-                        {typeof item === "string" ? item : item.title || item.item || JSON.stringify(item)}
-                      </p>
-                      {item.note && (
-                        <p className="mt-1 text-[11px] text-muted-foreground">{item.note}</p>
-                      )}
+                {reviewResult.checklist.map((rawItem: any, idx: number) => {
+                  let itemText = "";
+                  let itemNote = "";
+                  if (typeof rawItem === "string") {
+                    itemText = rawItem;
+                  } else if (typeof rawItem === "object" && rawItem !== null) {
+                    itemText = rawItem.title || rawItem.item || rawItem.action || rawItem.question || Object.values(rawItem)[0] || "";
+                    itemNote = rawItem.note || rawItem.reason || rawItem.details || "";
+                  }
+
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-3 rounded-lg border border-white/10 bg-surface-2 p-3.5"
+                    >
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-bold text-white mt-0.5">
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-white leading-relaxed">
+                          {itemText}
+                        </p>
+                        {itemNote && (
+                          <p className="mt-1 text-[11px] text-muted-foreground">{itemNote}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </Panel>
           )}
