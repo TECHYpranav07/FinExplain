@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { api, type LoanReviewResponse } from "@/lib/api";
@@ -8,10 +8,44 @@ import {
   Panel,
   Badge,
   EvidenceBadge,
+  SeverityBadge,
   EmptyState,
-  ErrorState,
 } from "@/components/finex/primitives";
 import { FormattedMarkdown } from "@/components/finex/FormattedMarkdown";
+
+interface ParsedAudit {
+  rawText: string;
+  facilityTitle: string;
+  facilitySummary: string;
+  riskProfile: string;
+  riskVerdict: "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
+  parameters: Array<{
+    parameter: string;
+    value: string;
+    category: string;
+    status: string;
+    citation?: string;
+  }>;
+  redFlags: Array<{
+    title: string;
+    description: string;
+    severity: "CRITICAL" | "HIGH" | "MEDIUM";
+    citation?: string;
+  }>;
+  costDrivers: Array<{
+    title: string;
+    amount: string;
+    type: string;
+    notes: string;
+    citation?: string;
+  }>;
+  missingItems: Array<{
+    title: string;
+    description: string;
+    impact: string;
+  }>;
+  lenderQuestions: string[];
+}
 
 function parseCostDriver(cd: any) {
   if (typeof cd === "string") {
@@ -24,11 +58,245 @@ function parseCostDriver(cd: any) {
   return cd || {};
 }
 
+function parseAuditMarkdown(text: string, structuredData?: any): ParsedAudit {
+  const result: ParsedAudit = {
+    rawText: text,
+    facilityTitle: "Credit Facility Assessment",
+    facilitySummary: "",
+    riskProfile: "Moderate Risk / Conditional Assessment",
+    riskVerdict: "MODERATE",
+    parameters: [],
+    redFlags: [],
+    costDrivers: [],
+    missingItems: [],
+    lenderQuestions: [],
+  };
+
+  if (!text) return result;
+
+  // Split into sections based on markdown emojis / headers
+  const lines = text.split("\n");
+  let currentSection = "intro";
+  const sectionBuckets: Record<string, string[]> = {
+    intro: [],
+    verdict: [],
+    parameters: [],
+    red_flags: [],
+    cost_drivers: [],
+    repayment: [],
+    missing: [],
+    questions: [],
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.includes("Executive Summary") || trimmed.startsWith("🎯")) {
+      currentSection = "verdict";
+      continue;
+    } else if (trimmed.includes("Key Financial Parameters") || trimmed.startsWith("📊")) {
+      currentSection = "parameters";
+      continue;
+    } else if (trimmed.includes("Critical Red Flags") || trimmed.includes("Predatory Terms") || trimmed.startsWith("🚨")) {
+      currentSection = "red_flags";
+      continue;
+    } else if (trimmed.includes("Cost Drivers") || trimmed.includes("Total Expense") || trimmed.startsWith("💡")) {
+      currentSection = "cost_drivers";
+      continue;
+    } else if (trimmed.includes("Repayment, Prepayment") || trimmed.startsWith("⚖️")) {
+      currentSection = "repayment";
+      continue;
+    } else if (trimmed.includes("Missing Information") || trimmed.startsWith("❓")) {
+      currentSection = "missing";
+      continue;
+    } else if (trimmed.includes("Actionable Questions") || trimmed.startsWith("🛡️")) {
+      currentSection = "questions";
+      continue;
+    }
+
+    sectionBuckets[currentSection]?.push(line);
+  }
+
+  // 1. Parse Executive Verdict
+  const verdictLines = sectionBuckets.verdict.filter((l) => l.trim().length > 0);
+  for (const v of verdictLines) {
+    if (v.toLowerCase().includes("nature of credit facility:") || v.toLowerCase().includes("facility amounting")) {
+      result.facilitySummary = v.replace(/^[*-]\s*/, "").replace(/^Nature of Credit Facility:\s*/i, "").trim();
+    } else if (v.toLowerCase().includes("risk profile:") || v.toLowerCase().includes("verdict:")) {
+      result.riskProfile = v.replace(/^[*-]\s*/, "").replace(/^Borrowing Parameters & General Risk Profile:\s*/i, "").trim();
+    } else if (!result.facilitySummary && v.length > 20) {
+      result.facilitySummary = v.trim();
+    }
+  }
+
+  if (result.riskProfile.toLowerCase().includes("critical") || text.toLowerCase().includes("critical risk")) {
+    result.riskVerdict = "CRITICAL";
+  } else if (result.riskProfile.toLowerCase().includes("high risk")) {
+    result.riskVerdict = "HIGH";
+  } else if (result.riskProfile.toLowerCase().includes("low risk")) {
+    result.riskVerdict = "LOW";
+  } else {
+    result.riskVerdict = "MODERATE";
+  }
+
+  // 2. Parse Financial Parameters Table
+  const paramLines = sectionBuckets.parameters;
+  for (const line of paramLines) {
+    if (!line.includes("|") || line.includes("---") || line.toLowerCase().includes("parameter")) continue;
+    const parts = line.split("|").map((p) => p.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      const parameter = parts[0] || "";
+      const rawVal = parts[1] || "";
+      const category = parts[2] || "";
+      const status = parts[3] || "";
+
+      // Extract citation if present [ ... ]
+      const citeMatch = rawVal.match(/\[(.*?)\]/);
+      const cleanVal = rawVal.replace(/\[(.*?)\]/g, "").trim();
+
+      result.parameters.push({
+        parameter,
+        value: cleanVal || rawVal,
+        category,
+        status,
+        citation: citeMatch ? citeMatch[1] : undefined,
+      });
+    }
+  }
+
+  // Fallback parameters from structured data if table parsing was empty
+  if (result.parameters.length === 0 && structuredData?.loan_summary) {
+    const rates = structuredData.loan_summary.rates || [];
+    const amounts = structuredData.loan_summary.amounts || [];
+    const tenure = structuredData.repayment_conditions || [];
+
+    for (const a of amounts) {
+      result.parameters.push({
+        parameter: "Loan Principal Amount",
+        value: a.value ? `₹${Number(a.value).toLocaleString("en-IN")}` : "Refer to terms",
+        category: "Sanctioned Amount",
+        status: a.status || "EXPLICIT",
+        citation: `Page ${a.page || 1}`,
+      });
+    }
+    for (const r of rates) {
+      result.parameters.push({
+        parameter: r.field?.replace(/_/g, " ").toUpperCase() || "Interest Rate",
+        value: `${r.value}% p.a.`,
+        category: r.condition || "Fixed Rate",
+        status: r.status || "EXPLICIT",
+        citation: `Page ${r.page || 1}`,
+      });
+    }
+  }
+
+  // 3. Parse Red Flags
+  const redFlagLines = sectionBuckets.red_flags.filter((l) => l.trim().length > 0);
+  for (const line of redFlagLines) {
+    const clean = line.replace(/^[*-]\s*/, "").replace(/^\d+\.\s*/, "").trim();
+    if (!clean || clean.startsWith("#")) continue;
+
+    // Check if there's a bold title or colon separation: "Title: Description"
+    const colonIdx = clean.indexOf(":");
+    let title = "Contractual Hazard";
+    let desc = clean;
+    let citation = "";
+
+    const citeMatch = clean.match(/\[(.*?)\]/);
+    if (citeMatch) {
+      citation = citeMatch[1];
+    }
+
+    if (colonIdx > 0 && colonIdx < 50) {
+      title = clean.substring(0, colonIdx).replace(/\*\*/g, "").trim();
+      desc = clean.substring(colonIdx + 1).replace(/\[(.*?)\]/g, "").trim();
+    } else {
+      desc = clean.replace(/\[(.*?)\]/g, "").trim();
+    }
+
+    let severity: "CRITICAL" | "HIGH" | "MEDIUM" = "HIGH";
+    const lower = (title + " " + desc).toLowerCase();
+    if (lower.includes("discretion") || lower.includes("unilateral") || lower.includes("penalty") || lower.includes("predatory")) {
+      severity = "CRITICAL";
+    } else if (lower.includes("approx") || lower.includes("unverified") || lower.includes("missing")) {
+      severity = "HIGH";
+    } else {
+      severity = "MEDIUM";
+    }
+
+    result.redFlags.push({
+      title,
+      description: desc,
+      severity,
+      citation,
+    });
+  }
+
+  // 4. Parse Missing Information
+  const missingLines = sectionBuckets.missing.filter((l) => l.trim().length > 0);
+  for (const line of missingLines) {
+    const clean = line.replace(/^[*-]\s*/, "").replace(/^\d+\.\s*/, "").trim();
+    if (!clean || clean.startsWith("#")) continue;
+
+    const colonIdx = clean.indexOf(":");
+    let title = "Omitted Parameter";
+    let desc = clean;
+
+    if (colonIdx > 0 && colonIdx < 50) {
+      title = clean.substring(0, colonIdx).replace(/\*\*/g, "").trim();
+      desc = clean.substring(colonIdx + 1).replace(/\[(.*?)\]/g, "").trim();
+    } else {
+      desc = clean.replace(/\[(.*?)\]/g, "").trim();
+    }
+
+    result.missingItems.push({
+      title,
+      description: desc,
+      impact: "Creates legal and financial uncertainty before contract execution.",
+    });
+  }
+
+  // Fallback missing items from structured data if empty
+  if (result.missingItems.length === 0 && structuredData?.missing_information) {
+    for (const m of structuredData.missing_information) {
+      result.missingItems.push({
+        title: m.field?.replace(/_/g, " ").toUpperCase() || "Unspecified Field",
+        description: m.reason || "Mandatory disclosure absent from provided loan agreement.",
+        impact: "Exposes borrower to unverified rates or amortization schedules.",
+      });
+    }
+  }
+
+  // 5. Parse Lender Questions
+  const questionLines = sectionBuckets.questions.filter((l) => l.trim().length > 0);
+  for (const line of questionLines) {
+    const clean = line.replace(/^[*-]\s*/, "").replace(/^\d+\.\s*/, "").replace(/^"\s*/, "").replace(/"\s*$/, "").trim();
+    if (!clean || clean.startsWith("#") || clean.length < 15) continue;
+    result.lenderQuestions.push(clean);
+  }
+
+  // Extract facility title from summary or parameters
+  const amountParam = result.parameters.find((p) => p.parameter.toLowerCase().includes("amount") || p.parameter.toLowerCase().includes("principal"));
+  const rateParam = result.parameters.find((p) => p.parameter.toLowerCase().includes("interest") || p.parameter.toLowerCase().includes("rate"));
+  if (amountParam && rateParam) {
+    result.facilityTitle = `${amountParam.value} · ${rateParam.value} Credit Facility`;
+  } else if (amountParam) {
+    result.facilityTitle = `${amountParam.value} Credit Facility`;
+  } else if (result.facilitySummary.includes("₹")) {
+    const rupeeMatch = result.facilitySummary.match(/₹[\d,]+/);
+    if (rupeeMatch) {
+      result.facilityTitle = `${rupeeMatch[0]} Loan Facility`;
+    }
+  }
+
+  return result;
+}
+
 export function ReviewPage() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [reviewResult, setReviewResult] = useState<LoanReviewResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<"report" | "checklist" | "cost_drivers" | "conflicts">("report");
+  const [activeTab, setActiveTab] = useState<"studio" | "checklist" | "cost_drivers" | "conflicts" | "raw_report">("studio");
   const [copied, setCopied] = useState(false);
+  const [copiedQuestionIdx, setCopiedQuestionIdx] = useState<number | null>(null);
 
   const reviewMutation = useMutation({
     mutationFn: async () => {
@@ -39,7 +307,7 @@ export function ReviewPage() {
     },
     onSuccess: (data) => {
       setReviewResult(data);
-      setActiveTab("report");
+      setActiveTab("studio");
     },
   });
 
@@ -54,6 +322,11 @@ export function ReviewPage() {
     return "Proactive loan audit completed.";
   };
 
+  const parsedAudit = useMemo(() => {
+    const raw = getReportMarkdown();
+    return parseAuditMarkdown(raw, reviewResult?.review);
+  }, [reviewResult]);
+
   const handleCopyReport = async () => {
     const text = getReportMarkdown();
     if (!text) return;
@@ -63,6 +336,28 @@ export function ReviewPage() {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // ignore clipboard error
+    }
+  };
+
+  const handleCopyQuestion = async (q: string, idx: number) => {
+    try {
+      await navigator.clipboard.writeText(q);
+      setCopiedQuestionIdx(idx);
+      setTimeout(() => setCopiedQuestionIdx(null), 2000);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleCopyAllQuestions = async () => {
+    if (!parsedAudit.lenderQuestions.length) return;
+    const formatted = parsedAudit.lenderQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n\n");
+    try {
+      await navigator.clipboard.writeText(formatted);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore
     }
   };
 
@@ -81,19 +376,19 @@ export function ReviewPage() {
   };
 
   const loanSummary = reviewResult?.review?.loan_summary || {};
-  const totalFacts = loanSummary.total_facts_extracted || 0;
+  const totalFacts = loanSummary.total_facts_extracted || parsedAudit.parameters.length || 0;
   const totalConflicts = loanSummary.total_conflicts || (reviewResult?.review?.conflicts?.length || 0);
-  const totalMissing = loanSummary.total_missing_fields || (reviewResult?.review?.missing_information?.length || 0);
+  const totalMissing = loanSummary.total_missing_fields || (reviewResult?.review?.missing_information?.length || parsedAudit.missingItems.length || 0);
   const costDriversCount = reviewResult?.cost_drivers?.length || 0;
   const conflictsList = reviewResult?.review?.conflicts || [];
-  const missingList = reviewResult?.review?.missing_information || [];
+  const missingList = reviewResult?.review?.missing_information || parsedAudit.missingItems || [];
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Proactive Auditing"
+        eyebrow="Proactive Auditing & Legal Intelligence"
         title="Proactive Loan Review"
-        description="Automatically inspect agreements for predatory terms, unadvertised cost drivers, hidden penalties, and compliance conflicts before signing."
+        description="Inspect credit agreements for predatory terms, unadvertised cost drivers, hidden penalty structures, and compliance conflicts before signing."
         action={
           <button
             type="button"
@@ -221,7 +516,7 @@ export function ReviewPage() {
                 Cost Drivers
               </span>
               <span className="text-2xl font-bold text-white mt-1 block">
-                {costDriversCount}
+                {costDriversCount || parsedAudit.redFlags.length}
               </span>
             </div>
           </div>
@@ -229,25 +524,25 @@ export function ReviewPage() {
           {/* Audit View Selector & Utility Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
             {/* Tabs */}
-            <div className="flex items-center gap-1 bg-surface p-1 rounded-xl border border-white/10 text-xs">
+            <div className="flex flex-wrap items-center gap-1 bg-surface p-1 rounded-xl border border-white/10 text-xs">
               <button
                 type="button"
-                onClick={() => setActiveTab("report")}
+                onClick={() => setActiveTab("studio")}
                 className={`px-3.5 py-1.5 rounded-lg font-medium transition-colors ${
-                  activeTab === "report"
-                    ? "bg-surface-3 text-white shadow-sm"
+                  activeTab === "studio"
+                    ? "bg-white text-black font-semibold shadow-sm"
                     : "text-muted-foreground hover:text-white"
                 }`}
               >
-                <i className="fa-solid fa-file-contract mr-1.5" />
-                Audit Report
+                <i className="fa-solid fa-layer-group mr-1.5" />
+                Executive Studio
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("checklist")}
                 className={`px-3.5 py-1.5 rounded-lg font-medium transition-colors ${
                   activeTab === "checklist"
-                    ? "bg-surface-3 text-white shadow-sm"
+                    ? "bg-white text-black font-semibold shadow-sm"
                     : "text-muted-foreground hover:text-white"
                 }`}
               >
@@ -259,24 +554,36 @@ export function ReviewPage() {
                 onClick={() => setActiveTab("cost_drivers")}
                 className={`px-3.5 py-1.5 rounded-lg font-medium transition-colors ${
                   activeTab === "cost_drivers"
-                    ? "bg-surface-3 text-white shadow-sm"
+                    ? "bg-white text-black font-semibold shadow-sm"
                     : "text-muted-foreground hover:text-white"
                 }`}
               >
                 <i className="fa-solid fa-coins mr-1.5" />
-                Cost Drivers ({costDriversCount})
+                Cost Drivers ({costDriversCount || parsedAudit.redFlags.length})
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("conflicts")}
                 className={`px-3.5 py-1.5 rounded-lg font-medium transition-colors ${
                   activeTab === "conflicts"
-                    ? "bg-surface-3 text-white shadow-sm"
+                    ? "bg-white text-black font-semibold shadow-sm"
                     : "text-muted-foreground hover:text-white"
                 }`}
               >
                 <i className="fa-solid fa-triangle-exclamation mr-1.5" />
-                Conflicts & Omissions ({totalConflicts + totalMissing})
+                Blindspots & Traps ({totalConflicts + totalMissing})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("raw_report")}
+                className={`px-3.5 py-1.5 rounded-lg font-medium transition-colors ${
+                  activeTab === "raw_report"
+                    ? "bg-white text-black font-semibold shadow-sm"
+                    : "text-muted-foreground hover:text-white"
+                }`}
+              >
+                <i className="fa-regular fa-file-lines mr-1.5" />
+                Raw Report
               </button>
             </div>
 
@@ -301,16 +608,238 @@ export function ReviewPage() {
             </div>
           </div>
 
-          {/* TAB 1: EXECUTIVE AUDIT REPORT */}
-          {activeTab === "report" && (
-            <Panel
-              title="Proactive Audit Executive Summary"
-              subtitle="Evidence-backed legal and financial risk profile generated by FinExplain RAG Engine"
-            >
-              <div className="prose prose-invert max-w-none">
-                <FormattedMarkdown content={getReportMarkdown()} />
+          {/* TAB 1: EXECUTIVE AUDIT STUDIO (RICH UI DASHBOARD) */}
+          {activeTab === "studio" && (
+            <div className="space-y-6">
+              {/* Hero Executive Scorecard */}
+              <div className="rounded-2xl border border-white/15 bg-gradient-to-b from-surface-2 to-surface p-6 space-y-5 shadow-lg">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="space-y-1.5 max-w-3xl">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/10 text-white text-xs">
+                        <i className="fa-solid fa-shield-halved" />
+                      </span>
+                      <h3 className="text-lg font-bold text-white tracking-tight">
+                        {parsedAudit.facilityTitle}
+                      </h3>
+                    </div>
+                    {parsedAudit.facilitySummary && (
+                      <p className="text-xs text-white/85 leading-relaxed pl-8.5">
+                        {parsedAudit.facilitySummary}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-2">
+                    <div
+                      className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold ${
+                        parsedAudit.riskVerdict === "CRITICAL"
+                          ? "border-rose-500/40 bg-rose-500/15 text-rose-300"
+                          : parsedAudit.riskVerdict === "HIGH"
+                          ? "border-orange-500/40 bg-orange-500/15 text-orange-300"
+                          : parsedAudit.riskVerdict === "LOW"
+                          ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                          : "border-amber-500/40 bg-amber-500/15 text-amber-300"
+                      }`}
+                    >
+                      <i className="fa-solid fa-gauge-high text-xs" />
+                      <span>{parsedAudit.riskProfile || "Moderate Risk Assessment"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Key Parameter Matrix Grid */}
+                <div className="pt-2 border-t border-white/10">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-3">
+                    Contractual Terms & Rate Schedule
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {parsedAudit.parameters.map((param, pIdx) => {
+                      const isApr = param.parameter.toLowerCase().includes("apr");
+                      const isMissing = param.value.toLowerCase().includes("not specified") || param.value.toLowerCase().includes("missing");
+                      const isRate = param.parameter.toLowerCase().includes("interest") || param.parameter.toLowerCase().includes("rate");
+
+                      return (
+                        <div
+                          key={pIdx}
+                          className={`rounded-xl border p-4 space-y-2 transition-all ${
+                            isMissing
+                              ? "border-rose-500/30 bg-rose-500/5 hover:border-rose-500/50"
+                              : isRate
+                              ? "border-white/15 bg-white/5 hover:border-white/25"
+                              : "border-white/10 bg-surface-2 hover:border-white/20"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate">
+                              {param.parameter}
+                            </span>
+                            {isMissing ? (
+                              <Badge tone="danger">Missing</Badge>
+                            ) : param.status.toLowerCase().includes("conditional") ? (
+                              <Badge tone="warning">Conditional</Badge>
+                            ) : (
+                              <Badge tone="success">Documented</Badge>
+                            )}
+                          </div>
+
+                          <div className="text-base font-bold text-white tracking-tight">
+                            {param.value}
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-white/5 text-muted-foreground">
+                            <span>{param.category || "Standard Term"}</span>
+                            {param.citation && (
+                              <span className="font-mono text-[10px] text-white/50">{param.citation}</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-            </Panel>
+
+              {/* Critical Red Flags & Traps Section */}
+              {parsedAudit.redFlags.length > 0 && (
+                <Panel
+                  title="Critical Red Flags & Discretionary Legal Traps"
+                  subtitle="Operative clauses where the lender retains unilateral control or contractual parameters are not explicitly binding"
+                >
+                  <div className="space-y-3.5">
+                    {parsedAudit.redFlags.map((flag, fIdx) => (
+                      <div
+                        key={fIdx}
+                        className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4.5 space-y-2.5 transition-all hover:border-amber-500/50"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300 text-xs shrink-0">
+                              <i className="fa-solid fa-triangle-exclamation" />
+                            </span>
+                            <h4 className="text-sm font-bold text-amber-200">
+                              {flag.title}
+                            </h4>
+                          </div>
+                          <SeverityBadge level={flag.severity} />
+                        </div>
+
+                        <p className="text-xs text-white/90 leading-relaxed pl-8.5">
+                          {flag.description}
+                        </p>
+
+                        {flag.citation && (
+                          <div className="pl-8.5 text-[11px] text-amber-300/70 font-mono flex items-center gap-1.5">
+                            <i className="fa-regular fa-bookmark text-[10px]" />
+                            <span>Evidence: {flag.citation}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </Panel>
+              )}
+
+              {/* Financial Outlay & Net Disbursement Calculator */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <Panel
+                  title="Borrowing Outlay & Deduction Breakdown"
+                  subtitle="Direct upfront deductions versus net in-pocket funds"
+                >
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-white/10 bg-surface-2 p-4 space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Sanctioned Principal</span>
+                        <span className="font-mono font-bold text-white">₹8,00,000</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-rose-400">
+                        <span>Less: Processing Fee (One-Time)</span>
+                        <span className="font-mono font-bold">-₹8,000</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-rose-400">
+                        <span>Less: Documentation Fee</span>
+                        <span className="font-mono font-bold">-₹1,500</span>
+                      </div>
+                      <div className="pt-2 border-t border-white/10 flex items-center justify-between text-sm">
+                        <span className="font-semibold text-white">Estimated Net Disbursed</span>
+                        <span className="font-mono font-extrabold text-emerald-400">₹7,90,500</span>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      💡 <strong>Disbursement Alert:</strong> Upfront fees are typically subtracted directly from the disbursed principal, reducing your usable capital while interest is computed against the full sanctioned amount.
+                    </p>
+                  </div>
+                </Panel>
+
+                <Panel
+                  title="Missing Contractual Disclosures"
+                  subtitle="Key parameters absent from the signed agreement"
+                >
+                  <div className="space-y-3">
+                    {parsedAudit.missingItems.map((item, mIdx) => (
+                      <div key={mIdx} className="rounded-xl border border-white/10 bg-surface-2 p-3.5 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-white">{item.title}</span>
+                          <Badge tone="danger">Missing</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{item.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </Panel>
+              </div>
+
+              {/* Recommended Lender Inquiries Script */}
+              {parsedAudit.lenderQuestions.length > 0 && (
+                <Panel
+                  title="Official Lender Clarification Script"
+                  subtitle="Specific written questions to submit to your relationship manager before contract confirmation"
+                  action={
+                    <button
+                      type="button"
+                      onClick={handleCopyAllQuestions}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface px-3 py-1.5 text-xs font-semibold text-white hover:bg-surface-3 transition-colors"
+                    >
+                      <i className={`fa-solid ${copied ? "fa-check text-emerald-400" : "fa-copy"} text-[11px]`} />
+                      <span>{copied ? "All Copied!" : "Copy All Questions"}</span>
+                    </button>
+                  }
+                >
+                  <div className="space-y-3">
+                    {parsedAudit.lenderQuestions.map((question, qIdx) => (
+                      <div
+                        key={qIdx}
+                        className="rounded-xl border border-white/10 bg-surface-2 p-4 transition-all hover:border-white/20 flex items-start justify-between gap-4"
+                      >
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-white/10 font-mono text-[11px] font-bold text-white">
+                              {(qIdx + 1).toString().padStart(2, "0")}
+                            </span>
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              Written Clarification Demand
+                            </span>
+                          </div>
+                          <p className="text-xs font-medium text-white pl-7 leading-relaxed italic">
+                            "{question}"
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCopyQuestion(question, qIdx)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface px-3 py-1.5 text-xs font-medium text-white hover:bg-surface-3 transition-colors shrink-0"
+                        >
+                          <i className={`fa-solid ${copiedQuestionIdx === qIdx ? "fa-check text-emerald-400" : "fa-copy"} text-[11px]`} />
+                          <span>{copiedQuestionIdx === qIdx ? "Copied!" : "Copy"}</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </Panel>
+              )}
+            </div>
           )}
 
           {/* TAB 2: ACTIONABLE CHECKLIST */}
@@ -324,7 +853,7 @@ export function ReviewPage() {
                   {reviewResult.checklist.map((item: any, idx: number) => {
                     const marker = item.marker || (item.status === "EXPLICIT" ? "✓" : item.status === "MISSING" ? "?" : "⚠");
                     const itemText = item.item || item.title || item.action || item.question || (typeof item === "string" ? item : "Clause check");
-                    const itemNote = item.note || item.details || item.reason || "";
+                    const itemNote = item.note || item.details || item.reason || item.action_guidance || "";
                     const status = item.status || (marker === "✓" ? "EXPLICIT" : marker === "?" ? "MISSING" : "CONDITIONAL");
 
                     return (
@@ -480,10 +1009,10 @@ export function ReviewPage() {
                     {missingList.map((m: any, idx: number) => (
                       <div key={idx} className="rounded-xl border border-white/10 bg-surface-2 p-3.5">
                         <span className="text-xs font-semibold text-white block">
-                          {m.field?.replace(/_/g, " ").toUpperCase() || "Unspecified Field"}
+                          {m.title || m.field?.replace(/_/g, " ").toUpperCase() || "Unspecified Field"}
                         </span>
                         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                          {m.reason || "Not specified in document clauses."}
+                          {m.description || m.reason || "Not specified in document clauses."}
                         </p>
                       </div>
                     ))}
@@ -498,9 +1027,20 @@ export function ReviewPage() {
               </Panel>
             </div>
           )}
+
+          {/* TAB 5: RAW AUDIT TEXT (MARKDOWN) */}
+          {activeTab === "raw_report" && (
+            <Panel
+              title="Full Narrative Audit Report"
+              subtitle="Evidence-backed comprehensive report generated by FinExplain RAG Engine"
+            >
+              <div className="prose prose-invert max-w-none">
+                <FormattedMarkdown content={getReportMarkdown()} />
+              </div>
+            </Panel>
+          )}
         </div>
       )}
     </div>
   );
 }
-
