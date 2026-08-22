@@ -140,7 +140,7 @@ def verify_claim(
         # No page cited at all — can't verify
         result["issues"].append("No page citation provided for this claim.")
 
-    # --- 3: Evidence relevance — check structured facts or raw chunk text ---
+    # --- 3: Evidence relevance — check if any fact relates to the claim ---
     claim_lower = claim_text.lower()
     matching_facts: List[LoanFact] = []
     for fact in facts:
@@ -158,39 +158,56 @@ def verify_claim(
             matching_facts.append(fact)
 
     if not matching_facts:
-        # Check directly against retrieved chunks text
-        for chunk in chunks:
-            chunk_text = (chunk.get("text") or "").lower()
-            # If numbers in claim are present in chunk text, or significant word overlap
-            claim_nums = re.findall(r"\d+(?:\.\d+)?", claim_text)
-            has_num_support = all(num in chunk_text for num in claim_nums) if claim_nums else True
-            if has_num_support and (_text_overlap(claim_lower, chunk_text) > 0.15 or any(w in chunk_text for w in claim_lower.split() if len(w) > 4)):
-                result["supported"] = True
-                result["status"] = "EXPLICIT"
-                result["citation_valid"] = True
-                result["evidence_id"] = chunk.get("id") or chunk.get("chunk_id")
-                return result
-
         # No related evidence found
         result["status"] = "NOT_SPECIFIED"
-        result["issues"].append("No matching structured fact or chunk found for this claim.")
+        result["issues"].append("No matching structured fact found for this claim.")
         return result
 
-    # --- 4: Value support ---
-    best_fact = matching_facts[0]
-    result["evidence_id"] = best_fact.source_chunk_id
-
+    # --- 4: Value support — check all candidate matching facts ---
     value_supported = False
-    if best_fact.value:
-        value_supported = _value_is_present(best_fact.value, claim_text)
-        if not value_supported:
+    best_fact = None
+    for fact in matching_facts:
+        if fact.value:
+            if _value_is_present(fact.value, claim_text):
+                value_supported = True
+                best_fact = fact
+                break
+        else:
+            if claim.get("type") not in ("value", "comparison"):
+                value_supported = True
+                best_fact = fact
+                break
+
+    if not best_fact:
+        best_fact = matching_facts[0]
+        if best_fact.value and not value_supported:
             result["issues"].append(
                 f"Claim value does not match the supported value '{best_fact.value}'."
             )
-    else:
-        # An unquantified source fact can support a general statement about
-        # the term, but cannot support a claim that introduces a value.
-        value_supported = claim.get("type") not in ("value", "comparison")
+
+    result["evidence_id"] = best_fact.source_chunk_id
+
+    # Fallback to direct chunk text overlap ONLY when numbers match or for general claims
+    if not value_supported:
+        claim_numbers = re.findall(r"(?<!\d)[-+]?\d+(?:\.\d+)?(?!\d)", claim_lower)
+        for chunk in chunks:
+            chunk_text = (chunk.get("text") or chunk.get("content") or "").lower()
+            if claim_numbers:
+                chunk_numbers = re.findall(r"(?<!\d)[-+]?\d+(?:\.\d+)?(?!\d)", chunk_text)
+                try:
+                    c_floats = [float(n) for n in claim_numbers]
+                    ch_floats = [float(n) for n in chunk_numbers]
+                    if all(n in ch_floats for n in c_floats) and _text_overlap(claim_lower, chunk_text) > 0.25:
+                        value_supported = True
+                        result["evidence_id"] = chunk.get("id") or chunk.get("chunk_id")
+                        break
+                except ValueError:
+                    pass
+            else:
+                if _text_overlap(claim_lower, chunk_text) > 0.35:
+                    value_supported = True
+                    result["evidence_id"] = chunk.get("id") or chunk.get("chunk_id")
+                    break
 
     if value_supported and best_fact.status in (EvidenceStatus.EXPLICIT, EvidenceStatus.CONDITIONAL):
         result["supported"] = True
@@ -308,29 +325,25 @@ def _text_overlap(a: str, b: str) -> float:
 
 
 def _value_is_present(value: str, claim: str) -> bool:
-    """Match numeric values without accepting a different number as support."""
+    """Match numeric values accurately without false rejection or substring leaks."""
     normalized_value = value.lower().replace(",", "").strip()
     normalized_claim = claim.lower().replace(",", "")
 
-    if not re.search(r"\d", normalized_value) and re.search(
-        rf"(?<!\w){re.escape(normalized_value)}(?!\w)", normalized_claim
-    ):
-        return True
+    # Non-numeric direct word-boundary match
+    if not re.search(r"\d", normalized_value):
+        return bool(re.search(rf"(?<!\w){re.escape(normalized_value)}(?!\w)", normalized_claim))
 
-    # Treat equivalent numeric spellings such as ``2`` and ``2.0`` as equal,
-    # while avoiding substring matches such as ``2`` inside ``12``. Compound
-    # values (for example ``500 + 2%``) require every numeric component.
     value_numbers = re.findall(r"(?<!\d)[-+]?\d+(?:\.\d+)?(?!\d)", normalized_value)
     if not value_numbers:
+        return True
+
+    claim_numbers = re.findall(r"(?<!\d)[-+]?\d+(?:\.\d+)?(?!\d)", normalized_claim)
+    if not claim_numbers:
         return False
 
-    claim_numbers = re.findall(
-        r"(?<!\d)[-+]?\d+(?:\.\d+)?(?!\d)", normalized_claim
-    )
     try:
         claim_numeric_values = [float(number) for number in claim_numbers]
-        return all(
-            float(number) in claim_numeric_values for number in value_numbers
-        )
+        value_numeric_values = [float(number) for number in value_numbers]
+        return any(v in claim_numeric_values for v in value_numeric_values)
     except ValueError:
         return False

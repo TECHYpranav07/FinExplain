@@ -193,8 +193,9 @@ def process_query(
         }
 
     # ===================================================================
-    # Step 8: Structured fact extraction (fast heuristic, 0 token overhead)
+    # Step 8: Structured fact extraction
     # ===================================================================
+    logger.info("[Orchestrator] Extracting structured facts...")
     product_name = None
     document_name = None
     if reranked_chunks:
@@ -209,15 +210,25 @@ def process_query(
     )
     logger.info(f"[Orchestrator] Extracted {len(structured_facts)} structured facts")
 
-    # Step 9: Condition annotation
+    # ===================================================================
+    # Step 9: Condition annotation (deterministic)
+    # ===================================================================
     structured_facts = annotate_facts_with_conditions(structured_facts, reranked_chunks)
 
-    # Step 10: Missing information detection
+    # ===================================================================
+    # Step 10: Missing information detection (deterministic)
+    # ===================================================================
     missing_info = detect_missing_information(structured_facts)
+    if missing_info:
+        logger.info(f"[Orchestrator] Missing information: {[m['field'] for m in missing_info]}")
 
-    # Step 11: Fact-level conflict detection
+    # ===================================================================
+    # Step 11: Fact-level conflict detection (deterministic)
+    # ===================================================================
     fact_conflicts = detect_fact_conflicts(structured_facts)
     all_conflicts = chunk_conflicts + fact_conflicts
+    if fact_conflicts:
+        logger.info(f"[Orchestrator] Fact-level conflicts detected: {len(fact_conflicts)}")
 
     # ===================================================================
     # Step 12: Scenario extraction (if calculation intent)
