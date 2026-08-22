@@ -36,7 +36,7 @@ def _sanitize_model_name(raw_model: Optional[str]) -> str:
     if "flash-light" in model.lower():
         model = model.replace("flash-light", "flash-lite").replace("FLASH-LIGHT", "flash-lite")
         
-    # Ignore legacy groq/openai model names passed by old callers
+    # Ignore non-gemini model names passed by old callers
     if "/" in model or "gpt" in model.lower() or "llama" in model.lower():
         model = settings.GEMINI_MODEL or DEFAULT_GEMINI_MODEL
         if model.startswith("models/"):
