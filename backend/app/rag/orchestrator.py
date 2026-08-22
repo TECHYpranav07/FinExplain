@@ -29,7 +29,7 @@ Pipeline stages:
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +85,7 @@ def process_query(
     product_ids: List[str],
     max_retrieval: int = 30,
     max_context_tokens: int = 4000,
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Enhanced evidence-first RAG pipeline.
@@ -142,9 +143,9 @@ def process_query(
     # ===================================================================
     # Step 4: Hybrid retrieval
     # ===================================================================
-    retrieved_chunks = hybrid_search(rewritten_query, product_ids, top_k=max_retrieval)
+    retrieved_chunks = hybrid_search(rewritten_query, product_ids, top_k=max_retrieval, user_id=user_id)
     if not retrieved_chunks and rewritten_query != question:
-        retrieved_chunks = hybrid_search(question, product_ids, top_k=max_retrieval)
+        retrieved_chunks = hybrid_search(question, product_ids, top_k=max_retrieval, user_id=user_id)
 
     if not retrieved_chunks:
         return {

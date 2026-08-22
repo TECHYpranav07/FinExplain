@@ -2,7 +2,10 @@ import asyncio
 import os
 import logging
 from typing import Dict, Any
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
+from app.auth.jwt_handler import get_current_user
+from app.db.repositories.product_repo import get_product_by_id
+from app.core.config import settings
 
 # Import the sync pipeline
 from app.ingestion.pipeline import process_document
@@ -23,13 +26,26 @@ MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
 async def upload_document(
     file: UploadFile = File(...),
     product_id: str = Form(...),
-    use_async: bool = Form(False)  # Optional flag to use Celery
+    use_async: bool = Form(False),  # Optional flag to use Celery
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
     Upload a loan document (PDF) and trigger the ingestion pipeline.
+    Ensures the target product belongs to the authenticated user.
     FIN-030: Validates file type (case-insensitive), %PDF magic bytes, and 50MB size limit.
     FIN-031: Runs synchronous pipeline off the event loop via asyncio.to_thread.
     """
+    # Verify product ownership
+    product = get_product_by_id(product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail=f"Product with ID '{product_id}' not found.")
+
+    is_sample = product_id in ("1", "2") and settings.is_development
+    if not is_sample and product.get("user_id") and product.get("user_id") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied: You do not own this product.")
+
+    user_id = current_user["id"]
+
     # Validate filename and extension (case-insensitive)
     raw_filename = file.filename or "uploaded_document.pdf"
     safe_filename = os.path.basename(raw_filename)
@@ -66,7 +82,8 @@ async def upload_document(
             process_document,
             file_bytes=file_bytes,
             file_name=safe_filename,
-            product_id=product_id
+            product_id=product_id,
+            user_id=user_id
         )
         return result
 

@@ -1,11 +1,4 @@
-"""
-Proactive analysis endpoints for FinExplain.
-
-- POST /review     — Proactive loan review for a product
-- POST /before-confirmation — "Before You Confirm" checklist
-"""
-
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any, List
 
 from app.api.schemas import (
@@ -15,6 +8,8 @@ from app.api.schemas import (
     BeforeConfirmationResponse,
 )
 from app.db.repositories.product_repo import get_product_by_id
+from app.auth.jwt_handler import get_current_user
+from app.core.config import settings
 from app.rag.retrieval.hybrid_retriever import hybrid_search
 from app.rag.retrieval.reranker import rerank_chunks
 from app.rag.extraction.fact_extractor import extract_structured_facts
@@ -32,15 +27,16 @@ from app.rag.generation.generator import generate_loan_review, generate_before_c
 router = APIRouter()
 
 
-def _extract_facts_for_products(product_ids: List[str]) -> Dict[str, Any]:
+def _extract_facts_for_products(product_ids: List[str], user_id: str = None) -> Dict[str, Any]:
     """
     Shared helper: retrieve chunks, extract facts, detect conditions/missing/conflicts.
     """
-    # Retrieve all relevant chunks via a broad query
+    # Retrieve all relevant chunks via a broad query filtered by user_id
     all_chunks = hybrid_search(
         query="loan terms fees charges conditions eligibility repayment penalty waiver",
         product_ids=product_ids,
         top_k=50,
+        user_id=user_id,
     )
 
     if not all_chunks:
@@ -83,20 +79,28 @@ def _extract_facts_for_products(product_ids: List[str]) -> Dict[str, Any]:
 
 
 @router.post("/review", response_model=LoanReviewResponse)
-async def loan_review(request: LoanReviewRequest) -> Dict[str, Any]:
+async def loan_review(
+    request: LoanReviewRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
-    Proactive loan document review.
+    Proactive loan document review scoped to user's products.
 
     Automatically identifies important terms, cost drivers, penalties,
     conditions, missing information, and conflicts for the specified products.
     """
-    # Verify products exist
+    user_id = current_user["id"]
+    # Verify products exist and belong to user
     for pid in request.product_ids:
+        if pid in ("1", "2") and settings.is_development:
+            continue
         product = get_product_by_id(pid)
         if not product:
             raise HTTPException(status_code=404, detail=f"Product {pid} not found.")
+        if product.get("user_id") and product.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail=f"Access denied to product {pid}.")
 
-    extracted = _extract_facts_for_products(request.product_ids)
+    extracted = _extract_facts_for_products(request.product_ids, user_id=user_id)
 
     # Build structured review
     review = analyze_loan_document(
@@ -124,20 +128,28 @@ async def loan_review(request: LoanReviewRequest) -> Dict[str, Any]:
 
 
 @router.post("/before-confirmation", response_model=BeforeConfirmationResponse)
-async def before_confirmation(request: BeforeConfirmationRequest) -> Dict[str, Any]:
+async def before_confirmation(
+    request: BeforeConfirmationRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
-    "Before You Confirm" checklist.
+    "Before You Confirm" checklist scoped to user's products.
 
     Identifies the most important things a borrower should understand
     before committing to a loan, with evidence attached to every item.
     """
-    # Verify products exist
+    user_id = current_user["id"]
+    # Verify products exist and belong to user
     for pid in request.product_ids:
+        if pid in ("1", "2") and settings.is_development:
+            continue
         product = get_product_by_id(pid)
         if not product:
             raise HTTPException(status_code=404, detail=f"Product {pid} not found.")
+        if product.get("user_id") and product.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail=f"Access denied to product {pid}.")
 
-    extracted = _extract_facts_for_products(request.product_ids)
+    extracted = _extract_facts_for_products(request.product_ids, user_id=user_id)
 
     # Build checklist
     checklist = generate_before_confirmation_checklist(
@@ -158,3 +170,4 @@ async def before_confirmation(request: BeforeConfirmationRequest) -> Dict[str, A
         "checklist": checklist,
         "checklist_text": checklist_text_result.get("checklist"),
     }
+

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api, type QueryResponse } from "@/lib/api";
 import { ProductPicker } from "@/components/finex/ProductSelect";
+import { useAuth } from "@/lib/authContext";
 import {
   type ChatSession,
   type ChatMessage,
@@ -42,6 +43,9 @@ const QUICK_PROMPTS = [
 ];
 
 export function QueryPage() {
+  const { user } = useAuth();
+  const userId = user?.id;
+
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveId] = useState<string | null>(null);
   const [question, setQuestion] = useState("");
@@ -53,12 +57,12 @@ export function QueryPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load sessions on mount
+  // Load sessions on mount or when user changes
   useEffect(() => {
-    const loaded = loadChatSessions();
+    const loaded = loadChatSessions(userId);
     if (loaded.length > 0) {
       setSessions(loaded);
-      const savedActiveId = getActiveSessionId();
+      const savedActiveId = getActiveSessionId(userId);
       const validActive = loaded.find((s) => s.id === savedActiveId);
       if (validActive) {
         setActiveId(validActive.id);
@@ -66,14 +70,14 @@ export function QueryPage() {
       } else {
         setActiveId(loaded[0].id);
         setSelectedProducts(loaded[0].selectedProductIds || []);
-        setActiveSessionId(loaded[0].id);
+        setActiveSessionId(loaded[0].id, userId);
       }
     } else {
-      const initial = createNewSession();
+      const initial = createNewSession([], userId);
       setSessions([initial]);
       setActiveId(initial.id);
     }
-  }, []);
+  }, [userId]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0];
 
@@ -93,8 +97,8 @@ export function QueryPage() {
         selectedProductIds: newSelected,
         updatedAt: new Date().toISOString(),
       };
-      updateSession(updated);
-      setSessions(loadChatSessions());
+      updateSession(updated, userId);
+      setSessions(loadChatSessions(userId));
     }
   };
 
@@ -151,16 +155,16 @@ export function QueryPage() {
         updatedAt: new Date().toISOString(),
       };
 
-      updateSession(updatedSession);
-      setSessions(loadChatSessions());
+      updateSession(updatedSession, userId);
+      setSessions(loadChatSessions(userId));
     },
     onError: (error: any) => {
       if (!activeSession) return;
       // Clear pending state
       const cleaned = activeSession.messages.filter((m) => !m.isPending);
       const updatedSession = { ...activeSession, messages: cleaned };
-      updateSession(updatedSession);
-      setSessions(loadChatSessions());
+      updateSession(updatedSession, userId);
+      setSessions(loadChatSessions(userId));
     },
   });
 
@@ -201,8 +205,8 @@ export function QueryPage() {
       messages: [...activeSession.messages, userMessage, pendingAssistantMessage],
     };
 
-    updateSession(updatedSession);
-    setSessions(loadChatSessions());
+    updateSession(updatedSession, userId);
+    setSessions(loadChatSessions(userId));
     setQuestion("");
 
     // Execute query
@@ -220,8 +224,8 @@ export function QueryPage() {
   };
 
   const handleNewChat = () => {
-    const newSession = createNewSession(selectedProducts);
-    setSessions(loadChatSessions());
+    const newSession = createNewSession(selectedProducts, userId);
+    setSessions(loadChatSessions(userId));
     setActiveId(newSession.id);
     setMobileSidebarOpen(false);
     setQuestion("");
@@ -230,7 +234,7 @@ export function QueryPage() {
 
   const handleSelectSession = (id: string) => {
     setActiveId(id);
-    setActiveSessionId(id);
+    setActiveSessionId(id, userId);
     const target = sessions.find((s) => s.id === id);
     if (target && target.selectedProductIds) {
       setSelectedProducts(target.selectedProductIds);
@@ -240,9 +244,9 @@ export function QueryPage() {
   };
 
   const handleDeleteSession = (id: string) => {
-    const updated = deleteSession(id);
+    const updated = deleteSession(id, userId);
     setSessions(updated);
-    const newActiveId = getActiveSessionId();
+    const newActiveId = getActiveSessionId(userId);
     if (newActiveId) {
       setActiveId(newActiveId);
     } else {
@@ -252,7 +256,7 @@ export function QueryPage() {
 
   const handleClearAll = () => {
     if (window.confirm("Are you sure you want to delete all saved conversations?")) {
-      clearAllSessions();
+      clearAllSessions(userId);
       handleNewChat();
     }
   };
@@ -261,16 +265,16 @@ export function QueryPage() {
     const target = sessions.find((s) => s.id === id);
     if (target) {
       const updated = { ...target, title: newTitle };
-      updateSession(updated);
-      setSessions(loadChatSessions());
+      updateSession(updated, userId);
+      setSessions(loadChatSessions(userId));
     }
   };
 
   const handleClearCurrentMessages = () => {
     if (!activeSession) return;
     const updated = { ...activeSession, messages: [] };
-    updateSession(updated);
-    setSessions(loadChatSessions());
+    updateSession(updated, userId);
+    setSessions(loadChatSessions(userId));
   };
 
   const handleResolveHitl = (
@@ -299,8 +303,8 @@ export function QueryPage() {
       messages: updatedMessages,
       updatedAt: new Date().toISOString(),
     };
-    updateSession(updatedSession);
-    setSessions(loadChatSessions());
+    updateSession(updatedSession, userId);
+    setSessions(loadChatSessions(userId));
   };
 
   const handleExportChat = () => {

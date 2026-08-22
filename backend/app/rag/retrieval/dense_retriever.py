@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import logging
 from app.core.config import settings
 
@@ -7,9 +7,14 @@ logger = logging.getLogger(__name__)
 # FIN-019: Minimum similarity score threshold. Results below this are discarded.
 MIN_SIMILARITY_SCORE = 0.3
 
-def vector_search(query: str, product_ids: List[str], top_k: int = 20) -> List[Dict[str, Any]]:
+def vector_search(
+    query: str,
+    product_ids: List[str],
+    top_k: int = 20,
+    user_id: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     """
-    Dense vector search using Pinecone.
+    Dense vector search using Pinecone with strict user and product scoping.
     
     FIN-005: Empty product_ids no longer means unrestricted search.
     FIN-019: On Pinecone failure, returns empty list instead of unranked local chunks.
@@ -19,13 +24,18 @@ def vector_search(query: str, product_ids: List[str], top_k: int = 20) -> List[D
         from app.ingestion.embedder import generate_embedding
         index = get_pinecone_index()
         query_vector = generate_embedding(query)
-        filter_dict = {"product_id": {"$in": product_ids}} if product_ids else {}
+        
+        filter_dict: Dict[str, Any] = {}
+        if product_ids:
+            filter_dict["product_id"] = {"$in": product_ids}
+        if user_id:
+            filter_dict["user_id"] = user_id
 
         results = index.query(
             vector=query_vector,
             top_k=top_k,
             include_metadata=True,
-            filter=filter_dict
+            filter=filter_dict if filter_dict else None
         )
 
         formatted_results = []

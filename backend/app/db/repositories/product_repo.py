@@ -49,7 +49,12 @@ def get_products_by_user(user_id: str) -> List[Dict[str, Any]]:
         return response.data or []
     except Exception as e:
         logger.warning(f"Supabase not available: {e}")
-        return list(_LOCAL_PRODUCTS.values()) if settings.is_development else []
+        if settings.is_development:
+            return [
+                p for p in _LOCAL_PRODUCTS.values()
+                if p.get("user_id") == user_id or p.get("id") in ("1", "2")
+            ]
+        return []
 
 def get_all_products(limit: int = 100) -> List[Dict[str, Any]]:
     """Fetch all products."""

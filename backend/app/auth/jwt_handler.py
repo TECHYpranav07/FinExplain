@@ -98,3 +98,65 @@ def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
             return payload
     except Exception:
         return None
+
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from app.core.constants import DEFAULT_DEMO_USER_ID
+
+security = HTTPBearer(auto_error=False)
+
+
+def get_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> Dict[str, Any]:
+    """
+    Extract and validate authenticated user from Bearer token.
+    In development mode without credentials, provides a default demo user context
+    so internal tests run smoothly while enforcing strict user isolation when credentials exist.
+    """
+    if credentials and credentials.credentials:
+        token = credentials.credentials
+        payload = decode_access_token(token)
+        if payload and "sub" in payload:
+            return {
+                "id": payload["sub"],
+                "email": payload.get("email", ""),
+                "name": payload.get("name", ""),
+            }
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # In development mode, provide default user context if unauthenticated
+    if settings.is_development:
+        return {
+            "id": DEFAULT_DEMO_USER_ID,
+            "email": "demo@finexplain.ai",
+            "name": "Demo Auditor",
+        }
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authentication required",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> Optional[Dict[str, Any]]:
+    """Optional user extractor for public endpoints."""
+    if credentials and credentials.credentials:
+        token = credentials.credentials
+        payload = decode_access_token(token)
+        if payload and "sub" in payload:
+            return {
+                "id": payload["sub"],
+                "email": payload.get("email", ""),
+                "name": payload.get("name", ""),
+            }
+    return None
+

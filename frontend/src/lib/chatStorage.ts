@@ -19,16 +19,23 @@ export interface ChatSession {
   messages: ChatMessage[];
 }
 
-const STORAGE_KEY = "finexplain_chat_sessions_v1";
-const ACTIVE_SESSION_KEY = "finexplain_active_session_id_v1";
+function getStorageKey(userId?: string): string {
+  const safeUser = userId ? userId.replace(/[^\w-]/g, "_") : "guest";
+  return `finexplain_chat_sessions_${safeUser}_v1`;
+}
+
+function getActiveSessionKey(userId?: string): string {
+  const safeUser = userId ? userId.replace(/[^\w-]/g, "_") : "guest";
+  return `finexplain_active_session_${safeUser}_v1`;
+}
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
-export function loadChatSessions(): ChatSession[] {
+export function loadChatSessions(userId?: string): ChatSession[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(getStorageKey(userId));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -38,29 +45,29 @@ export function loadChatSessions(): ChatSession[] {
   }
 }
 
-export function saveChatSessions(sessions: ChatSession[]): void {
+export function saveChatSessions(sessions: ChatSession[], userId?: string): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+    localStorage.setItem(getStorageKey(userId), JSON.stringify(sessions));
   } catch (err) {
     console.error("[ChatStorage] Failed to save sessions:", err);
   }
 }
 
-export function getActiveSessionId(): string | null {
+export function getActiveSessionId(userId?: string): string | null {
   try {
-    return localStorage.getItem(ACTIVE_SESSION_KEY);
+    return localStorage.getItem(getActiveSessionKey(userId));
   } catch {
     return null;
   }
 }
 
-export function setActiveSessionId(id: string): void {
+export function setActiveSessionId(id: string, userId?: string): void {
   try {
-    localStorage.setItem(ACTIVE_SESSION_KEY, id);
+    localStorage.setItem(getActiveSessionKey(userId), id);
   } catch {}
 }
 
-export function createNewSession(selectedProductIds: string[] = []): ChatSession {
+export function createNewSession(selectedProductIds: string[] = [], userId?: string): ChatSession {
   const newSession: ChatSession = {
     id: generateId(),
     title: "New Conversation",
@@ -70,15 +77,15 @@ export function createNewSession(selectedProductIds: string[] = []): ChatSession
     messages: [],
   };
 
-  const sessions = loadChatSessions();
+  const sessions = loadChatSessions(userId);
   const updated = [newSession, ...sessions];
-  saveChatSessions(updated);
-  setActiveSessionId(newSession.id);
+  saveChatSessions(updated, userId);
+  setActiveSessionId(newSession.id, userId);
   return newSession;
 }
 
-export function updateSession(session: ChatSession): void {
-  const sessions = loadChatSessions();
+export function updateSession(session: ChatSession, userId?: string): void {
+  const sessions = loadChatSessions(userId);
   const index = sessions.findIndex((s) => s.id === session.id);
   if (index >= 0) {
     sessions[index] = {
@@ -88,26 +95,26 @@ export function updateSession(session: ChatSession): void {
   } else {
     sessions.unshift(session);
   }
-  saveChatSessions(sessions);
+  saveChatSessions(sessions, userId);
 }
 
-export function deleteSession(id: string): ChatSession[] {
-  const sessions = loadChatSessions().filter((s) => s.id !== id);
-  saveChatSessions(sessions);
-  const activeId = getActiveSessionId();
+export function deleteSession(id: string, userId?: string): ChatSession[] {
+  const sessions = loadChatSessions(userId).filter((s) => s.id !== id);
+  saveChatSessions(sessions, userId);
+  const activeId = getActiveSessionId(userId);
   if (activeId === id) {
     if (sessions.length > 0) {
-      setActiveSessionId(sessions[0].id);
+      setActiveSessionId(sessions[0].id, userId);
     } else {
-      localStorage.removeItem(ACTIVE_SESSION_KEY);
+      localStorage.removeItem(getActiveSessionKey(userId));
     }
   }
   return sessions;
 }
 
-export function clearAllSessions(): void {
-  localStorage.removeItem(STORAGE_KEY);
-  localStorage.removeItem(ACTIVE_SESSION_KEY);
+export function clearAllSessions(userId?: string): void {
+  localStorage.removeItem(getStorageKey(userId));
+  localStorage.removeItem(getActiveSessionKey(userId));
 }
 
 export function generateSessionTitle(firstPrompt: string): string {
@@ -115,3 +122,4 @@ export function generateSessionTitle(firstPrompt: string): string {
   if (clean.length <= 40) return clean;
   return clean.substring(0, 37) + "...";
 }
+

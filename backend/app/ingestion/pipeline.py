@@ -1,6 +1,6 @@
 import hashlib
 import uuid
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import io
 
 from app.ingestion.parser import parse_pdf
@@ -17,16 +17,17 @@ from app.db.repositories.product_repo import get_product_by_id
 def process_document(
     file_bytes: bytes,
     file_name: str,
-    product_id: str
+    product_id: str,
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Full ingestion pipeline:
     1. Check if document already exists (hash deduplication).
     2. Parse PDF (with section heading extraction & metadata detection).
-    3. Create hierarchical chunks with rich metadata.
+    3. Create hierarchical chunks with rich metadata and user_id.
     4. Generate embeddings.
     5. Store chunks in Supabase.
-    6. Upsert vectors to Pinecone (with enriched metadata).
+    6. Upsert vectors to Pinecone (with enriched metadata and user_id).
     7. Update document status to 'indexed'.
     """
     # Loading sentence-transformers is expensive; keep it out of API startup
@@ -52,6 +53,7 @@ def process_document(
         raise ValueError(f"Product with ID {product_id} not found.")
 
     product_name = product.get("name", "")
+    resolved_user_id = user_id or product.get("user_id", "")
 
     # Step 2: Parse PDF (now returns sections and document metadata)
     parsed = parse_pdf(file_bytes)
@@ -103,6 +105,7 @@ def process_document(
             metadata = {
                 "document_id": document_id,
                 "product_id": product_id,
+                "user_id": resolved_user_id,
                 "document_name": file_name,
                 "product_name": product_name,
                 "page_num": child["page_num"],
@@ -127,6 +130,7 @@ def process_document(
             metadata = {
                 "document_id": document_id,
                 "product_id": product_id,
+                "user_id": resolved_user_id,
                 "document_name": file_name,
                 "product_name": product_name,
                 "page_num": parent["page_num"],

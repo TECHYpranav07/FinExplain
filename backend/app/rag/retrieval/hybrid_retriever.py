@@ -1,6 +1,6 @@
 from app.rag.retrieval.dense_retriever import vector_search
 from app.rag.retrieval.sparse_retriever import bm25_search
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from collections import defaultdict
 
 def reciprocal_rank_fusion(
@@ -49,13 +49,18 @@ def reciprocal_rank_fusion(
     
     return results[:top_k] if top_k else results
 
-def hybrid_search(query: str, product_ids: List[str], top_k: int = 20) -> List[Dict[str, Any]]:
+def hybrid_search(
+    query: str,
+    product_ids: List[str],
+    top_k: int = 20,
+    user_id: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     """
     Perform hybrid search: Dense (Pinecone) + Sparse (BM25) with RRF fusion.
-    Returns top_k fused results.
+    Returns top_k fused results filtered by user_id and product_ids.
     """
     # Get dense results (top 30)
-    dense_results = vector_search(query, product_ids, top_k=30)
+    dense_results = vector_search(query, product_ids, top_k=30, user_id=user_id)
     
     # Get sparse results (top 30)
     sparse_results = bm25_search(query, product_ids, limit=30)
