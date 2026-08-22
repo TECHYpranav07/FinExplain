@@ -13,6 +13,7 @@ import {
   ErrorState,
 } from "@/components/finex/primitives";
 import { FormattedMarkdown } from "@/components/finex/FormattedMarkdown";
+import { InlineMarkdown, sanitizeLenderQuestion } from "@/pages/ReviewPage";
 
 export function BeforeConfirmationPage() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
@@ -567,12 +568,12 @@ export function BeforeConfirmationPage() {
                                         <span className="font-semibold text-amber-300 block mb-0.5">
                                           Ask Lender in Writing:
                                         </span>
-                                        <span className="text-white/90 italic">"{question}"</span>
+                                        <span className="text-white/90 italic">"{sanitizeLenderQuestion(question)}"</span>
                                       </div>
                                     </div>
                                     <button
                                       type="button"
-                                      onClick={() => handleCopySingleQuestion(question, originalIdx)}
+                                      onClick={() => handleCopySingleQuestion(sanitizeLenderQuestion(question), originalIdx)}
                                       className="flex-shrink-0 text-[11px] text-amber-400/80 hover:text-amber-300 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20 transition-colors"
                                       title="Copy question text"
                                     >
@@ -608,45 +609,48 @@ export function BeforeConfirmationPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {questionItems.map(({ item, originalIdx }, qIdx) => (
-                    <div
-                      key={originalIdx}
-                      className="rounded-xl border border-white/10 bg-surface-2 p-4.5 transition-all hover:border-white/20"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-2 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-surface-3 font-mono text-xs font-bold text-white">
-                              {(qIdx + 1).toString().padStart(2, "0")}
-                            </span>
-                            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                              Regarding {item.title || item.category || "Loan Clause"}
-                            </h4>
-                            <SeverityBadge level={item.priority || "MEDIUM"} />
+                  {questionItems.map(({ item, originalIdx }, qIdx) => {
+                    const cleanQ = sanitizeLenderQuestion(item.suggested_question || "");
+                    return (
+                      <div
+                        key={originalIdx}
+                        className="rounded-xl border border-white/10 bg-surface-2 p-4.5 transition-all hover:border-white/20"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-2 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-surface-3 font-mono text-xs font-bold text-white">
+                                {(qIdx + 1).toString().padStart(2, "0")}
+                              </span>
+                              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                Regarding {item.title || item.category || "Loan Clause"}
+                              </h4>
+                              <SeverityBadge level={item.priority || "MEDIUM"} />
+                            </div>
+
+                            <p className="text-sm font-medium text-white pl-8 leading-relaxed italic">
+                              "{cleanQ}"
+                            </p>
+
+                            {item.action_guidance && (
+                              <p className="text-xs text-muted-foreground pl-8">
+                                <strong className="text-white/70">Why this matters:</strong> {item.action_guidance}
+                              </p>
+                            )}
                           </div>
 
-                          <p className="text-sm font-medium text-white pl-8 leading-relaxed italic">
-                            "{item.suggested_question}"
-                          </p>
-
-                          {item.action_guidance && (
-                            <p className="text-xs text-muted-foreground pl-8">
-                              <strong className="text-white/70">Why this matters:</strong> {item.action_guidance}
-                            </p>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleCopySingleQuestion(cleanQ, originalIdx)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10 transition-colors flex-shrink-0"
+                          >
+                            <i className={`fa-solid ${copiedQuestionIdx === originalIdx ? "fa-check text-emerald-400" : "fa-copy"} text-[11px]`} />
+                            <span>{copiedQuestionIdx === originalIdx ? "Copied!" : "Copy Question"}</span>
+                          </button>
                         </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleCopySingleQuestion(item.suggested_question || "", originalIdx)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10 transition-colors flex-shrink-0"
-                        >
-                          <i className={`fa-solid ${copiedQuestionIdx === originalIdx ? "fa-check text-emerald-400" : "fa-copy"} text-[11px]`} />
-                          <span>{copiedQuestionIdx === originalIdx ? "Copied!" : "Copy Question"}</span>
-                        </button>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </Panel>

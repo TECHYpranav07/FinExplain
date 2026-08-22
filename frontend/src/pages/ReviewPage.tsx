@@ -15,32 +15,62 @@ import { FormattedMarkdown } from "@/components/finex/FormattedMarkdown";
 import { cn } from "@/lib/utils";
 
 /**
+ * sanitizeLenderQuestion: Strips all surrounding quotes, asterisks, italic tags,
+ * and bullet numbering so questions are 100% clean plain text.
+ */
+export function sanitizeLenderQuestion(text?: string): string {
+  if (!text) return "";
+  let clean = text.trim();
+  // Strip leading bullet markers or numbers (e.g., "1. ", "* ", "- ", "1) ")
+  clean = clean.replace(/^[*-]\s*/, "").replace(/^\d+[\.\)]\s*/, "").trim();
+  // Strip any combination of leading/trailing quotes, asterisks, backticks
+  clean = clean.replace(/^["'`*“‘]+/, "").replace(/["'`*”’]+$/, "").trim();
+  // Remove all internal stray single/double asterisks from the question string
+  clean = clean.replace(/\*{1,2}/g, "").trim();
+  // Strip any remaining surrounding quotes
+  clean = clean.replace(/^["'`*“‘]+/, "").replace(/["'`*”’]+$/, "").trim();
+  return clean;
+}
+
+/**
  * InlineMarkdown: Renders bold text, citations, and currency cleanly
  * without showing raw markdown asterisks or breaking layout.
  */
 export function InlineMarkdown({ text, className }: { text?: string; className?: string }) {
   if (!text) return null;
 
-  // Clean initial markers like **Title:** or leading bullets
-  const cleaned = text.replace(/^[*-]\s*/, "").replace(/^\d+\.\s*/, "").trim();
+  // Clean initial markers like **Title:** or leading bullets or quotes
+  let cleaned = text.replace(/^[*-]\s*/, "").replace(/^\d+[\.\)]\s*/, "").trim();
 
-  // Tokenize by **bold** or [citation]
+  // Strip stray outer unclosed quotes or asterisks if the whole string was wrapped in "* ... *"
+  cleaned = cleaned.replace(/^["'`*“‘]+/, "").replace(/["'`*”’]+$/, "").trim();
+
+  // Tokenize by **bold**, *italic*, [citation]
   const parts: React.ReactNode[] = [];
-  const regex = /(\*\*.*?\*\*|\[.*?\])/g;
+  const regex = /(\*\*.*?\*\*|\*.*?\*|\[.*?\])/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(cleaned)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(cleaned.substring(lastIndex, match.index));
+      // Remove any stray lone asterisks from plain text segment
+      const plain = cleaned.substring(lastIndex, match.index).replace(/\*/g, "");
+      if (plain) parts.push(plain);
     }
     const token = match[0];
-    if (token.startsWith("**") && token.endsWith("**")) {
-      const boldContent = token.slice(2, -2).trim();
+    if (token.startsWith("**") && token.endsWith("**") && token.length > 4) {
+      const boldContent = token.slice(2, -2).replace(/\*/g, "").trim();
       parts.push(
         <strong key={match.index} className="font-semibold text-white">
           {boldContent}
         </strong>
+      );
+    } else if (token.startsWith("*") && token.endsWith("*") && token.length > 2 && !token.startsWith("**")) {
+      const italicContent = token.slice(1, -1).replace(/\*/g, "").trim();
+      parts.push(
+        <span key={match.index} className="font-medium text-white">
+          {italicContent}
+        </span>
       );
     } else if (token.startsWith("[") && token.endsWith("]")) {
       const citeContent = token.slice(1, -1).trim();
@@ -58,7 +88,8 @@ export function InlineMarkdown({ text, className }: { text?: string; className?:
   }
 
   if (lastIndex < cleaned.length) {
-    parts.push(cleaned.substring(lastIndex));
+    const remaining = cleaned.substring(lastIndex).replace(/\*/g, "");
+    if (remaining) parts.push(remaining);
   }
 
   return <span className={cn("break-words", className)}>{parts}</span>;
@@ -341,7 +372,7 @@ function parseAuditMarkdown(text: string, structuredData?: any): ParsedAudit {
   // 5. Parse Lender Questions
   const questionLines = sectionBuckets.questions.filter((l) => l.trim().length > 0);
   for (const line of questionLines) {
-    const clean = line.replace(/^[*-]\s*/, "").replace(/^\d+\.\s*/, "").replace(/^"\s*/, "").replace(/"\s*$/, "").trim();
+    const clean = sanitizeLenderQuestion(line);
     if (!clean || clean.startsWith("#") || clean.length < 15) continue;
     result.lenderQuestions.push(clean);
   }
@@ -911,13 +942,13 @@ export function ReviewPage() {
                             </span>
                           </div>
                           <p className="text-xs font-medium text-white pl-7 leading-relaxed italic break-words">
-                            "{question}"
+                            "{sanitizeLenderQuestion(question)}"
                           </p>
                         </div>
 
                         <button
                           type="button"
-                          onClick={() => handleCopyQuestion(question, qIdx)}
+                          onClick={() => handleCopyQuestion(sanitizeLenderQuestion(question), qIdx)}
                           className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface px-3 py-1.5 text-xs font-medium text-white hover:bg-surface-3 transition-colors shrink-0"
                         >
                           <i className={`fa-solid ${copiedQuestionIdx === qIdx ? "fa-check text-emerald-400" : "fa-copy"} text-[11px]`} />

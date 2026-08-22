@@ -1052,15 +1052,17 @@ Present the verified figures in a clear Markdown table:
 
 ### 🛡️ Recommended Actionable Questions for Your Lender
 Provide 4–6 sharp, precise questions the borrower should ask their loan officer / relationship manager before signing:
-1. ...
-2. ...
-3. ...
+1. What is the exact...
+2. Can you provide...
+3. Under what conditions...
 
 ========================
 RULES & GUIDELINES:
 - Base every single claim on the provided structured facts, cost drivers, and conflicts.
 - Do NOT fabricate dates, percentages, or penalties not present in the context.
-- Use clean Markdown headers, bold emphasis, tables, and bullet points.
+- Use clean Markdown headers, tables, and standard bullet points.
+- IMPORTANT FORMATTING RULE: Do NOT wrap entire sentences, statements, or questions in asterisks (e.g. do NOT output `*What is...*` or `**What is...**` or `"*What is...*"`). Write each question and statement cleanly as plain natural text without surrounding quotes or asterisks.
+- Do NOT place asterisks before statements or words unnecessarily.
 - If information is missing or conditional, state so clearly rather than assuming.
 """
 
@@ -1171,7 +1173,9 @@ RULES & GUIDELINES:
 - Base every single fact, number, and status on the provided structured data.
 - Never invent percentages, dates, or penalty values not present in the evidence.
 - If a calculation is provided, clearly reference the estimated monthly payment and total repayment.
-- Use clean Markdown formatting, bold keywords, and distinct callout blocks.
+- Use clean Markdown formatting, tables, and distinct callout blocks.
+- IMPORTANT FORMATTING RULE: Do NOT wrap entire sentences, statements, or questions in asterisks (e.g. do NOT output `*What is...*` or `**What is...**` or `"*What is...*"`). Write each question cleanly as plain natural text without surrounding quotes or asterisks.
+- Do NOT place asterisks before statements or words unnecessarily.
 """
 
 
