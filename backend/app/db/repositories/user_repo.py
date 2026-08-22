@@ -79,3 +79,41 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Error retrieving user by email {email}: {e}")
         return None
+
+
+def create_user(
+    user_id: str,
+    email: str,
+    full_name: str,
+    hashed_password: str,
+) -> Optional[Dict[str, Any]]:
+    """Insert a new user record in Supabase users table."""
+    supabase = get_supabase_client()
+    if not supabase:
+        return None
+    try:
+        payload = {
+            "id": user_id,
+            "email": email.lower().strip(),
+            "full_name": full_name,
+            "hashed_password": hashed_password,
+        }
+        res = supabase.table("users").insert(payload).execute()
+        return res.data[0] if res.data else None
+    except Exception as e:
+        logger.error(f"Error creating user in Supabase: {e}")
+        return None
+
+
+def update_user_password(user_id: str, hashed_password: str) -> bool:
+    """Update user password in Supabase."""
+    supabase = get_supabase_client()
+    if not supabase:
+        return False
+    try:
+        supabase.table("users").update({"hashed_password": hashed_password}).eq("id", user_id).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Error updating password for user {user_id}: {e}")
+        return False
+
