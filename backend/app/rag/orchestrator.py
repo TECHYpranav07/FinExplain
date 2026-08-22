@@ -29,6 +29,7 @@ Pipeline stages:
 """
 
 import logging
+import time
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -121,19 +122,20 @@ def process_query(
             "status": "blocked",
         }
 
-    clean_question, pii_count = pii_guard.redact_pii(clean_question)
+    start_time = time.time()
+    logger.info(f"\n{'='*70}\n[Ask AI] 📥 Incoming Query: \"{clean_question}\" | Product IDs: {product_ids} | User ID: {user_id}\n{'-'*70}")
 
     # ===================================================================
     # Step 1: Classify intent
     # ===================================================================
     intent_result = classify_intent(clean_question)
-    logger.info(f"[Orchestrator] Intent: {intent_result.intent}, Confidence: {intent_result.confidence}")
+    logger.info(f"[Step 1/8] 🎯 Intent: {intent_result.intent.value.upper()} (Confidence: {intent_result.confidence:.2f})")
 
     # ===================================================================
     # Step 2: Rewrite query
     # ===================================================================
     rewritten_query = rewrite_query(clean_question, intent_result.intent) or clean_question
-    logger.info(f"[Orchestrator] Rewritten Query: {rewritten_query}")
+    logger.info(f"[Step 2/8] 🔍 Enhanced Search Query: \"{rewritten_query}\"")
 
     # ===================================================================
     # Step 3: Multi-query generation REMOVED (FIN-021)
@@ -147,9 +149,12 @@ def process_query(
     if not retrieved_chunks and rewritten_query != question:
         retrieved_chunks = hybrid_search(question, product_ids, top_k=max_retrieval, user_id=user_id)
 
+    logger.info(f"[Step 3/8] 📚 Retrieval: Found {len(retrieved_chunks)} chunks (Dense + BM25)")
+
     if not retrieved_chunks:
+        logger.warning("[Step 3/8] ⚠️ No chunks retrieved for query")
         return {
-            "answer": "No relevant information found.",
+            "answer": "No relevant information found in the uploaded documents.",
             "confidence_score": 0.0,
             "confidence_label": "No Evidence",
             "citations": [],
@@ -172,6 +177,7 @@ def process_query(
     # ===================================================================
     reranked_chunks = rerank_chunks(rewritten_query, retrieved_chunks, top_k=10)
     rerank_scores = [c.get("rerank_score", 0.5) for c in reranked_chunks]
+    logger.info(f"[Step 4/8] 🏆 Reranking: Top {len(reranked_chunks)} chunks selected (Max Score: {max(rerank_scores) if rerank_scores else 0:.2f})")
 
     # ===================================================================
     # Step 7: Build context
@@ -179,8 +185,9 @@ def process_query(
     context = build_context(reranked_chunks, max_tokens=max_context_tokens)
 
     if not context:
+        logger.warning("[Step 4/8] ⚠️ Unable to build context from retrieved chunks")
         return {
-            "answer": "Unable to build context.",
+            "answer": "Unable to build context from uploaded documents.",
             "confidence_score": 0.0,
             "confidence_label": "No Evidence",
             "citations": [],
@@ -195,7 +202,6 @@ def process_query(
     # ===================================================================
     # Step 8: Structured fact extraction
     # ===================================================================
-    logger.info("[Orchestrator] Extracting structured facts...")
     product_name = None
     document_name = None
     if reranked_chunks:
@@ -208,7 +214,6 @@ def process_query(
         product_name=product_name,
         document_name=document_name,
     )
-    logger.info(f"[Orchestrator] Extracted {len(structured_facts)} structured facts")
 
     # ===================================================================
     # Step 9: Condition annotation (deterministic)
@@ -219,8 +224,8 @@ def process_query(
     # Step 10: Missing information detection (deterministic)
     # ===================================================================
     missing_info = detect_missing_information(structured_facts)
-    if missing_info:
-        logger.info(f"[Orchestrator] Missing information: {[m['field'] for m in missing_info]}")
+    missing_fields = [m['field'] for m in missing_info] if missing_info else []
+    logger.info(f"[Step 5/8] 📊 Facts Extracted: {len(structured_facts)} terms identified | Missing disclosures: {missing_fields or 'None'}")
 
     # ===================================================================
     # Step 11: Fact-level conflict detection (deterministic)
@@ -333,6 +338,7 @@ def process_query(
     )
 
     if "error" in generation_result:
+        logger.error(f"[Step 6/8] ❌ Answer generation error: {generation_result.get('answer')}")
         return {
             "answer": generation_result["answer"],
             "confidence_score": 0.0,
@@ -347,16 +353,14 @@ def process_query(
         }
 
     answer_text = generation_result["answer"]
+    logger.info(f"[Step 6/8] 🤖 Answer Generated: ({len(answer_text)} characters)")
 
     # ===================================================================
     # Step 16: Claim-level verification
     # ===================================================================
-    logger.info("[Orchestrator] Verifying claims...")
     claim_results = verify_all_claims(answer_text, structured_facts, reranked_chunks)
     logger.info(
-        f"[Orchestrator] Claims: {claim_results['total_claims']}, "
-        f"Supported: {claim_results['supported_claims']}, "
-        f"Unsupported: {claim_results['unsupported_claims']}"
+        f"[Step 7/8] 🛡️ Claim Verification: {claim_results['supported_claims']}/{claim_results['total_claims']} claims supported against retrieved chunks"
     )
 
     # ===================================================================
@@ -370,7 +374,6 @@ def process_query(
         calculation_result=calculation_result,
         rerank_scores=rerank_scores,
     )
-    logger.info(f"[Orchestrator] Evidence score: {evidence_score_result['score']}/100 ({evidence_score_result['label']})")
 
     # ===================================================================
     # Step 18: Response validation (deterministic)
@@ -384,7 +387,7 @@ def process_query(
         is_meta_query=is_product_audit_query,
     )
     if not validation["valid"]:
-        logger.info(f"[Orchestrator] Validation issues: {validation['issues']}")
+        logger.info(f"[Step 8/8] ⚠️ Validation sanitized: {validation['issues']}")
         answer_text = validation["sanitized_answer"]
 
     # Guardrail: Anti-Averaging and Product Isolation Check
@@ -557,10 +560,18 @@ def process_query(
         hilt_result = escalate_to_hilt(question, product_ids)
         result["status"] = "hilt_escalated"
         result["hilt_info"] = hilt_result
+        logger.warning(f"[Step 8/8] 🚨 HILT Escalation triggered: Evidence score ({evidence_score_result['score']}/100) below threshold")
 
     # ===================================================================
     # Step 21: Cache
     # ===================================================================
     set_cached_response(question, product_ids, result)
+
+    elapsed = time.time() - start_time
+    logger.info(
+        f"[Step 8/8] 📈 Evidence Score: {evidence_score_result['score']}/100 ({evidence_score_result['label']}) | Status: {overall_status}\n"
+        f"[Ask AI] 📤 Response delivered to user in {elapsed:.2f}s\n"
+        f"{'='*70}\n"
+    )
 
     return result
