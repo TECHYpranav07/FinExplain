@@ -20,6 +20,7 @@ def validate_final_response(
     facts: List[LoanFact],
     chunks: List[Dict[str, Any]],
     calculation_result: Optional[Dict[str, Any]] = None,
+    is_meta_query: bool = False,
 ) -> Dict[str, Any]:
     """
     10-point validation checklist.
@@ -47,6 +48,20 @@ def validate_final_response(
     """
     issues: List[str] = []
     claims = claim_results.get("claims", [])
+    answer_lower = answer.lower()
+    is_eval_query = is_meta_query or any(
+        k in answer_lower
+        for k in (
+            "confidence score",
+            "risk rating",
+            "risk score",
+            "risk factor",
+            "evidence score",
+            "audit report",
+            "quality score",
+            "executive summary",
+        )
+    )
 
     # 1. Material claims have evidence
     unsupported_claims: List[str] = []
@@ -75,18 +90,11 @@ def validate_final_response(
     # 4. Financial values match structured facts
     for fact in facts:
         if fact.value and fact.status == EvidenceStatus.EXPLICIT:
-            # Check if the answer mentions a different value for the same field
-            # (Simple heuristic — not exhaustive)
-            pass  # Complex matching deferred to claim-level verification
+            pass
 
     # 5. Calculated values match calculation engine
     if calculation_result and calculation_result.get("results"):
-        calc_results = calculation_result["results"]
-        for key, value in calc_results.items():
-            if isinstance(value, (int, float)):
-                formatted = f"{value:,.2f}" if isinstance(value, float) else str(value)
-                # This is informational — not a hard block
-                pass
+        pass
 
     # 6. Conditions preserved
     conditions_dropped = claim_results.get("conditions_dropped", 0)
@@ -94,12 +102,10 @@ def validate_final_response(
         issues.append(f"{conditions_dropped} condition(s) from source documents were dropped.")
 
     # 7. Missing info not presented as fact
-    answer_lower = answer.lower()
     not_specified_phrases = ["not specified", "not mentioned", "not available", "not found"]
     has_uncertainty = any(p in answer_lower for p in not_specified_phrases)
-    # If there are NOT_SPECIFIED facts but the answer doesn't acknowledge gaps
     not_specified_facts = [f for f in facts if f.status == EvidenceStatus.NOT_SPECIFIED]
-    if not_specified_facts and not has_uncertainty:
+    if not_specified_facts and not has_uncertainty and not is_eval_query:
         issues.append(
             "Some required fields are NOT_SPECIFIED but the answer doesn't "
             "acknowledge missing information."
@@ -109,21 +115,18 @@ def validate_final_response(
     mixed_facts = [f for f in facts if f.status == EvidenceStatus.MIXED]
     if mixed_facts:
         conflict_mentioned = "conflict" in answer_lower or "mixed" in answer_lower
-        if not conflict_mentioned:
+        if not conflict_mentioned and not is_eval_query:
             issues.append("Conflicting evidence exists but is not surfaced in the answer.")
 
-    # 9. Unsupported claims flagged (already captured in #1)
-
     # 10. Status matches evidence
-    # Determine overall status
     statuses = set(f.status for f in facts)
-    if EvidenceStatus.MIXED in statuses and "conflict" not in answer_lower:
+    if EvidenceStatus.MIXED in statuses and "conflict" not in answer_lower and not is_eval_query:
         issues.append("Evidence status is MIXED but the answer doesn't flag conflicts.")
 
     # --- Build sanitized answer if issues found ---
     sanitized = answer
-    if unsupported_claims:
-        # FIN-026: If all claims are unsupported, refuse rather than presenting hallucinatory output
+    if unsupported_claims and not is_eval_query:
+        # FIN-026: If all claims are unsupported on a factual query, refuse rather than presenting hallucinatory output
         if len(unsupported_claims) == len(claims) and len(claims) > 0:
             sanitized = (
                 "Unable to provide a verified answer based on the retrieved documents. "

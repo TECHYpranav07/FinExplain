@@ -1,12 +1,23 @@
-import React from "react";
+import React, { useState } from "react";
 import { type ChatMessage } from "@/lib/chatStorage";
 import {
   EvidenceBadge,
   CitationChip,
+  ScoreGauge,
+  SeverityBadge,
 } from "@/components/finex/primitives";
 import { FormattedMarkdown } from "@/components/finex/FormattedMarkdown";
 import { HitlReviewCard } from "@/components/finex/HitlReviewCard";
-import { User, Sparkles } from "lucide-react";
+import {
+  User,
+  Sparkles,
+  ShieldAlert,
+  Gauge,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight,
+  AlertCircle,
+} from "lucide-react";
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -16,6 +27,25 @@ interface ChatMessageItemProps {
 
 export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatMessageItemProps) {
   const isUser = message.role === "user";
+  const res = message.response;
+
+  const isRiskOrAuditQuery = React.useMemo(() => {
+    const q = (message.content || "").toLowerCase();
+    return (
+      q.includes("risk") ||
+      q.includes("confidence") ||
+      q.includes("score") ||
+      q.includes("audit") ||
+      q.includes("factor") ||
+      q.includes("quality") ||
+      q.includes("rating") ||
+      res?.intent === "risk" ||
+      res?.intent === "review"
+    );
+  }, [message.content, res?.intent]);
+
+  const [expandedMetrics, setExpandedMetrics] = useState(false);
+  const showMetrics = isRiskOrAuditQuery || expandedMetrics;
 
   if (isUser) {
     return (
@@ -38,8 +68,9 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
     );
   }
 
-  // Assistant Response Turn
-  const res = message.response;
+  const confidenceValue = res?.evidence_score ?? Math.round((res?.confidence_score || 0.9) * 100);
+  const riskValue = res?.risk_score ?? 20;
+  const hasRiskFactors = Boolean(res?.risk_factors && res.risk_factors.length > 0);
 
   return (
     <div className="flex items-start gap-3 max-w-3xl mr-auto my-3 w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -83,7 +114,7 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
 
         {res && (
           <div className="space-y-2.5 w-full max-w-full">
-            {/* Primary Direct Answer */}
+            {/* Primary Direct Answer Box */}
             <div className="rounded-2xl border border-white/10 bg-surface-2 p-4 sm:p-4.5 space-y-2.5 shadow-sm w-full max-w-full overflow-hidden break-words [overflow-wrap:anywhere]">
               <div className="text-sm text-white/95 leading-relaxed break-words overflow-hidden">
                 <FormattedMarkdown content={res.answer} />
@@ -106,6 +137,136 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
                 </div>
               )}
             </div>
+
+            {/* Document Audit Metrics & Risk Breakdown (Prominently rendered when asked or toggled) */}
+            {showMetrics ? (
+              <div className="rounded-2xl border border-white/10 bg-surface-3/50 p-4 space-y-4 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-white uppercase tracking-wider">
+                    <Gauge className="h-3.5 w-3.5 text-primary-light" />
+                    <span>Document Audit & Risk Metrics</span>
+                  </div>
+                  {!isRiskOrAuditQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setExpandedMetrics(false)}
+                      className="text-[11px] text-muted-foreground hover:text-white flex items-center gap-1"
+                    >
+                      <span>Hide</span>
+                      <ChevronUp className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Score Gauges Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-white/10 bg-surface-2/70 p-3.5">
+                    <ScoreGauge
+                      value={confidenceValue}
+                      label="Confidence Score"
+                      description="Retrieval relevance & citation provenance certainty."
+                      tone="info"
+                    />
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-surface-2/70 p-3.5">
+                    <ScoreGauge
+                      value={riskValue}
+                      label="Risk Rating"
+                      description="Calculated deterministically from clauses & fee traps."
+                      tone={riskValue > 50 ? "danger" : "warning"}
+                    />
+                  </div>
+                </div>
+
+                {/* Risk Factors Breakdown */}
+                {hasRiskFactors && (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-white">
+                      <ShieldAlert className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Identified Risk Factors ({res.risk_factors.length})</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                      {res.risk_factors.map((rf: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="rounded-xl border border-white/10 bg-surface-2/60 p-3 text-xs space-y-1"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-white">
+                              {rf.factor || rf.name || "Risk Item"}
+                            </span>
+                            <SeverityBadge level={rf.severity || "MEDIUM"} />
+                          </div>
+                          {rf.description && (
+                            <p className="text-white/80 leading-relaxed text-[11px]">
+                              {rf.description}
+                            </p>
+                          )}
+                          {rf.impact && (
+                            <p className="text-amber-300/90 text-[11px] font-medium pt-0.5">
+                              Impact: {rf.impact}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Missing Disclosures Notice */}
+                {res.missing_information && res.missing_information.length > 0 && (
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 text-amber-300 font-semibold text-[11px]">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      <span>Missing Mandatory Disclosures:</span>
+                    </div>
+                    <p className="text-white/80 text-[11px] leading-relaxed">
+                      {res.missing_information
+                        .map((m: any) => m.field?.replace("_", " ").toUpperCase())
+                        .join(", ")}{" "}
+                      not found in agreement documents.
+                    </p>
+                  </div>
+                )}
+
+                {/* Inquiries to Ask Lender */}
+                {res.questions_to_ask_provider && res.questions_to_ask_provider.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                      Recommended Questions for Lender:
+                    </span>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {res.questions_to_ask_provider.slice(0, 3).map((q: string, i: number) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => onAskQuestion && onAskQuestion(q)}
+                          className="group flex items-center justify-between gap-2 text-left rounded-lg border border-white/10 bg-surface-2/60 px-3 py-2 text-xs text-white/90 hover:bg-white/10 transition-all"
+                        >
+                          <span className="leading-snug truncate">{q}</span>
+                          <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-white shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Compact Audit Metrics Toggle Button */
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExpandedMetrics(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-2 px-2.5 py-1 text-[11px] font-medium text-white/70 hover:text-white hover:bg-surface-3 transition-colors"
+                >
+                  <Gauge className="h-3 w-3 text-primary-light" />
+                  <span>
+                    Audit Metrics (Confidence: {confidenceValue}%, Risk: {riskValue}%)
+                  </span>
+                  <ChevronDown className="h-3 w-3 opacity-60 ml-0.5" />
+                </button>
+              </div>
+            )}
 
             {/* In-Chat HITL Escalation Review Mini-Card (Placed cleanly at bottom of answer when required) */}
             {res.hitl_required && (

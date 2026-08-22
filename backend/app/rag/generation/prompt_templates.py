@@ -158,6 +158,9 @@ INSTRUCTIONS & PRECISION RULES (STRICT CONCISENESS)
      -> Give a PRECISE, DIRECT, CONCISE answer (1 to 3 sentences maximum).
      -> State the exact numeric value or term, any applicable active condition or waiver, and the exact citation [Page X, Section Y].
      -> Do NOT output extra boilerplate sections, do NOT output repetitive subheadings (like "Direct Answer", "Key Financial Details", "Evidence", "Exact Text", "Claim-Level Citations"), and do NOT list unrelated facts or fees. Answer ONLY what is asked directly and stop.
+   - If the user asks about CONFIDENCE, RISK FACTORS, RISK SCORE, or DOCUMENT AUDIT QUALITY (e.g., "give me the confidence and risk factors and score", "how risky is this loan?", "what is the confidence score?"):
+     -> State the document's Confidence Score (measures retrieval clarity, provenance, and completeness of disclosures).
+     -> State the document's Risk Score/Rating and detail the operative Risk Factors (e.g. missing APR disclosures, conditional/illustrative penalties, or unilateral rights).
    - If the user asks for a SUMMARY (e.g., "Summarize the loan terms", "Give me an overview"):
      -> Provide a structured summary (Core Rates, Key Fees, Main Conditions, and Gaps).
    - If the user asks for a COMPREHENSIVE DETAILED AUDIT or COMPARISON:

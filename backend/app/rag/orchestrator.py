@@ -297,7 +297,11 @@ def process_query(
     # ===================================================================
     cost_drivers = []
     lender_questions = []
-    if intent_result.intent in ("review", "summary", "comparison", "risk"):
+    is_risk_or_meta_query = (
+        intent_result.intent in ("review", "summary", "comparison", "risk")
+        or any(k in clean_question.lower() for k in ("risk", "confidence", "score", "audit", "factor", "quality", "rating"))
+    )
+    if is_risk_or_meta_query:
         cost_drivers = detect_cost_drivers(structured_facts)
         risk_factors = risk_engine.detect_risk_factors(
             facts=structured_facts,
@@ -380,6 +384,7 @@ def process_query(
         structured_facts,
         reranked_chunks,
         calculation_result,
+        is_meta_query=is_risk_or_meta_query,
     )
     if not validation["valid"]:
         logger.info(f"[Orchestrator] Validation issues: {validation['issues']}")
