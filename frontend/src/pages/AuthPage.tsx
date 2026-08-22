@@ -37,6 +37,9 @@ export function AuthPage() {
     }
   };
 
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+  const isGoogleConfigured = !!googleClientId && !googleClientId.includes("example");
+
   const triggerGoogleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       setIsSubmitting(true);
@@ -69,6 +72,14 @@ export function AuthPage() {
       setIsSubmitting(false);
     },
   });
+
+  const handleGoogleClick = () => {
+    if (!isGoogleConfigured) {
+      setError("Please set your real VITE_GOOGLE_CLIENT_ID in frontend/.env from Google Cloud Console.");
+      return;
+    }
+    triggerGoogleLogin();
+  };
 
   return (
     <main className="relative min-h-screen flex items-center justify-center bg-black text-white px-4 py-12 overflow-hidden">
@@ -233,7 +244,7 @@ export function AuthPage() {
           {/* Google Sign In Button */}
           <button
             type="button"
-            onClick={() => triggerGoogleLogin()}
+            onClick={handleGoogleClick}
             disabled={isSubmitting}
             className="w-full flex items-center justify-center gap-3 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-xs font-semibold text-white hover:bg-white/10 hover:border-white/25 transition-all disabled:opacity-50"
           >
