@@ -1,0 +1,66 @@
+[
+  {
+    "id": "gold_01_interest_rate",
+    "question": "What is the interest rate for the loan?",
+    "document": "sample_loan_details.pdf",
+    "expected_page": 1,
+    "expected_fact": {
+      "field": "interest_rate",
+      "value": "10.50%",
+      "status": "EXPLICIT"
+    },
+    "expected_answer_contains": ["10.50%", "interest rate"],
+    "requires_calculation": false
+  },
+  {
+    "id": "gold_02_processing_fee",
+    "question": "How much is the processing fee?",
+    "document": "sample_loan_details.pdf",
+    "expected_page": 1,
+    "expected_fact": {
+      "field": "processing_fee",
+      "value": "1.00%",
+      "status": "EXPLICIT"
+    },
+    "expected_answer_contains": ["1.00%", "processing fee"],
+    "requires_calculation": false
+  },
+  {
+    "id": "gold_03_prepayment_penalty",
+    "question": "Is there any penalty for early repayment or foreclosure?",
+    "document": "sample_loan_details.pdf",
+    "expected_page": 2,
+    "expected_fact": {
+      "field": "early_repayment_fee",
+      "value": "2.00%",
+      "condition": "before 12 months",
+      "status": "CONDITIONAL"
+    },
+    "expected_answer_contains": ["2.00%", "12 months", "penalty"],
+    "requires_calculation": false
+  },
+  {
+    "id": "gold_04_emi_calculation",
+    "question": "What would be the monthly EMI for a loan of 500000 over 2 years at 12% interest?",
+    "requires_calculation": true,
+    "scenario": {
+      "principal": 500000,
+      "interest_rate": 12.0,
+      "tenure_months": 24
+    },
+    "expected_calculation": {
+      "emi": 23536.74,
+      "total_interest": 64881.76,
+      "total_repayment": 564881.76
+    },
+    "expected_answer_contains": ["23,536", "EMI"]
+  },
+  {
+    "id": "gold_05_missing_information_refusal",
+    "question": "What is the cosmic insurance fee on this loan?",
+    "document": "sample_loan_details.pdf",
+    "expected_evidence_status": "NOT_SPECIFIED",
+    "expected_answer_contains": ["not specified", "not mentioned", "not available"],
+    "requires_calculation": false
+  }
+]

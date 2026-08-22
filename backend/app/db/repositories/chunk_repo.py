@@ -107,6 +107,9 @@ def get_chunks_by_document(document_id: str) -> List[Dict[str, Any]]:
 
 def get_all_local_chunks(product_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     """Retrieve all in-memory chunks, optionally filtered by product_ids."""
+    from app.core.config import settings
+    if not settings.is_development:
+        return []
     _ensure_sample_loan_chunks()
     if not product_ids:
         return list(_LOCAL_CHUNKS)
@@ -117,6 +120,7 @@ def bm25_search(query: str, product_ids: List[str], limit: int = 10) -> List[Dic
     """
     BM25 / Keyword search with local fallback.
     """
+    from app.core.config import settings
     try:
         supabase = get_supabase_client()
         response = supabase.rpc(
@@ -150,7 +154,8 @@ def bm25_search(query: str, product_ids: List[str], limit: int = 10) -> List[Dic
                 scored_remote = []
                 for chunk in remote_chunks:
                     text = (chunk.get("text") or "").lower()
-                    overlap = sum(1 for word in query_words if word in text)
+                    chunk_words = set(text.split())
+                    overlap = len(query_words & chunk_words)
                     if overlap:
                         scored_remote.append((overlap, chunk))
                 scored_remote.sort(key=lambda item: item[0], reverse=True)
@@ -159,7 +164,10 @@ def bm25_search(query: str, product_ids: List[str], limit: int = 10) -> List[Dic
         except Exception as remote_error:
             logger.warning(f"Remote chunk fallback unavailable: {remote_error}")
 
-    # Local fallback keyword search
+    # Local fallback keyword search — only in development mode (FIN-034)
+    if not settings.is_development:
+        return []
+
     _ensure_sample_loan_chunks()
     chunks = get_all_local_chunks(product_ids)
     query_words = set(query.lower().split())
@@ -167,7 +175,8 @@ def bm25_search(query: str, product_ids: List[str], limit: int = 10) -> List[Dic
     scored = []
     for c in chunks:
         text = (c.get("text") or c.get("content") or "").lower()
-        overlap = sum(1 for w in query_words if w in text)
+        chunk_words = set(text.split())
+        overlap = len(query_words & chunk_words)
         if overlap > 0 or len(chunks) <= limit:
             scored.append((overlap, c))
 

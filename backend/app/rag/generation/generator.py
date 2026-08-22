@@ -6,9 +6,8 @@ Supports both the legacy ``(query, context)`` signature and the new
 enriched signature with structured facts, calculations, conflicts, etc.
 """
 
-import json
-from groq import Groq
-from app.core.config import settings
+from app.external.llm_client import llm, get_groq_client
+from app.core.constants import DEFAULT_GROQ_MODEL
 from app.rag.generation.prompt_templates import (
     SYSTEM_PROMPT_FINANCIAL_EXPERT,
     QA_USER_PROMPT_TEMPLATE,
@@ -17,8 +16,12 @@ from app.rag.generation.prompt_templates import (
 )
 from typing import Dict, Any, List, Optional
 
-# Initialize Groq client
-client = Groq(api_key=settings.GROQ_API_KEY)
+# Backward-compatibility proxy for modules importing `client` directly
+class _LazyGroqClient:
+    def __getattr__(self, name):
+        return getattr(get_groq_client(), name)
+
+client = _LazyGroqClient()
 
 
 def _format_for_prompt(data: Any) -> str:
@@ -65,8 +68,7 @@ def generate_answer(
     )
 
     try:
-        response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
+        answer_text = llm.chat_completion(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT_FINANCIAL_EXPERT},
                 {"role": "user", "content": prompt},
@@ -75,11 +77,9 @@ def generate_answer(
             max_tokens=2048,
         )
 
-        answer_text = response.choices[0].message.content
-
         return {
             "answer": answer_text,
-            "raw_response": response,
+            "raw_response": None,
         }
 
     except Exception as e:
@@ -106,8 +106,7 @@ def generate_loan_review(
     )
 
     try:
-        response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
+        content = llm.chat_completion(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT_FINANCIAL_EXPERT},
                 {"role": "user", "content": prompt},
@@ -115,7 +114,7 @@ def generate_loan_review(
             temperature=0.1,
             max_tokens=2048,
         )
-        return {"review": response.choices[0].message.content}
+        return {"review": content}
     except Exception as e:
         return {"review": f"Error generating review: {str(e)}", "error": str(e)}
 
@@ -137,8 +136,7 @@ def generate_before_confirmation(
     )
 
     try:
-        response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
+        content = llm.chat_completion(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT_FINANCIAL_EXPERT},
                 {"role": "user", "content": prompt},
@@ -146,6 +144,6 @@ def generate_before_confirmation(
             temperature=0.1,
             max_tokens=2048,
         )
-        return {"checklist": response.choices[0].message.content}
+        return {"checklist": content}
     except Exception as e:
         return {"checklist": f"Error generating checklist: {str(e)}", "error": str(e)}

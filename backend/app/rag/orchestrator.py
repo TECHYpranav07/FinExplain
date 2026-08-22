@@ -28,7 +28,10 @@ Pipeline stages:
   20. Cache storage
 """
 
+import logging
 from typing import List, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 from app.rag.retrieval.hybrid_retriever import hybrid_search
 from app.rag.retrieval.reranker import rerank_chunks
@@ -37,7 +40,7 @@ from app.rag.generation.generator import generate_answer
 from app.rag.verification.grounder import ground_answer
 from app.rag.enhancement.intent_classifier import classify_intent
 from app.rag.enhancement.query_rewriter import rewrite_query
-from app.rag.enhancement.multi_query import generate_multi_queries
+# FIN-021: generate_multi_queries import removed (result was discarded)
 from app.rag.verification.conflict_detector import detect_conflicts, detect_fact_conflicts
 from app.rag.verification.confidence import calculate_confidence, evidence_scorer
 from app.rag.verification.claim_verifier import verify_all_claims
@@ -52,6 +55,25 @@ from app.rag.extraction.lender_questions import generate_lender_questions
 from app.core.loan_categories import EvidenceStatus
 from app.tools.calculator import calculate_loan_scenario
 from app.cache.query_cache import get_cached_response, set_cached_response
+
+
+
+def _is_fact_verified(fact, claim_results: Dict[str, Any]) -> bool:
+    """FIN-006: Derive verified status from actual claim verification results.
+    A fact is verified only if the claim verifier found a supporting claim
+    that matches the fact's field or value."""
+    claims = claim_results.get("claims", [])
+    for c in claims:
+        if not c.get("supported"):
+            continue
+        # Check if the verified claim relates to this fact
+        claim_text = c.get("claim", "").lower()
+        field_lower = fact.field.lower().replace("_", " ")
+        if field_lower in claim_text:
+            return True
+        if fact.value and fact.value.lower() in claim_text:
+            return True
+    return False
 
 
 def process_query(
@@ -77,19 +99,18 @@ def process_query(
     # Step 1: Classify intent
     # ===================================================================
     intent_result = classify_intent(question)
-    print(f"[Orchestrator] Intent: {intent_result.intent}, Confidence: {intent_result.confidence}")
+    logger.info(f"[Orchestrator] Intent: {intent_result.intent}, Confidence: {intent_result.confidence}")
 
     # ===================================================================
     # Step 2: Rewrite query
     # ===================================================================
     rewritten_query = rewrite_query(question, intent_result.intent) or question
-    print(f"[Orchestrator] Rewritten Query: {rewritten_query}")
+    logger.info(f"[Orchestrator] Rewritten Query: {rewritten_query}")
 
     # ===================================================================
-    # Step 3: Generate multi-queries
+    # Step 3: Multi-query generation REMOVED (FIN-021)
+    # The generated queries were logged then discarded — wasted LLM call.
     # ===================================================================
-    queries = generate_multi_queries(rewritten_query, num_queries=3)
-    print(f"[Orchestrator] Multi-queries: {queries}")
 
     # ===================================================================
     # Step 4: Hybrid retrieval
@@ -116,7 +137,7 @@ def process_query(
     # ===================================================================
     chunk_conflicts = detect_conflicts(retrieved_chunks)
     if chunk_conflicts:
-        print(f"[Orchestrator] Chunk-level conflicts detected: {len(chunk_conflicts)}")
+        logger.info(f"[Orchestrator] Chunk-level conflicts detected: {len(chunk_conflicts)}")
 
     # ===================================================================
     # Step 6: Rerank
@@ -146,7 +167,7 @@ def process_query(
     # ===================================================================
     # Step 8: Structured fact extraction
     # ===================================================================
-    print("[Orchestrator] Extracting structured facts...")
+    logger.info("[Orchestrator] Extracting structured facts...")
     product_name = None
     document_name = None
     if reranked_chunks:
@@ -159,7 +180,7 @@ def process_query(
         product_name=product_name,
         document_name=document_name,
     )
-    print(f"[Orchestrator] Extracted {len(structured_facts)} structured facts")
+    logger.info(f"[Orchestrator] Extracted {len(structured_facts)} structured facts")
 
     # ===================================================================
     # Step 9: Condition annotation (deterministic)
@@ -171,7 +192,7 @@ def process_query(
     # ===================================================================
     missing_info = detect_missing_information(structured_facts)
     if missing_info:
-        print(f"[Orchestrator] Missing information: {[m['field'] for m in missing_info]}")
+        logger.info(f"[Orchestrator] Missing information: {[m['field'] for m in missing_info]}")
 
     # ===================================================================
     # Step 11: Fact-level conflict detection (deterministic)
@@ -179,7 +200,7 @@ def process_query(
     fact_conflicts = detect_fact_conflicts(structured_facts)
     all_conflicts = chunk_conflicts + fact_conflicts
     if fact_conflicts:
-        print(f"[Orchestrator] Fact-level conflicts detected: {len(fact_conflicts)}")
+        logger.info(f"[Orchestrator] Fact-level conflicts detected: {len(fact_conflicts)}")
 
     # ===================================================================
     # Step 12: Scenario extraction (if calculation intent)
@@ -188,7 +209,7 @@ def process_query(
     if intent_result.intent in ("calculation", "comparison"):
         scenario = extract_user_scenario(question)
         if scenario:
-            print(f"[Orchestrator] Extracted scenario: {scenario}")
+            logger.info(f"[Orchestrator] Extracted scenario: {scenario}")
 
     # ===================================================================
     # Step 13: Calculation engine (deterministic)
@@ -198,26 +219,52 @@ def process_query(
         # Extract rates from structured facts
         interest_rate = None
         processing_fee_rate = None
+        processing_fee_type = "percent"  # FIN-028: distinguish fee types
         for fact in structured_facts:
             if fact.category == "interest_rate" and fact.value:
                 try:
-                    interest_rate = float(fact.value.replace("%", "").strip())
+                    # FIN-028: skip values with qualifiers like "floating", "variable"
+                    clean_val = fact.value.replace("%", "").strip()
+                    if any(q in clean_val.lower() for q in ("floating", "variable", "linked", "reset")):
+                        logger.info(f"[Orchestrator] Skipping qualified interest rate: {fact.value}")
+                        continue
+                    interest_rate = float(clean_val)
                 except (ValueError, TypeError):
                     pass
             if fact.category == "processing_fee" and fact.value:
                 try:
-                    processing_fee_rate = float(fact.value.replace("%", "").strip())
+                    clean_val = fact.value.strip()
+                    # FIN-028: detect if fee is fixed amount vs percentage
+                    if any(c in clean_val for c in ("₹", "$", "Rs", "INR", "USD")):
+                        # Fixed currency amount — strip currency symbols
+                        numeric_val = clean_val.replace("₹", "").replace("$", "").replace("Rs", "").replace("INR", "").replace("USD", "").replace(",", "").strip()
+                        processing_fee_rate = float(numeric_val)
+                        processing_fee_type = "fixed"
+                    else:
+                        processing_fee_rate = float(clean_val.replace("%", "").strip())
+                        processing_fee_type = "percent"
                 except (ValueError, TypeError):
                     pass
+
+        # FIN-028: Convert tenure to months using repayment_unit
+        tenure_months = scenario.get("repayment_period")
+        repayment_unit = scenario.get("repayment_unit", "months").lower()
+        if tenure_months is not None:
+            if repayment_unit in ("year", "years", "yr", "yrs"):
+                tenure_months = int(tenure_months) * 12
+                logger.info(f"[Orchestrator] Converted {scenario.get('repayment_period')} {repayment_unit} → {tenure_months} months")
+            else:
+                tenure_months = int(tenure_months)
 
         calculation_result = calculate_loan_scenario(
             principal=scenario.get("principal"),
             interest_rate=interest_rate,
-            tenure=scenario.get("repayment_period"),
+            tenure=tenure_months,
             processing_fee=processing_fee_rate,
+            processing_fee_type=processing_fee_type,
             evidence_ids=[f.source_chunk_id for f in structured_facts if f.source_chunk_id],
         )
-        print(f"[Orchestrator] Calculation complete. Unknown costs: {calculation_result.get('unknown_costs', [])}")
+        logger.info(f"[Orchestrator] Calculation complete. Unknown costs: {calculation_result.get('unknown_costs', [])}")
 
     # ===================================================================
     # Step 14: Cost driver & Risk factor detection (deterministic)
@@ -271,9 +318,9 @@ def process_query(
     # ===================================================================
     # Step 16: Claim-level verification
     # ===================================================================
-    print("[Orchestrator] Verifying claims...")
+    logger.info("[Orchestrator] Verifying claims...")
     claim_results = verify_all_claims(answer_text, structured_facts, reranked_chunks)
-    print(
+    logger.info(
         f"[Orchestrator] Claims: {claim_results['total_claims']}, "
         f"Supported: {claim_results['supported_claims']}, "
         f"Unsupported: {claim_results['unsupported_claims']}"
@@ -290,7 +337,7 @@ def process_query(
         calculation_result=calculation_result,
         rerank_scores=rerank_scores,
     )
-    print(f"[Orchestrator] Evidence score: {evidence_score_result['score']}/100 ({evidence_score_result['label']})")
+    logger.info(f"[Orchestrator] Evidence score: {evidence_score_result['score']}/100 ({evidence_score_result['label']})")
 
     # ===================================================================
     # Step 18: Response validation (deterministic)
@@ -303,14 +350,17 @@ def process_query(
         calculation_result,
     )
     if not validation["valid"]:
-        print(f"[Orchestrator] Validation issues: {validation['issues']}")
+        logger.info(f"[Orchestrator] Validation issues: {validation['issues']}")
         answer_text = validation["sanitized_answer"]
 
     # ===================================================================
     # Step 19: Determine overall evidence status
     # ===================================================================
     statuses = set(f.status for f in structured_facts)
-    if EvidenceStatus.MIXED in statuses:
+    # FIN-027: If conflicts were detected, force MIXED status
+    if all_conflicts:
+        overall_status = "MIXED"
+    elif EvidenceStatus.MIXED in statuses:
         overall_status = "MIXED"
     elif EvidenceStatus.CONDITIONAL in statuses and EvidenceStatus.EXPLICIT in statuses:
         overall_status = "CONDITIONAL"
@@ -345,6 +395,8 @@ def process_query(
             if f.status == EvidenceStatus.CONDITIONAL
         ],
         "calculations": [calculation_result] if calculation_result else [],
+        # FIN-006: Derive verified status from actual claim verification
+        # instead of hardcoding True for every fact with a source chunk.
         "evidence": [
             {
                 "claim": f.field,
@@ -353,7 +405,7 @@ def process_query(
                 "section": f.section,
                 "chunk_id": f.source_chunk_id,
                 "status": f.status.value,
-                "verified": True,
+                "verified": _is_fact_verified(f, claim_results),
             }
             for f in structured_facts
             if f.source_chunk_id

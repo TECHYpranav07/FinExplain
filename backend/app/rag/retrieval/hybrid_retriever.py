@@ -6,7 +6,8 @@ from collections import defaultdict
 def reciprocal_rank_fusion(
     dense_results: List[Dict[str, Any]], 
     sparse_results: List[Dict[str, Any]], 
-    k: int = 60
+    k: int = 60,
+    top_k: int = None,
 ) -> List[Dict[str, Any]]:
     """
     Combines dense and sparse results using RRF.
@@ -46,7 +47,7 @@ def reciprocal_rank_fusion(
         chunk["rrf_score"] = rrf_score
         results.append(chunk)
     
-    return results
+    return results[:top_k] if top_k else results
 
 def hybrid_search(query: str, product_ids: List[str], top_k: int = 20) -> List[Dict[str, Any]]:
     """

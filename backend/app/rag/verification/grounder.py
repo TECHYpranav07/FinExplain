@@ -22,15 +22,27 @@ def extract_citations(answer: str) -> List[str]:
     return citations
 
 def verify_citation(citation: Dict[str, Any], retrieved_chunks: List[Dict[str, Any]]) -> bool:
-    """Check if a citation points to an actual retrieved chunk."""
+    """Check if a citation points to an actual retrieved chunk.
+    
+    FIN-007: Requires document_id + page match, not just page existence.
+    """
     page_num = citation.get("page")
     if not page_num:
-        return True  # No page specified, assume verified
+        return False  # FIN-007: No page specified = not verified (was True)
+    
+    cited_doc = citation.get("document")
     
     for chunk in retrieved_chunks:
         chunk_page = chunk.get("page_number") or chunk.get("page_num")
-        if chunk_page == page_num:
-            return True
+        if chunk_page != page_num:
+            continue
+        # If a document name was cited, require it to match
+        if cited_doc:
+            chunk_doc = chunk.get("document_name", "")
+            if cited_doc.lower() not in chunk_doc.lower() and chunk_doc.lower() not in cited_doc.lower():
+                continue
+        # Page matches (and document matches if specified)
+        return True
     return False
 
 def calculate_confidence(

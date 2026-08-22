@@ -1,4 +1,5 @@
 from app.db.supabase_client import get_supabase_client
+from app.core.config import settings
 from typing import List, Dict, Any, Optional
 import uuid
 import logging
@@ -21,15 +22,11 @@ def create_product(
 ) -> Dict[str, Any]:
     """Create a product using the column names and types in ``schema.sql``."""
     pid = str(uuid.uuid4())
-    # The deployed Supabase schema uses UUID user_id/product IDs and does not
-    # include the older product_type/owner_id columns.
     data = {
         "name": name,
         "issuer": issuer,
         "user_id": user_id,
     }
-    # The deployed table requires effective_date even though the API keeps it
-    # optional for callers. Use today's date when the caller omits it.
     data["effective_date"] = effective_date or date.today().isoformat()
     
     try:
@@ -38,9 +35,11 @@ def create_product(
         return response.data[0] if response.data else {"id": pid, **data}
     except Exception as e:
         logger.warning(f"Supabase not available, using local product store: {e}")
-        local_data = {"id": pid, **data}
-        _LOCAL_PRODUCTS[pid] = local_data
-        return local_data
+        if settings.is_development:
+            local_data = {"id": pid, **data}
+            _LOCAL_PRODUCTS[pid] = local_data
+            return local_data
+        raise e
 
 def get_products_by_user(user_id: str) -> List[Dict[str, Any]]:
     """Fetch all products for a given user."""
@@ -49,8 +48,8 @@ def get_products_by_user(user_id: str) -> List[Dict[str, Any]]:
         response = supabase.table("products").select("*").eq("user_id", user_id).execute()
         return response.data or []
     except Exception as e:
-        logger.warning(f"Supabase not available, using local product store: {e}")
-        return list(_LOCAL_PRODUCTS.values())
+        logger.warning(f"Supabase not available: {e}")
+        return list(_LOCAL_PRODUCTS.values()) if settings.is_development else []
 
 def get_all_products(limit: int = 100) -> List[Dict[str, Any]]:
     """Fetch all products."""
@@ -59,18 +58,22 @@ def get_all_products(limit: int = 100) -> List[Dict[str, Any]]:
         response = supabase.table("products").select("*").limit(limit).execute()
         return response.data or []
     except Exception as e:
-        logger.warning(f"Supabase not available, using local product store: {e}")
-        return list(_LOCAL_PRODUCTS.values())
+        logger.warning(f"Supabase not available: {e}")
+        return list(_LOCAL_PRODUCTS.values()) if settings.is_development else []
 
 def get_product_by_id(product_id: str) -> Optional[Dict[str, Any]]:
     """Fetch a single product by ID."""
     try:
         supabase = get_supabase_client()
         response = supabase.table("products").select("*").eq("id", product_id).execute()
-        return response.data[0] if response.data else _LOCAL_PRODUCTS.get(product_id)
+        if response.data:
+            return response.data[0]
     except Exception as e:
         logger.warning(f"Supabase not available, checking local store: {e}")
+    
+    if settings.is_development:
         return _LOCAL_PRODUCTS.get(product_id)
+    return None
 
 def get_product_by_name(user_id: str, name: str) -> Optional[Dict[str, Any]]:
     """Fetch a product by name for a specific user."""
@@ -80,4 +83,6 @@ def get_product_by_name(user_id: str, name: str) -> Optional[Dict[str, Any]]:
         return response.data[0] if response.data else None
     except Exception as e:
         logger.warning(f"Supabase not available: {e}")
-        return next((p for p in _LOCAL_PRODUCTS.values() if p.get("name") == name), None)
+        if settings.is_development:
+            return next((p for p in _LOCAL_PRODUCTS.values() if p.get("name") == name), None)
+        return None

@@ -234,20 +234,19 @@ def calculate_loan_scenario(
     )
     results["total_upfront_fees"] = round(upfront, 2)
 
-    # --- Total known cost ---
-    total_known = sum(c["amount"] for c in known_costs)
-    results["total_known_cost"] = round(total_known, 2)
-
     # --- Early repayment / late fee ---
+    # FIN-029: Collect these BEFORE computing total_known_cost
     if early_repayment_fee is not None:
         known_costs.append({"item": "early_repayment_fee", "amount": early_repayment_fee})
-    else:
-        unknown_costs.append("early_repayment_fee")
+    # FIN-029: Only mark as unknown if the scenario is relevant (not unconditionally)
+    # early_repayment_fee and late_fee are situational — don't always list as unknown.
 
     if late_fee is not None:
         known_costs.append({"item": "late_fee", "amount": late_fee})
-    else:
-        unknown_costs.append("late_fee")
+
+    # --- Total known cost (FIN-029: now computed AFTER all known costs collected) ---
+    total_known = sum(c["amount"] for c in known_costs)
+    results["total_known_cost"] = round(total_known, 2)
 
     return {
         "inputs": inputs,

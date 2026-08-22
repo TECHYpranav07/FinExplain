@@ -123,18 +123,24 @@ def validate_final_response(
     # --- Build sanitized answer if issues found ---
     sanitized = answer
     if unsupported_claims:
-        # Remove or flag unsupported claims
-        for claim_text in unsupported_claims:
-            if len(claim_text) > 20:
-                # Try to find and annotate the claim in the answer
-                # (simple substring match — not perfect but functional)
-                short = claim_text[:60]
-                if short in sanitized:
-                    sanitized = sanitized.replace(
-                        short,
-                        f"{short} [⚠ This claim could not be verified against the documents]",
-                        1,
-                    )
+        # FIN-026: If all claims are unsupported, refuse rather than presenting hallucinatory output
+        if len(unsupported_claims) == len(claims) and len(claims) > 0:
+            sanitized = (
+                "Unable to provide a verified answer based on the retrieved documents. "
+                "The extracted statements could not be verified against the source text. "
+                "Please review the source documents or consult a loan officer."
+            )
+        else:
+            # Annotate specific unsupported claims
+            for claim_text in unsupported_claims:
+                if len(claim_text) > 15:
+                    short = claim_text[:60].strip()
+                    if short in sanitized:
+                        sanitized = sanitized.replace(
+                            short,
+                            f"{short} [⚠ This claim could not be verified against the documents]",
+                            1,
+                        )
 
     is_valid = len(issues) == 0
 

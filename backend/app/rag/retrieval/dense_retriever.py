@@ -1,12 +1,18 @@
 from typing import List, Dict, Any
 import logging
-from app.db.repositories.chunk_repo import get_all_local_chunks
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# FIN-019: Minimum similarity score threshold. Results below this are discarded.
+MIN_SIMILARITY_SCORE = 0.3
+
 def vector_search(query: str, product_ids: List[str], top_k: int = 20) -> List[Dict[str, Any]]:
     """
-    Dense vector search using Pinecone with local in-memory fallback.
+    Dense vector search using Pinecone.
+    
+    FIN-005: Empty product_ids no longer means unrestricted search.
+    FIN-019: On Pinecone failure, returns empty list instead of unranked local chunks.
     """
     try:
         from app.external.pinecone_client import get_pinecone_index
@@ -24,6 +30,11 @@ def vector_search(query: str, product_ids: List[str], top_k: int = 20) -> List[D
 
         formatted_results = []
         for match in results.matches:
+            # FIN-019: Apply minimum similarity threshold
+            if match.score < MIN_SIMILARITY_SCORE:
+                logger.debug(f"Discarding low-score result {match.id}: {match.score:.3f} < {MIN_SIMILARITY_SCORE}")
+                continue
+                
             meta = match.metadata or {}
             formatted_results.append({
                 "id": match.id,
@@ -42,12 +53,17 @@ def vector_search(query: str, product_ids: List[str], top_k: int = 20) -> List[D
                 "chunk_type": meta.get("chunk_type", "child")
             })
 
-        if formatted_results:
-            return formatted_results
+        return formatted_results
 
     except Exception as e:
-        logger.warning(f"Pinecone vector search not available: {e}")
+        logger.warning(f"Pinecone vector search failed: {e}")
 
-    # Fallback: Return local chunks
-    local = get_all_local_chunks(product_ids)
-    return local[:top_k]
+    # FIN-019: Return empty list on failure instead of unranked local chunks.
+    # In development mode, fall back to local chunks for testing convenience.
+    if settings.is_development:
+        from app.db.repositories.chunk_repo import get_all_local_chunks
+        local = get_all_local_chunks(product_ids)
+        logger.info(f"[DEV MODE] Falling back to {len(local)} local chunks")
+        return local[:top_k]
+    
+    return []

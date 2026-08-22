@@ -50,8 +50,8 @@ def chunk_hierarchical(
     chunks: List[Dict[str, Any]] = []
 
     for page in pages:
-        page_num = page["page_num"]
-        text = page["text"]
+        page_num = page.get("page_num") or page.get("page_number", 1)
+        text = page.get("text", "")
         page_sections = page.get("sections", [])
 
         # Split text into sentences (rough split by periods/newlines).
@@ -160,11 +160,18 @@ def chunk_hierarchical(
                 "document_version": document_version,
             })
 
+        # Map child_id -> parent_chunk_id
+        child_to_parent_id = {}
+        for parent in parent_chunks:
+            for c_id in parent.get("child_ids", []):
+                child_to_parent_id[c_id] = parent["chunk_id"]
+
         # Flatten structure with a 'type' field
         for child in child_chunks_for_page:
             chunks.append({
                 "type": "child",
                 "chunk_id": child["chunk_id"],
+                "parent_chunk_id": child_to_parent_id.get(child["chunk_id"]),
                 "text": child["text"],
                 "token_count": child["token_count"],
                 "page_num": child["page_num"],
@@ -173,13 +180,14 @@ def chunk_hierarchical(
                 "product_name": product_name,
                 "effective_date": effective_date,
                 "document_version": document_version,
-                "parent_text": None,  # will be linked later
+                "parent_text": None,
             })
 
         for parent in parent_chunks:
             chunks.append({
                 "type": "parent",
                 "chunk_id": parent["chunk_id"],
+                "parent_chunk_id": None,
                 "text": parent["text"],
                 "token_count": parent["token_count"],
                 "page_num": parent["page_num"],
