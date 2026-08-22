@@ -324,7 +324,7 @@ export function QueryPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-5 h-[calc(100vh-120px)]">
+    <div className="w-full flex flex-col md:flex-row gap-5 h-[calc(100vh-130px)]">
       {/* Mobile Sidebar Toggle */}
       <div className="md:hidden flex items-center justify-between bg-surface p-3 rounded-xl border border-white/10">
         <button

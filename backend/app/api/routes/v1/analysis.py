@@ -119,10 +119,17 @@ async def loan_review(
         cost_drivers=extracted["cost_drivers"],
     )
 
+    # Generate actionable checklist with ✓ / ⚠ / ? markers
+    checklist = generate_before_confirmation_checklist(
+        facts=extracted["facts"],
+        missing=extracted["missing"],
+        conflicts=extracted["conflicts"],
+    )
+
     return {
         "review": review,
         "review_text": review_text_result.get("review"),
-        "checklist": None,
+        "checklist": checklist,
         "cost_drivers": extracted["prioritized_drivers"],
     }
 

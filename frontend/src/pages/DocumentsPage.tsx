@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -8,6 +8,7 @@ import { PageHeader, Panel, Badge, EmptyState, ErrorState } from "@/components/f
 
 export function DocumentsPage() {
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: products = [] } = useProducts();
   const [docs, setDocs] = useState<DocRecord[]>(() => listDocuments());
   const [search, setSearch] = useState("");
@@ -37,6 +38,7 @@ export function DocumentsPage() {
       saveDocument(newDoc);
       setDocs(listDocuments());
       setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setUploadSuccess(`"${vars.file.name}" ingested successfully with ${newDoc.chunks} chunks.`);
       setUploadError(null);
     },
@@ -51,7 +53,7 @@ export function DocumentsPage() {
     setIsDragging(false);
     if (e.dataTransfer.files?.[0]) {
       const f = e.dataTransfer.files[0];
-      if (!f.name.endsWith(".pdf")) {
+      if (!f.name.toLowerCase().endsWith(".pdf")) {
         setUploadError("Only PDF documents are supported for financial ingestion.");
         return;
       }
@@ -62,7 +64,12 @@ export function DocumentsPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
-      setSelectedFile(e.target.files[0]);
+      const f = e.target.files[0];
+      if (!f.name.toLowerCase().endsWith(".pdf")) {
+        setUploadError("Only PDF documents are supported for financial ingestion.");
+        return;
+      }
+      setSelectedFile(f);
       setUploadError(null);
     }
   };
@@ -70,7 +77,7 @@ export function DocumentsPage() {
   const handleUploadSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile) {
-      setUploadError("Please select a PDF document to upload.");
+      setUploadError("Please select or drop a PDF document to upload.");
       return;
     }
     if (!selectedProduct) {
@@ -78,6 +85,14 @@ export function DocumentsPage() {
       return;
     }
     uploadMutation.mutate({ file: selectedFile, productId: selectedProduct });
+  };
+
+  const handleClearSelectedFile = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    setUploadError(null);
   };
 
   const handleDelete = (id: string) => {
@@ -105,69 +120,91 @@ export function DocumentsPage() {
         subtitle="Upload standard PDF documents to trigger deterministic chunking, Pinecone vector indexing, and hybrid retrieval."
       >
         <form onSubmit={handleUploadSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                Target Product / Lender <span className="text-danger">*</span>
-              </label>
-              <select
-                aria-label="Target Product / Lender"
-                value={selectedProduct}
-                onChange={(e) => setSelectedProduct(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs text-white focus:border-white/30 focus:outline-none"
-              >
-                <option value="">Select a registered product...</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.issuer})
-                  </option>
-                ))}
-              </select>
-              {products.length === 0 && (
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  No products found. <Link to="/app/products" className="text-white underline">Add a product</Link> first.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                Selected File
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={handleFileChange}
-                  className="text-xs text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-surface-3 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-white/20"
-                />
-              </div>
-            </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+              Target Product / Lender <span className="text-danger">*</span>
+            </label>
+            <select
+              aria-label="Target Product / Lender"
+              value={selectedProduct}
+              onChange={(e) => setSelectedProduct(e.target.value)}
+              className="w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs text-white focus:border-white/30 focus:outline-none"
+            >
+              <option value="">Select a registered product...</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.issuer})
+                </option>
+              ))}
+            </select>
+            {products.length === 0 && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                No products found. <Link to="/app/products" className="text-white underline">Add a product</Link> first.
+              </p>
+            )}
           </div>
 
-          {/* Drag & Drop Box */}
+          {/* Hidden File Input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+
+          {/* Clickable Drag & Drop Box */}
           <div
+            role="button"
+            tabIndex={0}
+            onClick={() => fileInputRef.current?.click()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
             onDragOver={(e) => {
               e.preventDefault();
               setIsDragging(true);
             }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleFileDrop}
-            className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
+            className={`group flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-all ${
               isDragging
-                ? "border-white bg-white/5"
-                : "border-white/15 bg-surface-2/40 hover:border-white/30"
+                ? "border-white bg-white/10 scale-[1.005]"
+                : selectedFile
+                ? "border-emerald-500/50 bg-emerald-500/5 hover:border-emerald-400/80"
+                : "border-white/15 bg-surface-2/40 hover:border-white/35 hover:bg-surface-2/70"
             }`}
           >
-            <i className="fa-solid fa-cloud-arrow-up text-2xl text-muted-foreground mb-2" />
-            <p className="text-sm font-semibold text-white">
-              {selectedFile ? selectedFile.name : "Drag & Drop loan agreement PDF here"}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {selectedFile
-                ? `${formatBytes(selectedFile.size)} · Ready to ingest`
-                : "Supports standard PDF formats up to 50MB"}
-            </p>
+            {selectedFile ? (
+              <>
+                <i className="fa-solid fa-file-pdf text-3xl text-rose-500 mb-2.5 transition-transform group-hover:scale-110" />
+                <p className="text-sm font-semibold text-white truncate max-w-md">
+                  {selectedFile.name}
+                </p>
+                <p className="text-xs text-emerald-400 mt-1 font-medium">
+                  {formatBytes(selectedFile.size)} · Ready to ingest
+                </p>
+                <span className="mt-2 text-[11px] text-muted-foreground group-hover:text-white/80 transition-colors">
+                  Click or drag another file to replace
+                </span>
+              </>
+            ) : (
+              <>
+                <i className="fa-solid fa-cloud-arrow-up text-3xl text-muted-foreground mb-2.5 group-hover:text-white transition-colors" />
+                <p className="text-sm font-semibold text-white">
+                  Drag & Drop loan agreement PDF here
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  or <span className="text-white font-medium underline underline-offset-2">click to browse</span> from your device
+                </p>
+                <p className="text-[11px] text-white/40 mt-1.5">
+                  Supports standard PDF formats up to 50MB
+                </p>
+              </>
+            )}
           </div>
 
           {uploadError && <ErrorState message={uploadError} />}
@@ -178,14 +215,14 @@ export function DocumentsPage() {
             </div>
           )}
 
-          <div className="flex justify-end gap-3">
+          <div className="flex justify-end gap-3 pt-1">
             {selectedFile && (
               <button
                 type="button"
-                onClick={() => setSelectedFile(null)}
-                className="rounded-lg border border-white/10 px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-white"
+                onClick={handleClearSelectedFile}
+                className="rounded-lg border border-white/10 px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-white hover:bg-surface-2 transition-colors"
               >
-                Clear
+                Clear File
               </button>
             )}
             <button

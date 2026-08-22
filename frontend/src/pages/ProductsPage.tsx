@@ -50,7 +50,7 @@ export function ProductsPage() {
   const products = productsQuery.data || [];
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto">
+    <div className="space-y-8">
       <PageHeader
         eyebrow="Portfolio & Catalog"
         title="Financial Products & Lenders"

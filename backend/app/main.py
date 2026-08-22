@@ -28,15 +28,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS with configured origins (FIN-004: no more wildcard)
-_cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+# Enable CORS with origins loaded strictly from .env
+_cors_origins = settings.cors_origins_list
+if not _cors_origins:
+    # If not defined in .env during local development, allow common localhost origins
+    _cors_origins = ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "http://localhost:8000"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
 
 # Register all route handlers
 app.include_router(auth.router, prefix="/api/v1", tags=["Auth"])

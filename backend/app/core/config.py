@@ -1,10 +1,17 @@
+import os
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 ENV_FILE = BACKEND_DIR / ".env"
+
+# Explicitly load .env from backend directory using dotenv
+if ENV_FILE.exists():
+    load_dotenv(dotenv_path=ENV_FILE, override=False)
+else:
+    load_dotenv(override=False)
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -21,8 +28,17 @@ class Settings(BaseSettings):
     # Controls whether demo fallbacks are allowed and whether critical keys are required.
     ENVIRONMENT: str = "development"
 
-    # CORS allowed origins (comma-separated). FIN-004: no more wildcard.
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:8000"
+    # CORS allowed origins (comma-separated). Configured via CORS_ORIGINS in .env
+    CORS_ORIGINS: str = ""
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Parse comma-separated CORS_ORIGINS from .env into a list of cleaned URLs."""
+        raw = self.CORS_ORIGINS or os.getenv("CORS_ORIGINS", "")
+        if not raw:
+            return []
+        return [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
+
 
     # Supabase
     SUPABASE_URL: str = ""

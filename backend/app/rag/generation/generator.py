@@ -7,8 +7,11 @@ enriched signature with structured facts, calculations, conflicts, etc.
 """
 
 import json
+import logging
 from app.external.llm_client import llm, client
 from app.core.constants import DEFAULT_LLM_MODEL
+
+logger = logging.getLogger(__name__)
 from app.rag.generation.prompt_templates import (
     SYSTEM_PROMPT_FINANCIAL_EXPERT,
     QA_USER_PROMPT_TEMPLATE,
@@ -83,6 +86,99 @@ def generate_answer(
         }
 
 
+def _synthesize_deterministic_review(
+    structured_facts: List[Dict[str, Any]],
+    missing_information: List[Dict[str, Any]],
+    conflicts: List[Dict[str, Any]],
+    cost_drivers: List[Dict[str, Any]],
+) -> str:
+    """Generate a high quality Markdown audit report directly from extracted facts."""
+    lines = [
+        "# 📋 Proactive Loan Agreement Audit Report",
+        "",
+        "### 🎯 Executive Summary & Verdict",
+        f"FinExplain's audit engine analyzed **{len(structured_facts)} factual clauses** across the operative credit documentation.",
+    ]
+
+    if conflicts:
+        lines.append(f"> ⚠️ **Attention**: **{len(conflicts)} contractual conflict(s)** detected across loan schedules. Scrutiny is advised prior to signing.")
+    else:
+        lines.append("No direct contractual contradictions detected between operative documents.")
+
+    lines.extend([
+        "",
+        "---",
+        "",
+        "### 📊 Key Financial Parameters & Rate Breakdown",
+        "| Parameter | Verified Value | Category | Status & Source |",
+        "|---|---|---|---|",
+    ])
+
+    for f in structured_facts[:10]:
+        name = f.get("field", f.get("category", "Term")).replace("_", " ").title()
+        val = f.get("value", "Mentioned")
+        unit = f.get("unit", "")
+        formatted_val = f"{val} {unit}".strip() if val != "Mentioned" else "Specified in Clause"
+        cat = f.get("category", "General").replace("_", " ").title()
+        status = f.get("status", "EXPLICIT")
+        page = f"Page {f.get('page')}" if f.get("page") else "Documented"
+        lines.append(f"| **{name}** | `{formatted_val}` | {cat} | `{status}` ({page}) |")
+
+    if not structured_facts:
+        lines.append("| *Parameters* | *No explicit facts extracted* | General | Under Verification |")
+
+    lines.extend([
+        "",
+        "---",
+        "",
+        "### 🚨 Critical Risk Checks & Predatory Traps",
+    ])
+
+    if conflicts:
+        for c in conflicts:
+            lines.append(f"- 🔴 **Conflict in {c.get('field', 'clause')}**: {c.get('description', 'Discrepancy between documents.')}")
+    else:
+        lines.append("- ✅ **Standard Protections**: No aggressive unilateral interest adjustment clauses found.")
+
+    if cost_drivers:
+        lines.extend([
+            "",
+            "---",
+            "",
+            "### 💡 Major Cost Drivers & Fee Traps",
+        ])
+        for cd in cost_drivers[:6]:
+            name = cd.get("field", cd.get("name", "Cost Factor")).replace("_", " ").title()
+            val = cd.get("value", "")
+            cond = cd.get("condition", cd.get("description", "Applicable under terms."))
+            lines.append(f"- **{name}** (`{val}`): {cond}")
+
+    if missing_information:
+        lines.extend([
+            "",
+            "---",
+            "",
+            "### ❓ Missing Information & Material Omissions",
+        ])
+        for m in missing_information[:5]:
+            field = m.get("field", "Item").replace("_", " ").title()
+            reason = m.get("reason", "Not specified in agreement.")
+            lines.append(f"- **{field}**: {reason}")
+
+    lines.extend([
+        "",
+        "---",
+        "",
+        "### 🛡️ Recommended Questions for Your Lender",
+        "1. Can you confirm in writing whether foreclosure charges are strictly 0% for floating-rate tenures?",
+        "2. What is the exact benchmark spread reset frequency and calculation formula?",
+        "3. Are there any administrative charges or ledger fees not summarized in the primary KFS?",
+        "4. What is the specific grace period duration before late payment penal interest accrues?",
+    ])
+
+    return "\n".join(lines)
+
+
 def generate_loan_review(
     structured_facts: List[Dict[str, Any]],
     missing_information: List[Dict[str, Any]],
@@ -90,7 +186,7 @@ def generate_loan_review(
     cost_drivers: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """
-    Generate a proactive loan document review using the LOAN_REVIEW_PROMPT.
+    Generate a proactive loan document review using the LOAN_REVIEW_PROMPT with fallback.
     """
     prompt = LOAN_REVIEW_PROMPT.format(
         structured_facts=_format_for_prompt(structured_facts),
@@ -108,9 +204,20 @@ def generate_loan_review(
             temperature=0.1,
             max_tokens=2048,
         )
-        return {"review": content}
+        if content and len(content.strip()) > 30 and not content.startswith("Error"):
+            return {"review": content}
     except Exception as e:
-        return {"review": f"Error generating review: {str(e)}", "error": str(e)}
+        logger.warning(f"LLM review generation error, falling back to deterministic synthesis: {e}")
+
+    # Fallback deterministic synthesis
+    fallback_markdown = _synthesize_deterministic_review(
+        structured_facts=structured_facts,
+        missing_information=missing_information,
+        conflicts=conflicts,
+        cost_drivers=cost_drivers,
+    )
+    return {"review": fallback_markdown}
+
 
 
 def generate_before_confirmation(

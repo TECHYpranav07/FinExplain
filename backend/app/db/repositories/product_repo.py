@@ -1,4 +1,5 @@
 from app.db.supabase_client import get_supabase_client
+from app.db.repositories.user_repo import ensure_user_exists
 from typing import List, Dict, Any, Optional
 import uuid
 import logging
@@ -24,8 +25,16 @@ def create_product(
     }
 
     supabase = get_supabase_client()
+    if not supabase:
+        return {"id": pid, **data}
+
+    # Ensure user exists to satisfy foreign key constraint public.products_user_id_fkey
+    if user_id:
+        ensure_user_exists(user_id=user_id)
+
     response = supabase.table("products").insert(data).execute()
     return response.data[0] if response.data else {"id": pid, **data}
+
 
 
 def get_products_by_user(user_id: str) -> List[Dict[str, Any]]:

@@ -31,7 +31,7 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto">
+    <div className="space-y-8">
       <PageHeader
         eyebrow="System Configuration"
         title="Settings & Integrations"

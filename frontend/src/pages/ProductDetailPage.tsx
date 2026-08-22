@@ -42,7 +42,7 @@ export function ProductDetailPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto">
+    <div className="space-y-8">
       <PageHeader
         eyebrow="Financial Product Detail"
         title={product.name}
@@ -83,7 +83,7 @@ export function ProductDetailPage() {
               className="block rounded-lg border border-white/10 bg-surface-2 p-3 text-xs text-white hover:border-white/20 transition-colors"
             >
               <div className="font-semibold mb-1 flex items-center gap-2">
-                <i className="fa-solid fa-sparkles text-white" />
+                <i className="fa-solid fa-wand-magic-sparkles text-white" />
                 <span>Evidence-First Q&A</span>
               </div>
               <p className="text-muted-foreground">Ask questions directly against this contract's ingested clauses.</p>

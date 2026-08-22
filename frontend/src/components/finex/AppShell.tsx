@@ -11,7 +11,6 @@ const NAV = [
   { to: "/app/before-confirmation", label: "Before Confirm", icon: "fa-regular fa-circle-check" },
   { to: "/app/products", label: "Products", icon: "fa-solid fa-layer-group" },
   { to: "/app/compare", label: "Compare", icon: "fa-solid fa-code-compare" },
-  { to: "/app/hitl", label: "HITL Review", icon: "fa-solid fa-user-check" },
   { to: "/app/feedback", label: "Feedback", icon: "fa-regular fa-comment-dots" },
   { to: "/app/settings", label: "Settings", icon: "fa-solid fa-sliders" },
 ];
@@ -46,6 +45,67 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
+function UserAvatar({
+  user,
+  size = "md",
+  className,
+}: {
+  user: any;
+  size?: "sm" | "md" | "lg";
+  className?: string;
+}) {
+  const [imgError, setImgError] = useState(false);
+
+  const displayName = user?.name || user?.email?.split("@")[0] || "User";
+  const initials = (() => {
+    if (user?.name) {
+      const parts = user.name.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      }
+      return user.name.slice(0, 2).toUpperCase();
+    }
+    if (user?.email) {
+      return user.email.slice(0, 2).toUpperCase();
+    }
+    return "U";
+  })();
+
+  const sizeClasses = {
+    sm: "h-6 w-6 text-[10px]",
+    md: "h-8 w-8 text-xs",
+    lg: "h-10 w-10 text-sm",
+  }[size];
+
+  if (user?.picture && !imgError) {
+    return (
+      <img
+        src={user.picture}
+        alt={displayName}
+        onError={() => setImgError(true)}
+        className={cn(
+          sizeClasses,
+          "rounded-full object-cover border border-white/20 shrink-0",
+          className
+        )}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        sizeClasses,
+        "flex items-center justify-center rounded-full bg-gradient-to-br from-indigo-500/30 to-purple-600/30 border border-white/15 text-white font-semibold shrink-0 select-none shadow-sm",
+        className
+      )}
+      title={displayName}
+    >
+      {initials}
+    </div>
+  );
+}
+
 export function AppShell() {
   const [drawer, setDrawer] = useState(false);
   const location = useLocation();
@@ -57,14 +117,8 @@ export function AppShell() {
     navigate("/", { replace: true });
   };
 
-  const userInitials = user?.name
-    ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "FA";
+  const displayName = user?.name || (user?.email ? user.email.split("@")[0] : "User");
+  const displayEmail = user?.email || "";
 
   useEffect(() => setDrawer(false), [location.pathname]);
 
@@ -76,47 +130,41 @@ export function AppShell() {
   }, [drawer]);
 
   return (
-    <div className="flex min-h-screen bg-black text-white">
-      {/* Sidebar (Desktop) */}
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-white/10 bg-sidebar lg:flex">
-        <Link to="/" className="flex items-center gap-2.5 px-5 py-5 group">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-xs font-bold text-black tracking-tight group-hover:scale-105 transition-transform">
-            Fx
-          </span>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold tracking-tight text-white">FinExplain</span>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Enterprise</span>
-          </div>
-        </Link>
+    <div className="min-h-screen bg-black text-white selection:bg-white/20">
+      {/* Sidebar (Desktop - Fixed 256px Full Viewport Height) */}
+      <aside className="fixed inset-y-0 left-0 hidden h-screen w-64 shrink-0 flex-col border-r border-white/10 bg-sidebar lg:flex z-30">
+        {/* Brand Header with fixed h-16 aligned with Top Navbar */}
+        <div className="h-16 flex items-center px-5 border-b border-white/10 shrink-0">
+          <Link to="/" className="flex items-center gap-3 group">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-xs font-bold text-black tracking-tight group-hover:scale-105 transition-transform shadow-sm">
+              Fx
+            </span>
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold tracking-tight text-white leading-tight">FinExplain</span>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-widest leading-tight">Enterprise</span>
+            </div>
+          </Link>
+        </div>
 
-        <div className="border-t border-white/10" />
-
-        <div className="flex-1 overflow-y-auto py-2">
+        {/* Scrollable Navigation */}
+        <div className="flex-1 overflow-y-auto py-3">
           <NavList />
         </div>
 
         {/* User Profile & Sign Out Footer */}
-        <div className="border-t border-white/10 p-3.5 space-y-3 bg-surface/40">
+        <div className="border-t border-white/10 p-4 space-y-3 bg-surface/40 shrink-0">
           {/* User Preview */}
           <div className="flex items-center gap-2.5 px-1">
-            {user?.picture ? (
-              <img
-                src={user.picture}
-                alt={user.name || "User"}
-                className="h-8 w-8 rounded-full object-cover border border-white/20 shrink-0"
-              />
-            ) : (
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white font-semibold text-xs border border-white/10 shrink-0">
-                {userInitials}
-              </div>
-            )}
+            <UserAvatar user={user} size="md" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-semibold text-white">
-                {user?.name || "Financial Auditor"}
+                {displayName}
               </p>
-              <p className="truncate text-[10px] text-muted-foreground">
-                {user?.email || "auditor@finexplain.ai"}
-              </p>
+              {displayEmail && (
+                <p className="truncate text-[10px] text-muted-foreground">
+                  {displayEmail}
+                </p>
+              )}
             </div>
           </div>
 
@@ -141,81 +189,67 @@ export function AppShell() {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/10 bg-black/80 px-4 py-3 backdrop-blur-md sm:px-6">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              aria-label="Open navigation"
-              onClick={() => setDrawer(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-surface text-white lg:hidden"
-            >
-              <i className="fa-solid fa-bars text-xs" aria-hidden="true" />
-            </button>
-            <Link to="/" className="flex items-center gap-2 lg:hidden">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-[11px] font-bold text-black">
-                Fx
-              </span>
-              <span className="text-sm font-semibold text-white">FinExplain</span>
-            </Link>
-          </div>
-
-          <div className="relative hidden max-w-sm flex-1 md:block">
-            <i
-              className="fa-solid fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground"
-              aria-hidden="true"
-            />
-            <input
-              type="search"
-              aria-label="Search workspace"
-              placeholder="Search documents, products, terms..."
-              className="w-full rounded-md border border-white/10 bg-surface py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-muted-foreground focus:border-white/30 focus:outline-none transition-colors"
-            />
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <Link
-              to="/app/query"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-white text-black px-3.5 py-1.5 text-xs font-semibold hover:bg-white/90 transition-colors"
-            >
-              <i className="fa-solid fa-sparkles text-[10px]" />
-              <span>Ask AI</span>
-            </Link>
-            
-            <Link
-              to="/app/settings"
-              aria-label="Settings"
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-surface text-muted-foreground transition-colors hover:text-white"
-            >
-              <i className="fa-solid fa-sliders text-xs" aria-hidden="true" />
-            </Link>
-
-            {/* User Profile Header Chip */}
-            <div className="flex items-center gap-2 rounded-md border border-white/10 bg-surface px-2.5 py-1">
-              {user?.picture ? (
-                <img
-                  src={user.picture}
-                  alt={user.name || "User"}
-                  className="h-6 w-6 rounded-full object-cover border border-white/20 shrink-0"
-                />
-              ) : (
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-3 text-[10px] font-semibold text-white">
-                  {userInitials}
+      {/* Main Content Area (Offset by fixed sidebar on large screens) */}
+      <div className="flex min-w-0 flex-1 flex-col min-h-screen lg:pl-64 bg-black">
+        {/* Top Navbar with fixed h-16 and identical content grid alignment */}
+        <header className="sticky top-0 z-20 h-16 w-full border-b border-white/10 bg-black/90 backdrop-blur-md shrink-0">
+          <div className="mx-auto flex h-full w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-3 lg:hidden">
+              <button
+                type="button"
+                aria-label="Open navigation"
+                onClick={() => setDrawer(true)}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-surface text-white"
+              >
+                <i className="fa-solid fa-bars text-xs" aria-hidden="true" />
+              </button>
+              <Link to="/" className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-[11px] font-bold text-black">
+                  Fx
                 </span>
-              )}
-              <span className="hidden text-xs text-muted-foreground sm:block truncate max-w-[120px]">
-                {user?.name || "Credit Analyst"}
-              </span>
+                <span className="text-sm font-semibold text-white">FinExplain</span>
+              </Link>
+            </div>
+
+            <div className="relative hidden max-w-md flex-1 md:block">
+              <i
+                className="fa-solid fa-magnifying-glass pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                aria-label="Search workspace"
+                placeholder="Search documents, products, terms..."
+                className="w-full rounded-lg border border-white/10 bg-surface py-2 pl-9 pr-3.5 text-xs text-white placeholder:text-muted-foreground focus:border-white/30 focus:outline-none transition-colors"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Link
+                to="/app/settings"
+                aria-label="Settings"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-surface text-muted-foreground transition-colors hover:text-white hover:border-white/20"
+              >
+                <i className="fa-solid fa-sliders text-xs" aria-hidden="true" />
+              </Link>
+
+              {/* User Profile Header Chip */}
+              <div className="flex items-center gap-2.5 rounded-lg border border-white/10 bg-surface px-3 py-1.5 shadow-sm">
+                <UserAvatar user={user} size="sm" />
+                <span className="hidden text-xs font-medium text-white/90 sm:block truncate max-w-[150px]">
+                  {displayName}
+                </span>
+              </div>
             </div>
           </div>
         </header>
 
-        {/* Main Content */}
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        {/* Page Content sharing the exact same max-w-7xl px-4 sm:px-6 lg:px-8 grid */}
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
           <Outlet />
         </main>
       </div>
+
 
       {/* Mobile drawer */}
       {drawer && (
@@ -256,26 +290,19 @@ export function AppShell() {
             {/* Mobile Drawer Logout & User Profile */}
             <div className="border-t border-white/10 p-4 space-y-3 bg-surface/40">
               <div className="flex items-center gap-2.5">
-                {user?.picture ? (
-                  <img
-                    src={user.picture}
-                    alt={user.name || "User"}
-                    className="h-8 w-8 rounded-full object-cover border border-white/20 shrink-0"
-                  />
-                ) : (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white font-semibold text-xs border border-white/10 shrink-0">
-                    {userInitials}
-                  </div>
-                )}
+                <UserAvatar user={user} size="md" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-semibold text-white">
-                    {user?.name || "Financial Auditor"}
+                    {displayName}
                   </p>
-                  <p className="truncate text-[10px] text-muted-foreground">
-                    {user?.email || "auditor@finexplain.ai"}
-                  </p>
+                  {displayEmail && (
+                    <p className="truncate text-[10px] text-muted-foreground">
+                      {displayEmail}
+                    </p>
+                  )}
                 </div>
               </div>
+
 
               <button
                 type="button"

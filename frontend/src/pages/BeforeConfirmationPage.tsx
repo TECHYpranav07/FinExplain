@@ -32,7 +32,7 @@ export function BeforeConfirmationPage() {
   };
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto">
+    <div className="space-y-8">
       <PageHeader
         eyebrow="Decision Support"
         title="Before You Confirm"
@@ -85,9 +85,10 @@ export function BeforeConfirmationPage() {
               type="button"
               disabled={selectedProducts.length === 0}
               onClick={handleGenerate}
-              className="rounded-lg bg-white px-4 py-2 text-xs font-bold text-black hover:bg-white/90 disabled:opacity-40"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-xs font-bold text-black hover:bg-white/90 disabled:opacity-40 transition-colors shadow-sm"
             >
-              Analyze Products
+              <i className="fa-regular fa-circle-check text-xs" />
+              <span>Generate Checklist</span>
             </button>
           }
         />

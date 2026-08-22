@@ -147,7 +147,7 @@ export function DocumentAnalysisPage() {
           >
             {!analysisResult && !queryMutation.isPending && (
               <EmptyState
-                icon="fa-solid fa-sparkles"
+                icon="fa-solid fa-wand-magic-sparkles"
                 title="No analysis performed yet"
                 description="Run an initial extraction or select a quick audit on the left to inspect evidence."
                 action={

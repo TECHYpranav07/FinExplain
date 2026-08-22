@@ -154,9 +154,13 @@ const STORAGE_AUTH_TOKEN = "finexplain_auth_token";
 export function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
     const saved = localStorage.getItem(STORAGE_API_KEY);
-    if (saved) return saved;
+    if (saved) return saved.replace(/\/+$/, "");
   }
-  return import.meta.env.VITE_API_URL || window.location.origin;
+  const envUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+  if (envUrl) {
+    return envUrl.replace(/\/+$/, "");
+  }
+  return typeof window !== "undefined" ? window.location.origin : "";
 }
 
 export function setApiBaseUrl(url: string): void {

@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Outer ambient glow filter -->
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="24" result="blur1" />
+      <feGaussianBlur stdDeviation="48" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur2" />
+        <feMergeNode in="blur1" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Radial halo gradient -->
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85" />
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Core circle gradient for subtle depth -->
+    <linearGradient id="coreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#f0f0f5" />
+    </linearGradient>
+  </defs>
+
+  <!-- Glowing background halo -->
+  <circle cx="256" cy="256" r="230" fill="url(#halo)" filter="url(#glow)" />
+
+  <!-- Outer luminous glow ring -->
+  <circle cx="256" cy="256" r="200" fill="none" stroke="rgba(255, 255, 255, 0.65)" stroke-width="6" filter="url(#glow)" />
+
+  <!-- Main bright white circular badge -->
+  <circle cx="256" cy="256" r="185" fill="url(#coreGradient)" />
+
+  <!-- Crisp FinExplain "Fx" monogram -->
+  <text 
+    x="256" 
+    y="325" 
+    text-anchor="middle" 
+    fill="#000000" 
+    font-family="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" 
+    font-size="205" 
+    font-weight="900" 
+    letter-spacing="-0.06em"
+  >Fx</text>
+</svg>

@@ -34,7 +34,7 @@ export function FeedbackPage() {
   };
 
   return (
-    <div className="space-y-8 max-w-3xl mx-auto">
+    <div className="space-y-8">
       <PageHeader
         eyebrow="Evaluation & Continuous Learning"
         title="Model Feedback & Grounding Audit"

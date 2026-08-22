@@ -20,7 +20,7 @@ export function ComparePage() {
   const selectedProducts = products.filter((p) => selectedIds.includes(p.id));
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto">
+    <div className="space-y-8">
       <PageHeader
         eyebrow="Comparative Analytics"
         title="Product & Loan Comparison"

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { listDocuments } from "@/lib/documents";
+import { loadChatSessions } from "@/lib/chatStorage";
 import { PageHeader, Panel, Badge, EmptyState } from "@/components/finex/primitives";
 
 export function DashboardPage() {
@@ -11,21 +12,21 @@ export function DashboardPage() {
     queryFn: api.listProducts,
   });
 
-  const healthQuery = useQuery({
-    queryKey: ["health"],
-    queryFn: api.health,
-    refetchInterval: 30000,
-  });
-
   const docs = listDocuments();
   const products = productsQuery.data || [];
+  const sessions = loadChatSessions();
+  const totalChunks = docs.reduce((acc, d) => acc + (d.chunks || 0), 0);
+  const totalQueries = sessions.reduce(
+    (acc, s) => acc + (s.messages || []).filter((m) => m.role === "user").length,
+    0
+  );
 
   const quickActions = [
     {
       to: "/app/query",
       title: "Evidence-First Q&A",
       description: "Ask questions against loan agreements with claim citations and verification.",
-      icon: "fa-solid fa-sparkles",
+      icon: "fa-solid fa-wand-magic-sparkles",
       tag: "RAG Engine",
     },
     {
@@ -70,7 +71,7 @@ export function DashboardPage() {
               to="/app/query"
               className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 transition-colors shadow-sm"
             >
-              <i className="fa-solid fa-magnifying-glass text-[11px]" />
+              <i className="fa-solid fa-wand-magic-sparkles text-[11px]" />
               <span>Ask AI</span>
             </Link>
           </div>
@@ -101,44 +102,37 @@ export function DashboardPage() {
             <span className="text-2xl font-bold text-white tracking-tight">
               {docs.length}
             </span>
-            <span className="text-[11px] text-muted-foreground">local workspace</span>
+            <span className="text-[11px] text-muted-foreground">in workspace</span>
           </div>
         </Panel>
 
         <Panel className="p-4">
           <div className="flex items-center justify-between text-muted-foreground">
-            <span className="text-xs font-medium uppercase tracking-wider">Backend Status</span>
-            <i className="fa-solid fa-server text-xs" />
-          </div>
-          <div className="mt-3 flex items-center gap-2">
-            <span
-              className={`h-2.5 w-2.5 rounded-full ${
-                healthQuery.data?.status === "ok" ? "bg-success animate-pulse" : "bg-danger"
-              }`}
-            />
-            <span className="text-sm font-semibold text-white">
-              {healthQuery.isLoading
-                ? "Connecting..."
-                : healthQuery.data?.status === "ok"
-                ? "FastAPI Healthy"
-                : "Disconnected"}
-            </span>
-          </div>
-        </Panel>
-
-        <Panel className="p-4">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span className="text-xs font-medium uppercase tracking-wider">Engine Mode</span>
-            <i className="fa-solid fa-bolt text-xs" />
+            <span className="text-xs font-medium uppercase tracking-wider">Extracted Clauses</span>
+            <i className="fa-solid fa-fingerprint text-xs" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-white tracking-tight">
-              Evidence-First
+            <span className="text-2xl font-bold text-white tracking-tight">
+              {totalChunks}
             </span>
-            <Badge tone="success">Active</Badge>
+            <span className="text-[11px] text-muted-foreground">indexed & verified</span>
+          </div>
+        </Panel>
+
+        <Panel className="p-4">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-xs font-medium uppercase tracking-wider">Audit Inquiries</span>
+            <i className="fa-solid fa-magnifying-glass-chart text-xs" />
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-white tracking-tight">
+              {totalQueries}
+            </span>
+            <span className="text-[11px] text-muted-foreground">citation-audited</span>
           </div>
         </Panel>
       </div>
+
 
       {/* Quick Workflows */}
       <div>

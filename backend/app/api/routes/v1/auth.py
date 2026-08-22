@@ -21,6 +21,8 @@ from app.auth.jwt_handler import (
 )
 from app.core.config import settings
 
+from app.db.repositories.user_repo import ensure_user_exists
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -99,16 +101,25 @@ async def register(req: RegisterRequest):
 
     user_id = str(uuid.uuid4())
     name = req.name or email_key.split("@")[0].title()
+    hashed_pwd = hash_password(req.password)
     
     user_record = {
         "id": user_id,
         "email": email_key,
         "name": name,
-        "hashed_password": hash_password(req.password),
+        "hashed_password": hashed_pwd,
         "role": "user",
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     }
     USERS_DB[email_key] = user_record
+
+    # Sync to Supabase users table
+    ensure_user_exists(
+        user_id=user_id,
+        email=email_key,
+        full_name=name,
+        hashed_password=hashed_pwd,
+    )
 
     token = create_access_token({
         "sub": user_id,
@@ -138,10 +149,19 @@ async def login(req: LoginRequest):
     if not user or not verify_password(req.password, user.get("hashed_password", "")):
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
+    # Ensure user exists in Supabase PostgreSQL users table
+    ensure_user_exists(
+        user_id=user["id"],
+        email=user["email"],
+        full_name=user.get("name"),
+        hashed_password=user.get("hashed_password"),
+    )
+
     token = create_access_token({
         "sub": user["id"],
         "email": user["email"],
         "name": user["name"],
+        "picture": user.get("picture"),
         "role": user.get("role", "user"),
     })
 
@@ -152,6 +172,7 @@ async def login(req: LoginRequest):
             "id": user["id"],
             "email": user["email"],
             "name": user["name"],
+            "picture": user.get("picture"),
             "role": user.get("role", "user")
         }
     }
@@ -207,6 +228,14 @@ async def google_auth(req: GoogleAuthRequest):
 
     user = USERS_DB[email_key]
 
+    # Ensure user exists in Supabase PostgreSQL users table
+    ensure_user_exists(
+        user_id=user["id"],
+        email=user["email"],
+        full_name=user["name"],
+        hashed_password="google_oauth_user",
+    )
+
     token = create_access_token({
         "sub": user["id"],
         "email": user["email"],
@@ -226,6 +255,7 @@ async def google_auth(req: GoogleAuthRequest):
             "role": user.get("role", "user")
         }
     }
+
 
 
 @router.get("/me")
