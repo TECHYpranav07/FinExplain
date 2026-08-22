@@ -55,6 +55,10 @@ from app.rag.extraction.lender_questions import generate_lender_questions
 from app.core.loan_categories import EvidenceStatus
 from app.tools.calculator import calculate_loan_scenario
 from app.cache.query_cache import get_cached_response, set_cached_response
+from app.guardrails.injection_guard import injection_guard
+from app.guardrails.pii_guard import pii_guard
+from app.guardrails.product_isolation import product_isolation_guard
+from app.guardrails.answerability_guard import answerability_gate
 
 
 
@@ -96,15 +100,38 @@ def process_query(
         return cached
 
     # ===================================================================
+    # Guardrail: Prompt Injection & PII Redaction
+    # ===================================================================
+    is_safe, injection_reason, clean_question = injection_guard.validate_query(question)
+    if not is_safe:
+        return {
+            "answer": injection_reason,
+            "confidence_score": 0.0,
+            "confidence_label": "Security Block",
+            "evidence_status": "NOT_SPECIFIED",
+            "why_this_answer": "Query blocked: Suspicious prompt injection instruction detected.",
+            "citations": [],
+            "retrieved_chunks": [],
+            "intent": "general",
+            "evidence_score": 0,
+            "missing_information": [],
+            "conflicts": [],
+            "key_facts": [],
+            "status": "blocked",
+        }
+
+    clean_question, pii_count = pii_guard.redact_pii(clean_question)
+
+    # ===================================================================
     # Step 1: Classify intent
     # ===================================================================
-    intent_result = classify_intent(question)
+    intent_result = classify_intent(clean_question)
     logger.info(f"[Orchestrator] Intent: {intent_result.intent}, Confidence: {intent_result.confidence}")
 
     # ===================================================================
     # Step 2: Rewrite query
     # ===================================================================
-    rewritten_query = rewrite_query(question, intent_result.intent) or question
+    rewritten_query = rewrite_query(clean_question, intent_result.intent) or clean_question
     logger.info(f"[Orchestrator] Rewritten Query: {rewritten_query}")
 
     # ===================================================================
@@ -352,6 +379,12 @@ def process_query(
     if not validation["valid"]:
         logger.info(f"[Orchestrator] Validation issues: {validation['issues']}")
         answer_text = validation["sanitized_answer"]
+
+    # Guardrail: Anti-Averaging and Product Isolation Check
+    is_isolated, answer_text = product_isolation_guard.verify_no_rate_averaging(
+        answer_text,
+        is_explicit_average_query=("average" in clean_question.lower() or "mean" in clean_question.lower())
+    )
 
     # ===================================================================
     # Step 19: Determine overall evidence status
