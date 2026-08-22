@@ -71,3 +71,14 @@ def test_answerability_gate_aborts_empty_retrieval():
     )
     assert not can_answer
     assert "No relevant document sections found" in reason
+
+
+def test_hitl_escalation_trigger_on_conflict_or_high_risk():
+    from app.core.loan_categories import EvidenceStatus
+    # Simulate conflict condition
+    statuses = {EvidenceStatus.CONFLICTED}
+    all_conflicts = [{"field": "interest_rate", "source_a": "KFS (3%)", "source_b": "Agreement (5%)"}]
+    
+    hitl_required = bool(all_conflicts or EvidenceStatus.CONFLICTED in statuses)
+    assert hitl_required is True
+

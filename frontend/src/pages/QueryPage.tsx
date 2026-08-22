@@ -273,6 +273,36 @@ export function QueryPage() {
     setSessions(loadChatSessions());
   };
 
+  const handleResolveHitl = (
+    messageId: string,
+    action: "APPROVED" | "REJECTED",
+    note?: string
+  ) => {
+    if (!activeSession) return;
+    const updatedMessages = activeSession.messages.map((m) => {
+      if (m.id === messageId && m.response) {
+        return {
+          ...m,
+          response: {
+            ...m.response,
+            hitl_status: action,
+            hitl_reviewer_note: note,
+            hitl_resolved_at: new Date().toISOString(),
+          },
+        };
+      }
+      return m;
+    });
+
+    const updatedSession: ChatSession = {
+      ...activeSession,
+      messages: updatedMessages,
+      updatedAt: new Date().toISOString(),
+    };
+    updateSession(updatedSession);
+    setSessions(loadChatSessions());
+  };
+
   const handleExportChat = () => {
     if (!activeSession || activeSession.messages.length === 0) return;
     const dataStr =
@@ -504,6 +534,7 @@ export function QueryPage() {
               key={msg.id}
               message={msg}
               onAskQuestion={(followUp) => handleSend(followUp)}
+              onResolveHitl={handleResolveHitl}
             />
           ))}
 

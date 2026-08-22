@@ -437,6 +437,34 @@ def process_query(
             "All factual claims were verified with high-confidence exact matches against the retrieved loan document text."
         )
 
+    # ===================================================================
+    # Step 20: Evaluate Human-In-The-Loop (HITL) Trigger Policy
+    # ===================================================================
+    hitl_required = False
+    hitl_reason = None
+    hitl_type = "GENERAL"
+
+    if overall_status in ("CONFLICTED", "MIXED") or all_conflicts:
+        hitl_required = True
+        hitl_type = "CONFLICT_REVIEW"
+        hitl_reason = (
+            f"Discrepancy detected across document sources ({len(all_conflicts)} conflict(s) identified). "
+            "Borrower or loan officer verification required before executing agreement."
+        )
+    elif risk_score_result.get("score", 0) >= 70:
+        hitl_required = True
+        hitl_type = "RISK_ACCEPTANCE"
+        hitl_reason = (
+            f"Document-derived Risk Rating is {risk_score_result.get('score', 0)}/100 ({risk_score_result.get('level', 'HIGH')}). "
+            "Predatory penalty terms or significant cost disclosure gaps require explicit acknowledgment."
+        )
+    elif missing_info and any(m.get("field") in ("apr", "interest_rate", "repayment_schedule") for m in missing_info):
+        hitl_required = True
+        hitl_type = "DISCLOSURE_GAP"
+        hitl_reason = (
+            "Mandatory regulatory disclosure parameters (such as APR or repayment schedule) are missing from the uploaded documents."
+        )
+
     result: Dict[str, Any] = {
         # --- Backward-compatible fields ---
         "answer": answer_text,
@@ -447,6 +475,12 @@ def process_query(
         "context_used": context,
         "intent": intent_result.intent,
         "status": "ok",
+
+        # --- HITL Escalation Fields ---
+        "hitl_required": hitl_required,
+        "hitl_reason": hitl_reason,
+        "hitl_type": hitl_type,
+        "hitl_status": "PENDING" if hitl_required else None,
 
         # --- New structured fields ---
         "why_this_answer": why_this_answer,

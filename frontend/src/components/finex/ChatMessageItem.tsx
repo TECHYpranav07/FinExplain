@@ -9,14 +9,16 @@ import {
 } from "@/components/finex/primitives";
 import { FormattedMarkdown } from "@/components/finex/FormattedMarkdown";
 import { StructuredFactCard } from "@/components/finex/StructuredFactCard";
+import { HitlReviewCard } from "@/components/finex/HitlReviewCard";
 import { User, Sparkles, Info, HelpCircle, ArrowRight } from "lucide-react";
 
 interface ChatMessageItemProps {
   message: ChatMessage;
   onAskQuestion?: (question: string) => void;
+  onResolveHitl?: (messageId: string, action: "APPROVED" | "REJECTED", note?: string) => void;
 }
 
-export function ChatMessageItem({ message, onAskQuestion }: ChatMessageItemProps) {
+export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatMessageItemProps) {
   const isUser = message.role === "user";
 
   if (isUser) {
@@ -79,6 +81,22 @@ export function ChatMessageItem({ message, onAskQuestion }: ChatMessageItemProps
 
         {res && (
           <div className="space-y-5">
+            {/* In-Chat HITL Escalation Review Card (if triggered) */}
+            {res.hitl_required && (
+              <HitlReviewCard
+                reason={res.hitl_reason}
+                type={res.hitl_type}
+                status={res.hitl_status || "PENDING"}
+                reviewerNote={res.hitl_reviewer_note}
+                resolvedAt={res.hitl_resolved_at}
+                onResolve={(action, note) => {
+                  if (onResolveHitl) {
+                    onResolveHitl(message.id, action, note);
+                  }
+                }}
+              />
+            )}
+
             {/* Metrics Bar */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 rounded-2xl border border-white/10 bg-surface p-4 shadow-sm">
               <ScoreGauge
