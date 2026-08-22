@@ -1,8 +1,10 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from typing import Dict, Any
+import asyncio
 import os
+import logging
+from typing import Dict, Any
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 
-# Import the sync pipeline (fallback if Celery is not configured)
+# Import the sync pipeline
 from app.ingestion.pipeline import process_document
 
 # Import the async Celery task (optional – only if Celery is set up)
@@ -12,7 +14,10 @@ try:
 except ImportError:
     CELERY_AVAILABLE = False
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
 
 @router.post("/upload")
 async def upload_document(
@@ -22,22 +27,32 @@ async def upload_document(
 ) -> Dict[str, Any]:
     """
     Upload a loan document (PDF) and trigger the ingestion pipeline.
-    If use_async=True and Celery is available, the ingestion runs in the background.
-    Otherwise, it runs synchronously (blocking).
+    FIN-030: Validates file type (case-insensitive), %PDF magic bytes, and 50MB size limit.
+    FIN-031: Runs synchronous pipeline off the event loop via asyncio.to_thread.
     """
-    # Validate file type
-    if not file.filename.endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
-    
+    # Validate filename and extension (case-insensitive)
+    raw_filename = file.filename or "uploaded_document.pdf"
+    safe_filename = os.path.basename(raw_filename)
+    if not safe_filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed (.pdf extension required)")
+
     try:
-        # Read file bytes
+        # Read file bytes with size constraint
         file_bytes = await file.read()
-        
+        if len(file_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty (0 bytes)")
+        if len(file_bytes) > MAX_UPLOAD_SIZE:
+            raise HTTPException(status_code=413, detail=f"File exceeds maximum allowed size of 50 MB (size: {len(file_bytes) / 1024 / 1024:.1f} MB)")
+
+        # Validate PDF magic bytes (%PDF)
+        if not file_bytes.startswith(b"%PDF"):
+            raise HTTPException(status_code=400, detail="Invalid PDF content: file header does not match %PDF signature")
+
         # Option 1: Use Celery async task
         if use_async and CELERY_AVAILABLE:
             task = process_document_async.delay(
                 file_bytes=file_bytes,
-                file_name=file.filename,
+                file_name=safe_filename,
                 product_id=product_id
             )
             return {
@@ -45,14 +60,21 @@ async def upload_document(
                 "task_id": task.id,
                 "message": "Document queued for background ingestion."
             }
-        
-        # Option 2: Synchronous processing (blocking, but immediate)
-        result = process_document(
+
+        # Option 2: Synchronous processing (offloaded to thread to avoid blocking event loop)
+        result = await asyncio.to_thread(
+            process_document,
             file_bytes=file_bytes,
-            file_name=file.filename,
+            file_name=safe_filename,
             product_id=product_id
         )
         return result
-    
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning(f"Validation error in document upload: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error processing document {safe_filename}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred during document processing. Please check the document format and try again.")

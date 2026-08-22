@@ -1,3 +1,4 @@
+import hashlib
 from typing import List, Dict, Any
 
 def build_context(
@@ -6,31 +7,34 @@ def build_context(
 ) -> str:
     """
     Builds the final context for the LLM.
-    - Prioritizes Parent chunks over Child chunks (better context).
-    - Includes [Product Name, Page X, Section Y] headers per chunk.
-    - Truncates intelligently to max_tokens.
+    FIN-023:
+    - Preserves relevance ranking order from reranker (does NOT force parents ahead of top-ranked children)
+    - Deduplicates identical or heavily overlapping text
+    - Includes rich [Product Name, Page X, Section Y] headers per chunk
+    - Safely budgets tokens up to max_tokens
     """
     if not chunks:
         return ""
 
-    # Helper to estimate tokens (rough: 4 chars = 1 token)
     def estimate_tokens(text: str) -> int:
         return len(text) // 4
     
     context_parts = []
+    seen_hashes = set()
     current_tokens = 0
     
-    # We want to prioritize Parent chunks for better context
-    # Sort: put parent chunks first, then child chunks (for diversity)
-    sorted_chunks = sorted(chunks, key=lambda x: 0 if x.get("chunk_type") == "parent" else 1)
-    
-    for chunk in sorted_chunks:
+    for chunk in chunks:
         metadata = chunk.get("metadata") or {}
-        text = chunk.get("text", "")
+        raw_text = chunk.get("text", "").strip()
+        if not raw_text:
+            continue
 
-        # If we have a parent_text stored in metadata, use that instead for better context
-        if "parent_text" in chunk and chunk["parent_text"]:
-            text = chunk["parent_text"]
+        # FIN-023: Text deduplication via normalized content hash
+        norm_text = " ".join(raw_text.lower().split()[:30])
+        text_hash = hashlib.md5(norm_text.encode("utf-8")).hexdigest()
+        if text_hash in seen_hashes:
+            continue
+        seen_hashes.add(text_hash)
 
         # Build rich source header: [Product Name, Page X, Section Y]
         header_parts = []
@@ -57,27 +61,26 @@ def build_context(
         if document_name and not product_name:
             header_parts.insert(0, document_name)
 
-        if header_parts:
-            header = f"[{', '.join(header_parts)}]"
-            text = f"{header}\n{text}"
-        
-        chunk_tokens = estimate_tokens(text)
+        chunk_id = chunk.get("id") or chunk.get("chunk_id")
+        if chunk_id:
+            header_parts.append(f"Chunk: {chunk_id[:8]}")
+
+        formatted_chunk = f"[{', '.join(header_parts)}]\n{raw_text}" if header_parts else raw_text
+        chunk_tokens = estimate_tokens(formatted_chunk)
         
         # Check if we can add this chunk
         if current_tokens + chunk_tokens <= max_tokens:
-            context_parts.append(text)
+            context_parts.append(formatted_chunk)
             current_tokens += chunk_tokens
         else:
-            # Try to truncate to fit remaining space
+            # Try to fit remaining space
             remaining = max_tokens - current_tokens
-            if remaining > 50:  # Only include if at least 50 tokens fit
-                # Estimate character limit
+            if remaining > 50:
                 char_limit = remaining * 4
-                truncated = text[:char_limit] + "..." if len(text) > char_limit else text
+                truncated = formatted_chunk[:char_limit] + "..." if len(formatted_chunk) > char_limit else formatted_chunk
                 context_parts.append(truncated)
             break
     
-    # If no context could be built, return empty
     if not context_parts:
         return ""
     

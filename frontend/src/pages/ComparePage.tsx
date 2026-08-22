@@ -110,28 +110,26 @@ export function ComparePage() {
                   ))}
                 </tr>
                 <tr>
-                  <td className="py-3 pr-4 font-medium text-muted-foreground">Prepayment Penalty</td>
+                  <td className="py-3 pr-4 font-medium text-muted-foreground">Prepayment Terms</td>
                   {selectedProducts.map((p) => (
-                    <td key={p.id} className="py-3 pr-4 text-white/90">
-                      Standard Commercial Clause (0-3%)
+                    <td key={p.id} className="py-3 pr-4 text-muted-foreground text-xs italic">
+                      Run document analysis to extract verified prepayment terms
                     </td>
                   ))}
                 </tr>
                 <tr>
-                  <td className="py-3 pr-4 font-medium text-muted-foreground">Benchmark Type</td>
+                  <td className="py-3 pr-4 font-medium text-muted-foreground">Rate Structure</td>
                   {selectedProducts.map((p) => (
-                    <td key={p.id} className="py-3 pr-4 text-white/90">
-                      MCLR / Repo Rate Linked
+                    <td key={p.id} className="py-3 pr-4 text-muted-foreground text-xs italic">
+                      Run document analysis to extract verified interest rates
                     </td>
                   ))}
                 </tr>
                 <tr>
-                  <td className="py-3 pr-4 font-medium text-muted-foreground">Evidence Verification</td>
+                  <td className="py-3 pr-4 font-medium text-muted-foreground">Verification Status</td>
                   {selectedProducts.map((p) => (
                     <td key={p.id} className="py-3 pr-4">
-                      <span className="inline-flex items-center gap-1.5 text-success">
-                        <i className="fa-solid fa-circle-check text-[10px]" /> Grounded
-                      </span>
+                      <Badge tone="neutral">Pending Extraction</Badge>
                     </td>
                   ))}
                 </tr>

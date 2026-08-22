@@ -588,9 +588,20 @@
       event.target.classList.add("active");
     }
 
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return "";
+      const div = document.createElement("div");
+      div.textContent = String(str);
+      return div.innerHTML;
+    }
+
     function showError(title, msg) {
       const banner = document.getElementById("error-banner");
-      banner.innerHTML = `<strong>${title}:</strong> ${msg}`;
+      banner.textContent = "";
+      const strong = document.createElement("strong");
+      strong.textContent = String(title) + ": ";
+      banner.appendChild(strong);
+      banner.appendChild(document.createTextNode(String(msg)));
       banner.classList.add("show");
     }
 
@@ -697,10 +708,10 @@
           div.className = "item-row";
           div.innerHTML = `
             <div class="item-info">
-              <span class="item-name">${rf.title || rf.category}</span>
-              <span class="item-detail">${rf.description || ''}</span>
+              <span class="item-name">${escapeHtml(rf.title || rf.category)}</span>
+              <span class="item-detail">${escapeHtml(rf.description || '')}</span>
             </div>
-            <span class="badge ${rf.severity === 'HIGH' ? 'badge-mixed' : 'badge-conditional'}">${rf.severity}</span>
+            <span class="badge ${rf.severity === 'HIGH' ? 'badge-mixed' : 'badge-conditional'}">${escapeHtml(rf.severity)}</span>
           `;
           risksList.appendChild(div);
         });
@@ -715,12 +726,15 @@
         data.key_facts.forEach(f => {
           const div = document.createElement("div");
           div.className = "item-row";
+          const factName = (f.field || f.category || '').replace(/_/g, ' ').toUpperCase();
+          const factVal = (f.value ? f.value + (f.unit ? ' ' + f.unit : '') : 'N/A') + (f.condition ? ' — ' + f.condition : '');
+          const factStatus = f.status || 'EXPLICIT';
           div.innerHTML = `
             <div class="item-info">
-              <span class="item-name">${(f.field || f.category).replace(/_/g, ' ').toUpperCase()}</span>
-              <span class="item-detail">${f.value ? f.value + (f.unit ? ' ' + f.unit : '') : 'N/A'}${f.condition ? ' — ' + f.condition : ''}</span>
+              <span class="item-name">${escapeHtml(factName)}</span>
+              <span class="item-detail">${escapeHtml(factVal)}</span>
             </div>
-            <span class="badge badge-${(f.status || 'explicit').toLowerCase().replace('_', '-')}">${f.status || 'EXPLICIT'}</span>
+            <span class="badge badge-${escapeHtml(factStatus.toLowerCase().replace('_', '-'))}">${escapeHtml(factStatus)}</span>
           `;
           factsList.appendChild(div);
         });
@@ -735,10 +749,12 @@
         data.missing_information.forEach(m => {
           const div = document.createElement("div");
           div.className = "item-row";
+          const mField = (m.field || '').replace(/_/g, ' ').toUpperCase();
+          const mReason = m.reason || 'Not specified in provided documents.';
           div.innerHTML = `
             <div class="item-info">
-              <span class="item-name">${(m.field || '').replace(/_/g, ' ').toUpperCase()}</span>
-              <span class="item-detail">${m.reason || 'Not specified in provided documents.'}</span>
+              <span class="item-name">${escapeHtml(mField)}</span>
+              <span class="item-detail">${escapeHtml(mReason)}</span>
             </div>
             <span class="badge badge-not-specified">NOT_SPECIFIED</span>
           `;
@@ -755,7 +771,7 @@
       if (questions.length > 0) {
         questions.forEach(q => {
           const li = document.createElement("li");
-          li.innerText = q;
+          li.textContent = q;
           qList.appendChild(li);
         });
       } else {
@@ -781,19 +797,21 @@
         });
 
         document.getElementById("review-results").style.display = "block";
-        document.getElementById("review-text").innerText = data.review_text || JSON.stringify(data.review, null, 2);
+        document.getElementById("review-text").textContent = data.review_text || JSON.stringify(data.review, null, 2);
 
         const driversEl = document.getElementById("review-cost-drivers");
         driversEl.innerHTML = "";
         (data.cost_drivers || []).forEach(cd => {
           const div = document.createElement("div");
           div.className = "item-row";
+          const cdName = cd.field || cd.category || '';
+          const cdDetail = 'Value: ' + (cd.value || 'N/A') + (cd.condition ? ' | ' + cd.condition : '');
           div.innerHTML = `
             <div class="item-info">
-              <span class="item-name">${cd.field || cd.category}</span>
-              <span class="item-detail">Value: ${cd.value || 'N/A'}${cd.condition ? ' | ' + cd.condition : ''}</span>
+              <span class="item-name">${escapeHtml(cdName)}</span>
+              <span class="item-detail">${escapeHtml(cdDetail)}</span>
             </div>
-            <span class="badge ${cd.priority === 'HIGH' ? 'badge-mixed' : 'badge-conditional'}">${cd.priority}</span>
+            <span class="badge ${cd.priority === 'HIGH' ? 'badge-mixed' : 'badge-conditional'}">${escapeHtml(cd.priority || 'MEDIUM')}</span>
           `;
           driversEl.appendChild(div);
         });
@@ -823,19 +841,22 @@
         });
 
         document.getElementById("checklist-results").style.display = "block";
-        document.getElementById("checklist-text").innerText = data.checklist_text || "Checklist generated.";
+        document.getElementById("checklist-text").textContent = data.checklist_text || "Checklist generated.";
 
         const itemsEl = document.getElementById("checklist-items");
         itemsEl.innerHTML = "";
         (data.checklist || []).forEach(item => {
           const div = document.createElement("div");
           div.className = "item-row";
+          const itemName = `${item.marker || '•'} ${item.item || ''}`;
+          const itemDetail = item.condition ? 'Condition: ' + item.condition : (item.evidence ? 'Document: ' + (item.evidence.document || 'Verified') : '');
+          const itemStatus = item.status || 'explicit';
           div.innerHTML = `
             <div class="item-info">
-              <span class="item-name">${item.marker} ${item.item}</span>
-              <span class="item-detail">${item.condition ? 'Condition: ' + item.condition : (item.evidence ? 'Document: ' + (item.evidence.document || 'Verified') : '')}</span>
+              <span class="item-name">${escapeHtml(itemName)}</span>
+              <span class="item-detail">${escapeHtml(itemDetail)}</span>
             </div>
-            <span class="badge badge-${(item.status || 'explicit').toLowerCase().replace('_', '-')}">${item.status}</span>
+            <span class="badge badge-${escapeHtml(itemStatus.toLowerCase().replace('_', '-'))}">${escapeHtml(itemStatus)}</span>
           `;
           itemsEl.appendChild(div);
         });

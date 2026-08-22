@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "FinExplain Backend"
     API_V1_STR: str = "/api/v1"
 
+    # Environment: "development" or "production"
+    # Controls whether demo fallbacks are allowed and whether critical keys are required.
+    ENVIRONMENT: str = "development"
+
+    # CORS allowed origins (comma-separated). FIN-004: no more wildcard.
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:8000"
+
     # Supabase
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
@@ -40,4 +47,23 @@ class Settings(BaseSettings):
     # Storage Bucket
     STORAGE_BUCKET: str = "loan_docs"
 
+    @property
+    def is_development(self) -> bool:
+        return self.ENVIRONMENT.lower() == "development"
+
 settings = Settings()
+
+# Startup validation: fail-closed in non-dev mode if critical keys are missing
+if not settings.is_development:
+    _missing = []
+    if not settings.SUPABASE_URL:
+        _missing.append("SUPABASE_URL")
+    if not settings.SUPABASE_KEY:
+        _missing.append("SUPABASE_KEY")
+    if not settings.GROQ_API_KEY:
+        _missing.append("GROQ_API_KEY")
+    if _missing:
+        raise RuntimeError(
+            f"ENVIRONMENT={settings.ENVIRONMENT} but critical settings are missing: "
+            f"{', '.join(_missing)}. Set ENVIRONMENT=development for local dev mode."
+        )

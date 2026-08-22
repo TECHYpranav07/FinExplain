@@ -16,8 +16,9 @@ os.environ["PYTHONUTF8"] = "1"
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-from langsmith import Client
-# Automatically traces LangChain calls if env vars are set
+import logging
+
+from app.core.config import settings
 
 from app.api.routes.v1 import documents, queries, hilt, products, feedback, analysis
 
@@ -27,13 +28,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS (so your React frontend can talk to this backend)
+# Enable CORS with configured origins (FIN-004: no more wildcard)
+_cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change to your frontend URL in production
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Register all route handlers
@@ -76,9 +78,67 @@ async def serve_console():
         return FileResponse(console_path)
     return HTMLResponse("<h1>FinExplain Console</h1><p>frontend/console.html not found.</p>")
 
+logger = logging.getLogger(__name__)
+
 @app.get("/health")
 async def health_check():
+    """Backward-compatible health endpoint (FIN-033: delegates to readiness)."""
+    result = await health_ready()
+    return result
+
+@app.get("/health/live")
+async def health_live():
+    """Liveness probe — always returns ok if the process is running."""
     return {"status": "ok"}
+
+@app.get("/health/ready")
+async def health_ready():
+    """Readiness probe — checks critical dependencies."""
+    checks = {}
+    overall = "ok"
+
+    # Check Supabase
+    try:
+        from app.db.supabase_client import get_supabase_client
+        client = get_supabase_client()
+        if client:
+            checks["supabase"] = "ok"
+        else:
+            checks["supabase"] = "unavailable"
+            overall = "degraded"
+    except Exception as e:
+        checks["supabase"] = f"error: {type(e).__name__}"
+        overall = "degraded"
+
+    # Check Groq API key configured
+    if settings.GROQ_API_KEY and settings.GROQ_API_KEY != "your-groq-api-key":
+        checks["groq"] = "configured"
+    else:
+        checks["groq"] = "not_configured"
+        overall = "degraded"
+
+    # Check Pinecone
+    try:
+        from app.external.pinecone_client import get_pinecone_index
+        idx = get_pinecone_index()
+        if idx:
+            checks["pinecone"] = "ok"
+        else:
+            checks["pinecone"] = "unavailable"
+            overall = "degraded"
+    except Exception as e:
+        checks["pinecone"] = f"error: {type(e).__name__}"
+        overall = "degraded"
+
+    # Check reranker model availability
+    try:
+        from sentence_transformers import CrossEncoder
+        checks["reranker"] = "available"
+    except Exception:
+        checks["reranker"] = "unavailable"
+        overall = "degraded"
+
+    return {"status": overall, "checks": checks}
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

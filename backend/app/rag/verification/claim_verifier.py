@@ -135,7 +135,7 @@ def verify_claim(
         "supported": False,
         "evidence_id": None,
         "status": "NOT_SPECIFIED",
-        "citation_valid": True,   # innocent until proven invalid
+        "citation_valid": False,   # FIN-007: guilty until proven valid (was True)
         "condition_preserved": True,
         "issues": [],
     }
@@ -146,9 +146,13 @@ def verify_claim(
             (c.get("page_number") or c.get("page_num")) == cited_page
             for c in chunks
         )
-        if not page_found:
-            result["citation_valid"] = False
+        if page_found:
+            result["citation_valid"] = True  # Confirmed: page exists
+        else:
             result["issues"].append(f"Cited page {cited_page} not found in retrieved chunks.")
+    elif not cited_page:
+        # No page cited at all — can't verify
+        result["issues"].append("No page citation provided for this claim.")
 
     # --- 3: Evidence relevance — check if any fact relates to the claim ---
     claim_lower = claim_text.lower()

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, getApiBaseUrl, setApiBaseUrl } from "@/lib/api";
+import { STORAGE_KEY } from "@/lib/documents";
 import { PageHeader, Panel, KeyValue, Badge } from "@/components/finex/primitives";
 
 export function SettingsPage() {
@@ -23,6 +24,7 @@ export function SettingsPage() {
 
   const handleClearSession = () => {
     if (window.confirm("Clear all locally tracked documents and search history?")) {
+      window.localStorage.removeItem(STORAGE_KEY);
       window.localStorage.removeItem("finexplain.documents");
       window.location.reload();
     }
