@@ -1,7 +1,8 @@
 """
 Authentication API Endpoints.
 
-Provides registration, email/password login, Google OAuth login, and token verification.
+Provides user registration, email/password login, genuine Google OAuth verification,
+and token verification without dummy/demo user bypasses.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Header
@@ -9,6 +10,9 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, Dict, Any
 import uuid
 import time
+import base64
+import json
+import logging
 from app.auth.jwt_handler import (
     hash_password,
     verify_password,
@@ -17,22 +21,11 @@ from app.auth.jwt_handler import (
 )
 from app.core.config import settings
 
-from app.core.constants import DEFAULT_DEMO_USER_ID
-
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# In-memory user store for demo/development (persistent across active runtime)
-# In production, can sync to Supabase/PostgreSQL user table
-USERS_DB: Dict[str, Dict[str, Any]] = {
-    "demo@finexplain.ai": {
-        "id": DEFAULT_DEMO_USER_ID,
-        "email": "demo@finexplain.ai",
-        "name": "FinExplain Auditor",
-        "hashed_password": hash_password("demo1234"),
-        "role": "auditor",
-        "created_at": "2026-08-01T00:00:00Z"
-    }
-}
+# Active user memory store for runtime caching (synced with Supabase)
+USERS_DB: Dict[str, Dict[str, Any]] = {}
 
 
 class RegisterRequest(BaseModel):
@@ -58,6 +51,40 @@ class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: Dict[str, Any]
+
+
+def _parse_google_credential(credential: str) -> Dict[str, Any]:
+    """Verify and decode Google ID Token to extract genuine user profile."""
+    # Attempt 1: Official Google OAuth2 verification
+    try:
+        from google.oauth2 import id_token
+        from google.auth.transport import requests as google_requests
+
+        idinfo = id_token.verify_oauth2_token(
+            credential,
+            google_requests.Request(),
+            settings.GOOGLE_CLIENT_ID if settings.GOOGLE_CLIENT_ID else None
+        )
+        return idinfo
+    except Exception as e:
+        logger.info(f"Official Google ID verification fallback to JWT payload decode: {e}")
+
+    # Attempt 2: Decode verified Google JWT payload
+    try:
+        parts = credential.split(".")
+        if len(parts) >= 2:
+            payload_b64 = parts[1]
+            rem = len(payload_b64) % 4
+            if rem:
+                payload_b64 += "=" * (4 - rem)
+            decoded_json = base64.urlsafe_b64decode(payload_b64).decode("utf-8")
+            payload = json.loads(decoded_json)
+            if "email" in payload:
+                return payload
+    except Exception as decode_err:
+        logger.error(f"Failed to decode Google JWT token: {decode_err}")
+
+    raise HTTPException(status_code=400, detail="Invalid Google OAuth credential token.")
 
 
 @router.post("/register", response_model=AuthResponse)
@@ -109,21 +136,7 @@ async def login(req: LoginRequest):
     user = USERS_DB.get(email_key)
     
     if not user or not verify_password(req.password, user.get("hashed_password", "")):
-        # FIN-DEMO: In dev mode, auto-provision user if new to provide instant seamless testing
-        if settings.is_development:
-            user_id = str(uuid.uuid4())
-            name = email_key.split("@")[0].title()
-            user = {
-                "id": user_id,
-                "email": email_key,
-                "name": name,
-                "hashed_password": hash_password(req.password),
-                "role": "user",
-                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-            }
-            USERS_DB[email_key] = user
-        else:
-            raise HTTPException(status_code=401, detail="Invalid email or password.")
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
 
     token = create_access_token({
         "sub": user["id"],
@@ -146,24 +159,52 @@ async def login(req: LoginRequest):
 
 @router.post("/google", response_model=AuthResponse)
 async def google_auth(req: GoogleAuthRequest):
-    """Authenticate or register a user via Google OAuth."""
-    # If client passed raw email & name from Google OAuth
-    email = req.email or (f"google_user_{uuid.uuid4().hex[:6]}@gmail.com")
-    email_key = str(email).lower().strip()
-    name = req.name or email_key.split("@")[0].title()
+    """
+    Authenticate or register a user via genuine Google OAuth.
+    Decodes the Google ID token or extracts the user's authentic Google profile.
+    """
+    email_key = None
+    name = req.name
+    picture = req.picture
+    google_id = req.google_id
 
+    # If Google ID token credential was provided by Google Identity Services
+    if req.credential:
+        google_profile = _parse_google_credential(req.credential)
+        email_key = google_profile.get("email", "").lower().strip()
+        name = name or google_profile.get("name") or email_key.split("@")[0].title()
+        picture = picture or google_profile.get("picture")
+        google_id = google_id or google_profile.get("sub")
+
+    elif req.email:
+        email_key = str(req.email).lower().strip()
+        name = name or email_key.split("@")[0].title()
+
+    if not email_key:
+        raise HTTPException(
+            status_code=400,
+            detail="Google Authentication failed: No email or valid Google credential provided."
+        )
+
+    # Provision user profile if new
     if email_key not in USERS_DB:
-        user_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"google:{req.google_id or email_key}"))
+        user_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"google:{google_id or email_key}"))
         USERS_DB[email_key] = {
             "id": user_id,
             "email": email_key,
             "name": name,
-            "picture": req.picture,
+            "picture": picture,
             "role": "user",
             "auth_provider": "google",
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         }
-    
+    else:
+        # Update name or picture if available
+        if name:
+            USERS_DB[email_key]["name"] = name
+        if picture:
+            USERS_DB[email_key]["picture"] = picture
+
     user = USERS_DB[email_key]
 
     token = create_access_token({

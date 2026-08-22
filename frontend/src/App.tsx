@@ -1,5 +1,6 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider } from "@/lib/authContext";
 import { ProtectedRoute } from "@/components/finex/ProtectedRoute";
 import { LandingPage } from "@/pages/LandingPage";
@@ -18,10 +19,13 @@ import { HITLPage } from "@/pages/HITLPage";
 import { FeedbackPage } from "@/pages/FeedbackPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "333830843232-example.apps.googleusercontent.com";
+
 export function App() {
   return (
-    <AuthProvider>
-      <Routes>
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <AuthProvider>
+        <Routes>
         {/* Public Landing & Authentication */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/auth" element={<AuthPage />} />
@@ -50,5 +54,6 @@ export function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AuthProvider>
+    </GoogleOAuthProvider>
   );
 }
