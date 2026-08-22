@@ -61,6 +61,7 @@ export interface Citation {
 
 export interface QueryResponse {
   answer: string;
+  why_this_answer?: string;
   plain_language_explanation?: string;
   evidence_score?: number;
   confidence_score?: number;

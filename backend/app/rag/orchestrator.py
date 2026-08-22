@@ -377,6 +377,29 @@ def process_query(
     # Also run the old grounder for backward-compatible citation data
     grounded = ground_answer(answer_text, reranked_chunks, rerank_scores)
 
+    # Construct transparent why_this_answer explanation
+    if not validation["valid"] or overall_status == "NOT_SPECIFIED":
+        why_this_answer = (
+            "You asked for subjective recommendation advice (e.g. why to choose or avoid this loan) with exact citations. "
+            "Because loan agreements only contain legal terms, fees, and interest benchmarks—not promotional advice—"
+            "synthesized claims could not be verified against the source text. "
+            "To prevent AI hallucinations, FinExplain blocked ungrounded statements and generated actionable lender questions instead."
+        )
+    elif overall_status == "MIXED":
+        why_this_answer = (
+            "Conflicting terms were identified across document sections or schedules. "
+            "FinExplain highlighted the discrepancies to prevent misleading calculations."
+        )
+    elif overall_status == "CONDITIONAL":
+        why_this_answer = (
+            "Terms are subject to preconditions (e.g. fee waivers based on tenure). "
+            "FinExplain validated that clauses only apply under specific circumstances."
+        )
+    else:
+        why_this_answer = (
+            "All factual claims were verified with high-confidence exact matches against the retrieved loan document text."
+        )
+
     result: Dict[str, Any] = {
         # --- Backward-compatible fields ---
         "answer": answer_text,
@@ -389,6 +412,7 @@ def process_query(
         "status": "ok",
 
         # --- New structured fields ---
+        "why_this_answer": why_this_answer,
         "key_facts": facts_dicts,
         "conditions": [
             f.model_dump() for f in structured_facts

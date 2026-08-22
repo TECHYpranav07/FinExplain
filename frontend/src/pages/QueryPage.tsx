@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api, type QueryResponse } from "@/lib/api";
 import { ProductPicker } from "@/components/finex/ProductSelect";
+import { Info } from "lucide-react";
 import {
   PageHeader,
   Panel,
@@ -180,6 +181,20 @@ export function QueryPage() {
                 {currentResult.plain_language_explanation}
               </p>
             </Panel>
+          )}
+
+          {/* Why did FinExplain provide this response? */}
+          {(currentResult.why_this_answer || currentResult.evidence_status === "NOT_SPECIFIED") && (
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-xs">
+              <div className="flex items-center gap-2 mb-1.5 font-semibold text-amber-300">
+                <Info className="h-4 w-4 shrink-0" />
+                <span>Why did FinExplain provide this response?</span>
+              </div>
+              <p className="text-white/85 leading-relaxed">
+                {currentResult.why_this_answer ||
+                  "You requested subjective advice (e.g. why to choose or avoid this loan) with exact citations. Because loan documents contain factual legal and numerical clauses rather than promotional advice, synthesized advisory claims could not be verified against the source text. To protect you from AI hallucinations, FinExplain blocked ungrounded statements, assigned NOT_SPECIFIED status, and generated actionable lender questions instead."}
+              </p>
+            </div>
           )}
 
           {/* Detailed Synthesized Answer */}

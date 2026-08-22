@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { getDocument, formatBytes } from "@/lib/documents";
 import { api, type QueryResponse } from "@/lib/api";
 import { useMutation } from "@tanstack/react-query";
+import { Info } from "lucide-react";
 import { PageHeader, Panel, Badge, EvidenceBadge, ScoreGauge, KeyValue, CitationChip, EmptyState } from "@/components/finex/primitives";
 
 export function DocumentAnalysisPage() {
@@ -197,6 +198,20 @@ export function DocumentAnalysisPage() {
                     </h4>
                     <p className="text-sm text-white leading-relaxed">
                       {analysisResult.plain_language_explanation}
+                    </p>
+                  </div>
+                )}
+
+                {/* Why did FinExplain provide this response? */}
+                {(analysisResult.why_this_answer || analysisResult.evidence_status === "NOT_SPECIFIED") && (
+                  <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-4 text-xs">
+                    <div className="flex items-center gap-2 mb-1.5 font-semibold text-amber-300">
+                      <Info className="h-4 w-4 shrink-0" />
+                      <span>Why did FinExplain provide this response?</span>
+                    </div>
+                    <p className="text-white/85 leading-relaxed">
+                      {analysisResult.why_this_answer ||
+                        "You requested subjective advice (e.g. why to choose or avoid this loan) with exact citations. Because loan documents only contain binding legal and numerical clauses rather than promotional advice, synthesized advisory claims could not be verified against the source text. To protect you from AI hallucinations, FinExplain blocked ungrounded statements, assigned NOT_SPECIFIED status, and generated actionable lender questions instead."}
                     </p>
                   </div>
                 )}
