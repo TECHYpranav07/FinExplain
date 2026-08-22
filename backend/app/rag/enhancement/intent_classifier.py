@@ -16,7 +16,7 @@ class IntentResult(BaseModel):
 
 def classify_intent(query: str) -> IntentResult:
     """
-    Classify the user's query intent using Groq LLM.
+    Classify the user's query intent using Gemini LLM.
     """
     prompt = f"""
 Classify the following user question about loans into one of these categories:

@@ -4,7 +4,8 @@ Exclusively uses Google Gemini API with configuration sourced from backend/.env.
 
 Features:
 - Pure Google Gemini LLM engine (API Key & Model strictly from backend/.env)
-- Auto-sanitizes model names (e.g. fixes common typos like flash-light -> flash-lite, strips models/ prefix)
+- Auto-sanitizes model names (e.g. handles flash-light -> flash-lite, strips models/ prefix)
+- Auto-fallback across official Gemini Flash models on 404
 - OpenAI-compatible completion proxy (client.chat.completions.create) for unified downstream caller support
 - Resilient retry logic with exponential backoff for rate limits (429) and transient server errors (5xx)
 - Structured logging
@@ -93,14 +94,6 @@ class LLMClient:
                     logger.error(f"[LLMClient] Non-retryable API key error: {e}")
                     raise e
 
-                # If model is 404 Not Found, log detailed guidance and fail
-                if "404" in err_str and "not found" in err_str:
-                    logger.error(
-                        f"[LLMClient] Model '{target_model}' not found on Google Gemini API. "
-                        f"Check GEMINI_MODEL in backend/.env (e.g. gemini-2.5-flash, gemini-3.5-flash-lite, gemini-2.0-flash)."
-                    )
-                    raise e
-
                 if attempt < self.max_retries:
                     sleep_time = self.initial_backoff * (2 ** attempt)
                     logger.warning(
@@ -121,7 +114,7 @@ class LLMClient:
         max_tokens: int = 2048,
         response_format: Optional[Dict[str, str]] = None,
     ) -> str:
-        """Invokes Google Generative Language REST API directly."""
+        """Invokes Google Generative Language REST API directly with automatic model resolution."""
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 
         system_instruction = None
@@ -156,6 +149,20 @@ class LLMClient:
             payload["system_instruction"] = system_instruction
 
         res = requests.post(url, json=payload, timeout=45)
+        
+        # If model is 404 Not Found, attempt fallback to other standard Gemini Flash models
+        if not res.ok and res.status_code == 404:
+            for fallback_model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
+                if fallback_model != model:
+                    logger.warning(
+                        f"[LLMClient] Model '{model}' not found (404). Falling back to '{fallback_model}'..."
+                    )
+                    fallback_url = f"https://generativelanguage.googleapis.com/v1beta/models/{fallback_model}:generateContent?key={api_key}"
+                    fallback_res = requests.post(fallback_url, json=payload, timeout=45)
+                    if fallback_res.ok:
+                        res = fallback_res
+                        break
+
         if not res.ok:
             raise RuntimeError(f"Gemini API error ({res.status_code}): {res.text}")
 

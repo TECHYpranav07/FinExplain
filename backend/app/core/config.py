@@ -33,17 +33,11 @@ class Settings(BaseSettings):
     PINECONE_API_KEY: str = ""
     PINECONE_INDEX_NAME: str = "finexplain"
 
-    # LLM Provider Configuration ("gemini" or "groq")
+    # Google Gemini LLM Configuration
     LLM_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str = ""
     GOOGLE_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash"
-
-    # Optional Groq fallback
-    GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
-
-    # Generic model override (if set, overrides provider-specific model)
     LLM_MODEL: Optional[str] = None
 
     # Redis (Caching)
@@ -78,12 +72,8 @@ if not settings.is_development:
         _missing.append("SUPABASE_URL")
     if not settings.SUPABASE_KEY:
         _missing.append("SUPABASE_KEY")
-    if settings.LLM_PROVIDER.lower() == "gemini":
-        if not settings.effective_gemini_api_key:
-            _missing.append("GEMINI_API_KEY (or GOOGLE_API_KEY)")
-    elif settings.LLM_PROVIDER.lower() == "groq":
-        if not settings.GROQ_API_KEY:
-            _missing.append("GROQ_API_KEY")
+    if not settings.effective_gemini_api_key:
+        _missing.append("GEMINI_API_KEY (or GOOGLE_API_KEY)")
     if _missing:
         raise RuntimeError(
             f"ENVIRONMENT={settings.ENVIRONMENT} but critical settings are missing: "

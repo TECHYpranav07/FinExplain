@@ -25,7 +25,7 @@ class RetrievalError(FinExplainException):
     pass
 
 class LLMGenerationError(FinExplainException):
-    """Raised when Groq LLM generation fails."""
+    """Raised when Gemini LLM generation fails."""
     pass
 
 class IngestionError(FinExplainException):

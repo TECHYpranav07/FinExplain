@@ -1,7 +1,7 @@
 """
 LLM generation layer for FinExplain.
 
-Uses unified LLM API (LangChain Gemini / Groq) with centralized prompt templates.
+Uses Google Gemini LLM API with centralized prompt templates.
 Supports both the legacy ``(query, context)`` signature and the new
 enriched signature with structured facts, calculations, conflicts, etc.
 """
