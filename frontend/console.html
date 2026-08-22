@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinExplain — Standalone Loan Analysis Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #111827;
+      --card-border: #1f2937;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --accent: #6366f1;
+      --text: #f9fafb;
+      --text-muted: #9ca3af;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --badge-bg: rgba(59, 130, 246, 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 24px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: white;
+      font-weight: 800;
+      font-size: 18px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
+    .title-wrap h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .title-wrap p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      background: #1e293b;
+      border: 1px solid var(--card-border);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--warning);
+      box-shadow: 0 0 8px var(--warning);
+    }
+
+    .status-dot.connected {
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 8px;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover {
+      color: var(--text);
+      background: #1e293b;
+    }
+
+    .tab-btn.active {
+      color: white;
+      background: var(--primary);
+    }
+
+    /* Layout */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Form Elements */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    input[type="text"], textarea, select {
+      width: 100%;
+      background: #0b0f19;
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus, textarea:focus, select:focus {
+      border-color: var(--primary);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Metrics & Badges */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .metric-card {
+      background: #1e293b;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .metric-val {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .badge-explicit { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+    .badge-conditional { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+    .badge-mixed { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+    .badge-not-specified { background: #374151; color: var(--text-muted); }
+
+    /* Answer box */
+    .answer-box {
+      background: #1e293b;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      margin-bottom: 20px;
+    }
+
+    /* Lists */
+    .item-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .item-row {
+      background: #1e293b;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .item-row .item-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .item-name {
+      font-weight: 600;
+    }
+
+    .item-detail {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Questions / Bullet items */
+    .bullet-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bullet-list li {
+      background: #1e293b;
+      border-left: 3px solid var(--primary);
+      padding: 8px 12px;
+      border-radius: 0 6px 6px 0;
+      font-size: 13px;
+    }
+
+    /* Raw JSON Viewer */
+    pre.json-view {
+      background: #050811;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #93c5fd;
+      overflow-x: auto;
+      max-height: 400px;
+    }
+
+    /* Error alert */
+    .error-banner {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--danger);
+      color: #fca5a5;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      display: none;
+    }
+
+    .error-banner.show {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <div class="logo-badge">FE</div>
+        <div class="title-wrap">
+          <h1>FinExplain — Loan Document Evidence Engine</h1>
+          <p>Evidence-First RAG • Verification • Risk Scoring • Multi-Factor Fact Extraction</p>
+        </div>
+      </div>
+      <div class="status-pill">
+        <div class="status-dot" id="api-status-dot"></div>
+        <span id="api-status-text">Connecting...</span>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('tab-ask')">1. Ask & Verify (RAG)</button>
+      <button class="tab-btn" onclick="switchTab('tab-review')">2. Proactive Review</button>
+      <button class="tab-btn" onclick="switchTab('tab-checklist')">3. Before You Confirm</button>
+      <button class="tab-btn" onclick="switchTab('tab-upload')">4. Upload PDF</button>
+      <button class="tab-btn" onclick="switchTab('tab-diag')">5. Health & Diagnostic</button>
+    </div>
+
+    <div id="error-banner" class="error-banner"></div>
+
+    <!-- TAB 1: Ask & Verify -->
+    <div id="tab-ask" class="tab-content">
+      <div class="grid-2">
+        <div>
+          <div class="card">
+            <div class="card-title">Evidence-First Loan Q&A</div>
+            <div class="form-group">
+              <label>Question / Query</label>
+              <textarea id="ask-question" placeholder="e.g. I need ₹500,000 and will repay in 6 months. What are my total costs?">I need ₹500,000 and will repay in 6 months. What are my total costs?</textarea>
+            </div>
+            <div class="form-group">
+              <label>Product IDs (Optional, comma-separated)</label>
+              <input type="text" id="ask-products" placeholder="e.g. 1 or leave blank for all indexed documents" value="" />
+            </div>
+            <button class="btn" id="ask-btn" onclick="submitQuery()">
+              <span>Run Evidence RAG Pipeline</span>
+            </button>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Quick Test Prompts</div>
+            <div class="item-list">
+              <div class="item-row" style="cursor:pointer;" onclick="setQuery('What is the interest rate and loan amount?')">
+                <span class="item-name">What is the interest rate and loan amount?</span>
+              </div>
+              <div class="item-row" style="cursor:pointer;" onclick="setQuery('What are the processing fees and documentation charges?')">
+                <span class="item-name">What are the processing fees and documentation charges?</span>
+              </div>
+              <div class="item-row" style="cursor:pointer;" onclick="setQuery('Are there any prepayment charges or late payment penalties?')">
+                <span class="item-name">Are there any prepayment charges or late payment penalties?</span>
+              </div>
+              <div class="item-row" style="cursor:pointer;" onclick="setQuery('I need ₹500,000 and will repay in 6 months. What are my total costs?')">
+                <span class="item-name">I need ₹500,000 and will repay in 6 months. What are my total costs?</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card" id="query-results" style="display:none;">
+            <div class="card-title">
+              <span>Pipeline Analysis Results</span>
+              <button class="btn" style="padding:4px 10px; font-size:11px;" onclick="toggleRawJson()">Toggle JSON</button>
+            </div>
+
+            <div class="metrics-grid">
+              <div class="metric-card">
+                <div class="metric-label">Evidence Score</div>
+                <div class="metric-val" id="res-evidence-score">--</div>
+                <div class="item-detail" id="res-evidence-label">--</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Risk Level</div>
+                <div class="metric-val" id="res-risk-score">--</div>
+                <div class="item-detail" id="res-risk-level">--</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Evidence Status</div>
+                <div id="res-status-val" style="margin-top:6px;">--</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Claim Coverage</div>
+                <div class="metric-val" id="res-claim-coverage">--</div>
+              </div>
+            </div>
+
+            <label>Generated Answer</label>
+            <div class="answer-box" id="res-answer"></div>
+
+            <label>Detected Cost Drivers & Risk Factors</label>
+            <div class="item-list" id="res-risks-list" style="margin-bottom:16px;"></div>
+
+            <label>Extracted Structured Facts</label>
+            <div class="item-list" id="res-facts-list" style="margin-bottom:16px;"></div>
+
+            <label>Missing Information / Disclosures</label>
+            <div class="item-list" id="res-missing-list" style="margin-bottom:16px;"></div>
+
+            <label>Questions to Ask Lender Before Signing</label>
+            <ul class="bullet-list" id="res-questions-list"></ul>
+
+            <pre id="res-raw-json" class="json-view" style="display:none; margin-top:20px;"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Proactive Review -->
+    <div id="tab-review" class="tab-content" style="display:none;">
+      <div class="card">
+        <div class="card-title">Proactive Loan Document Audit & Review</div>
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">
+          Automatically extracts all terms, conditions, cost drivers, and missing clauses to generate a comprehensive advisory review.
+        </p>
+        <div class="form-group">
+          <label>Product IDs (Optional)</label>
+          <input type="text" id="review-products" placeholder="Leave empty to audit all indexed products" />
+        </div>
+        <button class="btn" id="review-btn" onclick="submitLoanReview()">
+          <span>Generate Proactive Review</span>
+        </button>
+      </div>
+
+      <div class="card" id="review-results" style="display:none;">
+        <div class="card-title">Audit Review Summary</div>
+        <div class="answer-box" id="review-text"></div>
+        <label>Cost Drivers Identified</label>
+        <div class="item-list" id="review-cost-drivers"></div>
+      </div>
+    </div>
+
+    <!-- TAB 3: Before You Confirm -->
+    <div id="tab-checklist" class="tab-content" style="display:none;">
+      <div class="card">
+        <div class="card-title">"Before You Confirm" Advisory Checklist</div>
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">
+          Generates an actionable borrower checklist highlighting verified terms vs unverified lender policy conditions.
+        </p>
+        <div class="form-group">
+          <label>Product IDs (Optional)</label>
+          <input type="text" id="checklist-products" placeholder="Leave empty for all products" />
+        </div>
+        <button class="btn" id="checklist-btn" onclick="submitBeforeConfirmation()">
+          <span>Generate Checklist</span>
+        </button>
+      </div>
+
+      <div class="card" id="checklist-results" style="display:none;">
+        <div class="card-title">Checklist Items</div>
+        <div class="answer-box" id="checklist-text"></div>
+        <div class="item-list" id="checklist-items"></div>
+      </div>
+    </div>
+
+    <!-- TAB 4: Upload -->
+    <div id="tab-upload" class="tab-content" style="display:none;">
+      <div class="card">
+        <div class="card-title">Upload Loan Document (PDF)</div>
+        <div class="form-group">
+          <label>PDF File</label>
+          <input type="file" id="upload-file" accept=".pdf" />
+        </div>
+        <div class="form-group">
+          <label>Product ID</label>
+          <input type="text" id="upload-product-id" value="1" placeholder="e.g. 1 or UUID" />
+        </div>
+        <button class="btn" id="upload-btn" onclick="submitUpload()">
+          <span>Upload & Ingest Document</span>
+        </button>
+      </div>
+
+      <div class="card" id="upload-results" style="display:none;">
+        <div class="card-title">Ingestion Result</div>
+        <pre class="json-view" id="upload-json"></pre>
+      </div>
+    </div>
+
+    <!-- TAB 5: Diagnostics -->
+    <div id="tab-diag" class="tab-content" style="display:none;">
+      <div class="card">
+        <div class="card-title">System Diagnostics & Endpoints</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
+          <button class="btn" onclick="testEndpoint('/health')">Ping /health</button>
+          <button class="btn" onclick="testEndpoint('/api/v1/products')">Get /api/v1/products</button>
+          <button class="btn" onclick="testEndpoint('/api/v1/documents')">Get /api/v1/documents</button>
+        </div>
+        <pre class="json-view" id="diag-output">Click a diagnostic test above...</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    // Check health on startup
+    async function checkHealth() {
+      const dot = document.getElementById("api-status-dot");
+      const text = document.getElementById("api-status-text");
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        if (res.ok) {
+          dot.classList.add("connected");
+          text.innerText = "API Online";
+        } else {
+          dot.classList.remove("connected");
+          text.innerText = `API Error ${res.status}`;
+        }
+      } catch (err) {
+        dot.classList.remove("connected");
+        text.innerText = "API Offline";
+      }
+    }
+    checkHealth();
+    setInterval(checkHealth, 10000);
+
+    function switchTab(tabId) {
+      document.querySelectorAll(".tab-content").forEach(el => el.style.display = "none");
+      document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
+      document.getElementById(tabId).style.display = "block";
+      event.target.classList.add("active");
+    }
+
+    function showError(title, msg) {
+      const banner = document.getElementById("error-banner");
+      banner.innerHTML = `<strong>${title}:</strong> ${msg}`;
+      banner.classList.add("show");
+    }
+
+    function dismissError() {
+      document.getElementById("error-banner").classList.remove("show");
+    }
+
+    function setQuery(text) {
+      document.getElementById("ask-question").value = text;
+    }
+
+    function toggleRawJson() {
+      const el = document.getElementById("res-raw-json");
+      el.style.display = el.style.display === "none" ? "block" : "none";
+    }
+
+    async function safeFetchJson(url, options = {}) {
+      const res = await fetch(url, options);
+      let data;
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        try {
+          data = await res.json();
+        } catch (e) {
+          data = { detail: `Failed to parse response JSON: ${e.message}` };
+        }
+      } else {
+        const text = await res.text();
+        data = { detail: text || `Server returned status ${res.status} (${res.statusText})` };
+      }
+      if (!res.ok) {
+        throw new Error(data.detail || `Server error: HTTP ${res.status}`);
+      }
+      return data;
+    }
+
+    // TAB 1: Submit Ask Query
+    async function submitQuery() {
+      dismissError();
+      const question = document.getElementById("ask-question").value.trim();
+      const productsRaw = document.getElementById("ask-products").value.trim();
+      const product_ids = productsRaw ? productsRaw.split(",").map(s => s.trim()).filter(Boolean) : [];
+      const btn = document.getElementById("ask-btn");
+
+      if (!question) {
+        showError("Validation Error", "Please enter a question.");
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = "<span>Analyzing Documents...</span>";
+      document.getElementById("query-results").style.display = "none";
+
+      try {
+        const data = await safeFetchJson(`${API_BASE}/api/v1/queries/ask`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question, product_ids }),
+        });
+
+        renderQueryResults(data);
+      } catch (err) {
+        showError("Pipeline Execution Error", `Endpoint: POST /api/v1/queries/ask\n\n${err.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = "<span>Run Evidence RAG Pipeline</span>";
+      }
+    }
+
+    function renderQueryResults(data) {
+      document.getElementById("query-results").style.display = "block";
+      document.getElementById("res-raw-json").innerText = JSON.stringify(data, null, 2);
+
+      // Metrics
+      const score = data.evidence_score !== undefined ? data.evidence_score : Math.round((data.confidence_score || 0) * 100);
+      document.getElementById("res-evidence-score").innerText = `${score}/100`;
+      document.getElementById("res-evidence-label").innerText = data.confidence_label || "Calculated";
+
+      const riskScore = data.risk_score !== undefined ? data.risk_score : 0;
+      const riskLevel = data.risk_level || "LOW";
+      document.getElementById("res-risk-score").innerText = `${riskScore}/100`;
+      const riskEl = document.getElementById("res-risk-level");
+      riskEl.innerText = riskLevel;
+      riskEl.className = `item-detail risk-${riskLevel.toLowerCase().replace('_', '-')}`;
+
+      // Status
+      const status = data.evidence_status || "EXPLICIT";
+      const statusVal = document.getElementById("res-status-val");
+      statusVal.innerHTML = `<span class="badge badge-${status.toLowerCase().replace('_', '-')}">${status}</span>`;
+
+      // Claim coverage
+      const coverage = data.claim_coverage !== undefined ? `${Math.round(data.claim_coverage * 100)}%` : "100%";
+      document.getElementById("res-claim-coverage").innerText = coverage;
+
+      // Answer
+      document.getElementById("res-answer").innerText = data.answer || "No response text generated.";
+
+      // Risk Factors
+      const risksList = document.getElementById("res-risks-list");
+      risksList.innerHTML = "";
+      if (data.risk_factors && data.risk_factors.length > 0) {
+        data.risk_factors.forEach(rf => {
+          const div = document.createElement("div");
+          div.className = "item-row";
+          div.innerHTML = `
+            <div class="item-info">
+              <span class="item-name">${rf.title || rf.category}</span>
+              <span class="item-detail">${rf.description || ''}</span>
+            </div>
+            <span class="badge ${rf.severity === 'HIGH' ? 'badge-mixed' : 'badge-conditional'}">${rf.severity}</span>
+          `;
+          risksList.appendChild(div);
+        });
+      } else {
+        risksList.innerHTML = `<div style="color:var(--text-muted); font-size:13px;">No major adverse risk factors detected.</div>`;
+      }
+
+      // Key Facts
+      const factsList = document.getElementById("res-facts-list");
+      factsList.innerHTML = "";
+      if (data.key_facts && data.key_facts.length > 0) {
+        data.key_facts.forEach(f => {
+          const div = document.createElement("div");
+          div.className = "item-row";
+          div.innerHTML = `
+            <div class="item-info">
+              <span class="item-name">${(f.field || f.category).replace(/_/g, ' ').toUpperCase()}</span>
+              <span class="item-detail">${f.value ? f.value + (f.unit ? ' ' + f.unit : '') : 'N/A'}${f.condition ? ' — ' + f.condition : ''}</span>
+            </div>
+            <span class="badge badge-${(f.status || 'explicit').toLowerCase().replace('_', '-')}">${f.status || 'EXPLICIT'}</span>
+          `;
+          factsList.appendChild(div);
+        });
+      } else {
+        factsList.innerHTML = `<div style="color:var(--text-muted); font-size:13px;">No structured facts returned.</div>`;
+      }
+
+      // Missing
+      const missingList = document.getElementById("res-missing-list");
+      missingList.innerHTML = "";
+      if (data.missing_information && data.missing_information.length > 0) {
+        data.missing_information.forEach(m => {
+          const div = document.createElement("div");
+          div.className = "item-row";
+          div.innerHTML = `
+            <div class="item-info">
+              <span class="item-name">${(m.field || '').replace(/_/g, ' ').toUpperCase()}</span>
+              <span class="item-detail">${m.reason || 'Not specified in provided documents.'}</span>
+            </div>
+            <span class="badge badge-not-specified">NOT_SPECIFIED</span>
+          `;
+          missingList.appendChild(div);
+        });
+      } else {
+        missingList.innerHTML = `<div style="color:var(--text-muted); font-size:13px;">No critical comparison fields missing.</div>`;
+      }
+
+      // Questions to Ask Provider
+      const qList = document.getElementById("res-questions-list");
+      qList.innerHTML = "";
+      const questions = data.questions_to_ask_provider || data.what_to_verify || [];
+      if (questions.length > 0) {
+        questions.forEach(q => {
+          const li = document.createElement("li");
+          li.innerText = q;
+          qList.appendChild(li);
+        });
+      } else {
+        qList.innerHTML = `<li>All standard loan parameters are clearly documented.</li>`;
+      }
+    }
+
+    // TAB 2: Proactive Review
+    async function submitLoanReview() {
+      dismissError();
+      const pRaw = document.getElementById("review-products").value.trim();
+      const product_ids = pRaw.split(",").map(s => s.trim()).filter(Boolean);
+      const btn = document.getElementById("review-btn");
+
+      btn.disabled = true;
+      btn.innerHTML = "<span>Analyzing Terms...</span>";
+
+      try {
+        const data = await safeFetchJson(`${API_BASE}/api/v1/analysis/review`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ product_ids }),
+        });
+
+        document.getElementById("review-results").style.display = "block";
+        document.getElementById("review-text").innerText = data.review_text || JSON.stringify(data.review, null, 2);
+
+        const driversEl = document.getElementById("review-cost-drivers");
+        driversEl.innerHTML = "";
+        (data.cost_drivers || []).forEach(cd => {
+          const div = document.createElement("div");
+          div.className = "item-row";
+          div.innerHTML = `
+            <div class="item-info">
+              <span class="item-name">${cd.field || cd.category}</span>
+              <span class="item-detail">Value: ${cd.value || 'N/A'}${cd.condition ? ' | ' + cd.condition : ''}</span>
+            </div>
+            <span class="badge ${cd.priority === 'HIGH' ? 'badge-mixed' : 'badge-conditional'}">${cd.priority}</span>
+          `;
+          driversEl.appendChild(div);
+        });
+      } catch (err) {
+        showError("Proactive Review Failed", err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = "<span>Generate Proactive Review</span>";
+      }
+    }
+
+    // TAB 3: Before You Confirm Checklist
+    async function submitBeforeConfirmation() {
+      dismissError();
+      const pRaw = document.getElementById("checklist-products").value.trim();
+      const product_ids = pRaw.split(",").map(s => s.trim()).filter(Boolean);
+      const btn = document.getElementById("checklist-btn");
+
+      btn.disabled = true;
+      btn.innerHTML = "<span>Building Checklist...</span>";
+
+      try {
+        const data = await safeFetchJson(`${API_BASE}/api/v1/analysis/before-confirmation`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ product_ids }),
+        });
+
+        document.getElementById("checklist-results").style.display = "block";
+        document.getElementById("checklist-text").innerText = data.checklist_text || "Checklist generated.";
+
+        const itemsEl = document.getElementById("checklist-items");
+        itemsEl.innerHTML = "";
+        (data.checklist || []).forEach(item => {
+          const div = document.createElement("div");
+          div.className = "item-row";
+          div.innerHTML = `
+            <div class="item-info">
+              <span class="item-name">${item.marker} ${item.item}</span>
+              <span class="item-detail">${item.condition ? 'Condition: ' + item.condition : (item.evidence ? 'Document: ' + (item.evidence.document || 'Verified') : '')}</span>
+            </div>
+            <span class="badge badge-${(item.status || 'explicit').toLowerCase().replace('_', '-')}">${item.status}</span>
+          `;
+          itemsEl.appendChild(div);
+        });
+      } catch (err) {
+        showError("Checklist Generation Failed", err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = "<span>Generate Checklist</span>";
+      }
+    }
+
+    // TAB 4: Upload Document
+    async function submitUpload() {
+      dismissError();
+      const fileInput = document.getElementById("upload-file");
+      const productId = document.getElementById("upload-product-id").value.trim();
+      const btn = document.getElementById("upload-btn");
+
+      if (!fileInput.files || fileInput.files.length === 0) {
+        showError("Validation Error", "Please select a PDF file to upload.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+      formData.append("product_id", productId);
+      formData.append("use_async", "false");
+
+      btn.disabled = true;
+      btn.innerHTML = "<span>Uploading & Indexing...</span>";
+
+      try {
+        const data = await safeFetchJson(`${API_BASE}/api/v1/documents/upload`, {
+          method: "POST",
+          body: formData,
+        });
+
+        document.getElementById("upload-results").style.display = "block";
+        document.getElementById("upload-json").innerText = JSON.stringify(data, null, 2);
+      } catch (err) {
+        showError("Document Upload Failed", err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = "<span>Upload & Ingest Document</span>";
+      }
+    }
+
+    // TAB 5: Diagnostics
+    async function testEndpoint(path) {
+      const out = document.getElementById("diag-output");
+      out.innerText = `Pinging ${API_BASE}${path}...`;
+      try {
+        const data = await safeFetchJson(`${API_BASE}${path}`);
+        out.innerText = `STATUS: HTTP 200 OK\n\nRESPONSE:\n${JSON.stringify(data, null, 2)}`;
+      } catch (err) {
+        out.innerText = `REQUEST FAILED:\n\n${err.message}`;
+        showError(`Diagnostic Ping Failed (${path})`, err.message);
+      }
+    }
+  </script>
+</body>
+</html>
