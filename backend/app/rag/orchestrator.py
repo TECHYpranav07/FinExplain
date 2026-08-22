@@ -292,9 +292,11 @@ def process_query(
             processing_fee_type=processing_fee_type,
             evidence_ids=[f.source_chunk_id for f in structured_facts if f.source_chunk_id],
         )
-    # ===================================================================
-    # Step 14: Cost driver & Risk factor detection (deterministic)
-    # ===================================================================
+    cost_drivers = []
+    lender_questions = []
+    risk_factors = []
+    risk_score_result = {"score": None, "level": None}
+
     is_product_audit_query = (
         intent_result.intent in ("review", "summary", "comparison", "risk")
         or any(k in clean_question.lower() for k in ("confidence score", "risk score", "risk factor", "how risky", "audit report", "detailed report", "quality score", "risk report", "summarize", "summary"))
@@ -315,9 +317,6 @@ def process_query(
             risk_factors=risk_factors,
             scenario=scenario,
         )
-    else:
-        risk_factors = []
-        risk_score_result = {"score": None, "level": None}
 
     # ===================================================================
     # Step 15: Generate answer (with structured context)
