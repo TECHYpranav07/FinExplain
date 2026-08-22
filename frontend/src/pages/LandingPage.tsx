@@ -112,19 +112,26 @@ export function LandingPage() {
 
   return (
     <main id="top" className="relative min-h-screen overflow-x-hidden bg-black text-white selection:bg-white selection:text-black">
-      {/* Background Ambience */}
+      {/* Background Video */}
+      <video
+        className="pointer-events-none fixed inset-0 h-full w-full object-cover opacity-60 z-0"
+        autoPlay
+        muted
+        loop
+        playsInline
+        aria-hidden="true"
+      >
+        <source
+          src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260809_012548_ef22562c-c0ae-4816-ad9d-f8922af4e6a7.mp4"
+          type="video/mp4"
+        />
+      </video>
       <div
-        className="pointer-events-none fixed inset-0 z-0 opacity-40"
+        className="pointer-events-none fixed inset-0 z-0"
+        aria-hidden="true"
         style={{
           background:
-            "radial-gradient(circle at 50% 15%, rgba(120, 119, 198, 0.20) 0%, rgba(0, 0, 0, 0.95) 70%)",
-        }}
-      />
-      <div
-        className="pointer-events-none fixed inset-0 z-0 opacity-25"
-        style={{
-          backgroundImage: `linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px)`,
-          backgroundSize: "4rem 4rem",
+            "linear-gradient(180deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.40) 45%, rgba(0,0,0,0.92) 100%)",
         }}
       />
 

@@ -70,12 +70,26 @@ export function AuthPage() {
 
   return (
     <main className="relative min-h-screen flex items-center justify-center bg-black text-white px-4 py-12 overflow-hidden">
-      {/* Background Gradients & Video */}
+      {/* Background Video */}
+      <video
+        className="pointer-events-none fixed inset-0 h-full w-full object-cover opacity-60 z-0"
+        autoPlay
+        muted
+        loop
+        playsInline
+        aria-hidden="true"
+      >
+        <source
+          src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260809_012548_ef22562c-c0ae-4816-ad9d-f8922af4e6a7.mp4"
+          type="video/mp4"
+        />
+      </video>
       <div
-        className="pointer-events-none absolute inset-0 opacity-40"
+        className="pointer-events-none fixed inset-0 z-0"
+        aria-hidden="true"
         style={{
           background:
-            "radial-gradient(circle at 50% 20%, rgba(120, 119, 198, 0.25) 0%, rgba(0, 0, 0, 0.95) 75%)",
+            "linear-gradient(180deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.40) 45%, rgba(0,0,0,0.92) 100%)",
         }}
       />
 
