@@ -1,9 +1,8 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/lib/authContext";
 import {
   FileText,
-  ShieldCheck,
   AlertTriangle,
   Calculator,
   Search,
@@ -11,46 +10,27 @@ import {
   XCircle,
   ArrowRight,
   Sparkles,
-  Layers,
   FileSpreadsheet,
   FileCheck2,
   ChevronRight,
-  Info,
   Scale,
   Lock,
-  User,
   LogOut,
 } from "lucide-react";
 
 const NAV_LINKS = [
+  { label: "Features", href: "#features" },
   { label: "How It Works", href: "#how-it-works" },
   { label: "Why FinExplain", href: "#why-finexplain" },
-  { label: "Features", href: "#features" },
   { label: "Examples", href: "#examples" },
   { label: "Scenarios", href: "#scenarios" },
 ];
 
-const CAPABILITIES = [
-  {
-    num: "01",
-    title: "Multi-Document Analysis",
-    description: "Synthesizes clauses across KFS, sanction letters, contracts, and schedules without information silos.",
-  },
-  {
-    num: "02",
-    title: "Evidence-Based Answers",
-    description: "Every answer is strictly grounded in retrieved evidence. If not in the document, we state it clearly.",
-  },
-  {
-    num: "03",
-    title: "Citation-Level Verification",
-    description: "Claim-by-claim traceability with exact document names, page numbers, and clause sections.",
-  },
-  {
-    num: "04",
-    title: "Calculation Safety",
-    description: "Deterministic financial math for EMIs, prepayment, and fees rather than unreliable LLM arithmetic.",
-  },
+const STATS = [
+  { symbol: "#", value: 10, suffix: "+", label: "Document Formats Audited" },
+  { symbol: "%", value: 100, suffix: "%", label: "Claim-Level Citations" },
+  { symbol: "*", value: 0, suffix: "", label: "Math Hallucinations" },
+  { symbol: "~", value: 32, suffix: "+", label: "Financial Risk Checks" },
 ];
 
 const DOC_TYPES = [
@@ -104,11 +84,75 @@ const SCENARIOS = [
   { id: "06", question: "Show me exactly where the balance transfer restriction is stated." },
 ];
 
+function useCountUp(target: number, decimals = 0) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [display, setDisplay] = useState("0");
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      setDisplay(target.toFixed(decimals));
+      return;
+    }
+    let raf = 0;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        observer.disconnect();
+        const start = performance.now();
+        const duration = 1500;
+        const tick = (now: number) => {
+          const t = Math.min(1, (now - start) / duration);
+          const eased = 1 - Math.pow(1 - t, 3);
+          setDisplay((target * eased).toFixed(decimals));
+          if (t < 1) raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+      },
+      { threshold: 0.25 }
+    );
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, [target, decimals]);
+
+  return { ref, display };
+}
+
+function Stat({
+  symbol,
+  value,
+  suffix,
+  label,
+  decimals = 0,
+}: {
+  symbol: string;
+  value: number;
+  suffix: string;
+  label: string;
+  decimals?: number;
+}) {
+  const { ref, display } = useCountUp(value, decimals);
+  return (
+    <div className="flex flex-col gap-1">
+      <span ref={ref} className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+        <span className="mr-1.5 text-muted-foreground">{symbol}</span>
+        {display}
+        {suffix}
+      </span>
+      <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground font-mono">{label}</span>
+    </div>
+  );
+}
+
 export function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"foreclosure" | "conflict">("conflict");
-  const { user, isAuthenticated, logout } = useAuth();
-  const navigate = useNavigate();
+  const { isAuthenticated, logout } = useAuth();
 
   return (
     <main id="top" className="relative min-h-screen overflow-x-hidden bg-black text-white selection:bg-white selection:text-black">
@@ -137,127 +181,184 @@ export function LandingPage() {
 
       <div className="relative z-10 flex flex-col max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* =========================================================================
-            HEADER & NAVBAR
+            FIRST SCREEN (PERFECT VIEWPORT FIT: min-h-screen flex flex-col justify-between)
            ========================================================================= */}
-        <header className="sticky top-4 z-50 mt-4 flex items-center justify-between gap-4 rounded-full border border-white/10 bg-black/60 px-5 py-3 backdrop-blur-xl shadow-2xl transition-all">
-          <Link to="/" className="flex items-center gap-2.5 group">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white font-bold text-black text-xs shadow-[0_0_20px_rgba(255,255,255,0.4)] group-hover:scale-105 transition-transform">
-              Fx
-            </span>
-            <span className="text-sm font-bold tracking-tight text-white">FinExplain</span>
-          </Link>
-
-          <nav className="hidden items-center gap-1 md:flex" aria-label="Primary Navigation">
-            {NAV_LINKS.map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
-                className="rounded-full px-3.5 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/5 transition-colors"
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-3">
-            {isAuthenticated ? (
-              <div className="flex items-center gap-2.5">
-                <Link
-                  to="/app"
-                  className="flex items-center gap-2 rounded-full bg-white text-black px-4 py-1.5 text-xs font-bold hover:bg-white/90 transition-all shadow-md"
-                >
-                  <span>Go to Console</span>
-                  <ArrowRight className="h-3 w-3" />
-                </Link>
-                <button
-                  type="button"
-                  onClick={logout}
-                  title="Sign Out"
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Link
-                  to="/auth"
-                  className="rounded-full px-4 py-1.5 text-xs font-medium text-white/80 hover:text-white transition-colors"
-                >
-                  Sign in
-                </Link>
-                <Link
-                  to="/auth"
-                  className="rounded-full bg-white text-black px-4 py-1.5 text-xs font-bold hover:bg-white/90 transition-all shadow-[0_0_20px_rgba(255,255,255,0.3)]"
-                >
-                  Analyze Loan
-                </Link>
-              </div>
-            )}
-
-            {/* Mobile hamburger */}
-            <button
-              type="button"
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/5 md:hidden"
-            >
-              <i className="fa-solid fa-bars text-xs" />
-            </button>
-          </div>
-        </header>
-
-        {/* =========================================================================
-            SECTION 1: HERO SECTION
-           ========================================================================= */}
-        <section className="flex flex-col items-center justify-center pt-20 pb-16 sm:pt-28 sm:pb-24 text-center">
-          {/* Evidence pill */}
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/90 backdrop-blur-md mb-8 shadow-sm">
-            <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Evidence-First • Citation-Backed • Conflict-Aware</span>
-          </div>
-
-          <h1 className="max-w-4xl text-4xl font-extrabold tracking-tight text-white sm:text-6xl lg:text-7xl leading-[1.08]">
-            Understand Your Loan <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-white/90 to-white/60">
-              Before You Sign.
-            </span>
-          </h1>
-
-          <p className="mt-6 max-w-2xl text-sm sm:text-base text-white/70 leading-relaxed">
-            AI-powered loan document analysis built around <strong>verified evidence</strong> — not guesses.
-            Upload your KFS, sanction letter, loan agreement, or repayment schedule to retrieve clauses, detect
-            conflicts, and get plain-language answers with exact citations.
-          </p>
-
-          {/* Action CTAs */}
-          <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
-            <Link
-              to={isAuthenticated ? "/app/query" : "/auth"}
-              className="inline-flex items-center gap-2.5 rounded-full bg-white px-8 py-3.5 text-sm font-bold text-black hover:bg-white/90 transition-all hover:scale-[1.02] shadow-[0_0_40px_rgba(255,255,255,0.35)]"
-            >
-              <span>Analyze My Loan</span>
-              <ArrowRight className="h-4 w-4" />
+        <div className="min-h-screen flex flex-col justify-between py-6">
+          {/* Header & Navbar */}
+          <header className="fx-slide-down flex items-center justify-between gap-4">
+            <Link to="/" className="flex items-center gap-2.5 group">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white font-bold text-black text-sm shadow-[0_0_20px_rgba(255,255,255,0.4)] group-hover:scale-105 transition-transform">
+                Fx
+              </span>
+              <span className="text-sm font-semibold tracking-tight text-white">FinExplain</span>
             </Link>
 
-            <a
-              href="#how-it-works"
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-7 py-3.5 text-sm font-semibold text-white hover:bg-white/10 hover:border-white/25 transition-all"
+            <nav
+              className="hidden items-center gap-1 rounded-full bg-white px-2.5 py-1.5 md:flex shadow-lg"
+              aria-label="Primary Navigation"
             >
-              <span>See How It Works</span>
-              <ChevronRight className="h-4 w-4 text-white/60" />
-            </a>
+              {NAV_LINKS.map((item, idx) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                    idx === 0
+                      ? "text-black hover:bg-black/5"
+                      : "text-black/70 hover:text-black hover:bg-black/5"
+                  }`}
+                >
+                  {idx === 0 && (
+                    <span className="inline-flex gap-0.5">
+                      <span className="h-1 w-1 rounded-full bg-black"></span>
+                      <span className="h-1 w-1 rounded-full bg-black"></span>
+                      <span className="h-1 w-1 rounded-full bg-black"></span>
+                    </span>
+                  )}
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+
+            <div className="flex items-center gap-2">
+              {isAuthenticated ? (
+                <div className="flex items-center gap-2">
+                  <Link
+                    to="/app"
+                    className="hidden rounded-full bg-white text-black px-5 py-2 text-xs font-bold transition-all hover:bg-white/90 shadow-[0_0_20px_rgba(255,255,255,0.3)] md:inline-flex items-center gap-1.5"
+                  >
+                    <span>Go to Console</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={logout}
+                    title="Sign Out"
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-pill-dark text-white/70 hover:text-white hover:bg-surface-3 transition-colors"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Link
+                    to="/auth"
+                    className="hidden rounded-full bg-pill-dark px-5 py-2 text-xs font-semibold text-white border border-white/15 transition-all hover:bg-surface-3 hover:border-white/30 md:inline-flex"
+                  >
+                    Sign in
+                  </Link>
+                  <Link
+                    to="/auth"
+                    className="hidden rounded-full bg-white text-black px-5 py-2 text-xs font-bold transition-all hover:bg-white/90 shadow-[0_0_20px_rgba(255,255,255,0.3)] md:inline-flex"
+                  >
+                    Analyze Loan
+                  </Link>
+                </div>
+              )}
+
+              {/* Mobile menu toggle */}
+              <button
+                type="button"
+                aria-label="Open menu"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen(true)}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-pill-dark text-white border border-white/15 md:hidden"
+              >
+                <i className="fa-solid fa-bars text-sm" aria-hidden="true" />
+              </button>
+            </div>
+          </header>
+
+          {/* Hero Center Body */}
+          <div className="flex flex-1 flex-col items-center justify-center py-6 sm:py-8 text-center my-auto">
+            {/* Pill */}
+            <div className="fx-reveal inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1 text-xs font-medium text-white/90 backdrop-blur-md mb-6 shadow-sm">
+              <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Evidence-First • Citation-Backed • Conflict-Aware</span>
+            </div>
+
+            <h1 className="fx-headline max-w-4xl text-display text-4xl leading-[1.05] text-white sm:text-6xl lg:text-7xl">
+              Understand Your Loan Before You Sign.
+            </h1>
+
+            <p className="fx-reveal fx-delay-2 mt-5 max-w-2xl text-xs sm:text-sm text-muted-foreground leading-relaxed">
+              FinExplain uses evidence-first AI to analyze loan documents, explain complex terms in simple language,
+              compare financial conditions, detect conflicting clauses, and show exactly where every answer comes from.
+            </p>
+
+            {/* CTAs */}
+            <div className="fx-reveal fx-delay-3 mt-7 flex flex-wrap items-center justify-center gap-3.5">
+              <Link
+                to={isAuthenticated ? "/app/query" : "/auth"}
+                className="inline-flex items-center gap-2.5 rounded-full bg-white px-8 py-3 text-sm font-bold text-black transition-transform duration-300 hover:-translate-y-0.5 hover:scale-[1.02] shadow-[0_0_40px_-8px_rgba(255,255,255,0.45)]"
+              >
+                <span>Analyze My Loan</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <a
+                href="#how-it-works"
+                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-pill-dark px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-surface-3 hover:border-white/30"
+              >
+                <span>See How It Works</span>
+                <ChevronRight className="h-4 w-4 text-white/60" />
+              </a>
+            </div>
+
+            {/* Trust row */}
+            <div className="fx-reveal fx-delay-4 mt-8 flex items-center gap-3">
+              <div className="flex -space-x-2">
+                {[
+                  { icon: "fa-solid fa-file-contract", label: "KFS" },
+                  { icon: "fa-solid fa-file-signature", label: "Agreements" },
+                  { icon: "fa-solid fa-calculator", label: "Schedules" },
+                ].map((doc) => (
+                  <span
+                    key={doc.label}
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-pill-dark border border-white/20 shadow-md"
+                  >
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-black">
+                      <i className={`${doc.icon} text-[8px]`} aria-hidden="true" />
+                    </span>
+                  </span>
+                ))}
+              </div>
+              <span className="text-xs text-muted-foreground font-medium">
+                Audited against RBI KFS & Standard Retail Lending Frameworks
+              </span>
+            </div>
           </div>
 
-          {/* Target Document Types Bar */}
-          <div className="mt-16 w-full max-w-4xl border-t border-white/10 pt-6">
-            <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-muted-foreground block mb-3">
-              Built Specifically for Real Financial Documents
+          {/* Stats Section at the Bottom of First Screen */}
+          <section
+            className="fx-reveal grid grid-cols-2 gap-6 border-t border-white/10 pt-6 pb-2 lg:grid-cols-4"
+            aria-label="Platform metrics"
+          >
+            {STATS.map((s) => (
+              <Stat key={s.label} {...s} />
+            ))}
+          </section>
+        </div>
+
+        {/* =========================================================================
+            SECTION 2: BUILT FOR FINANCIAL DOCUMENTS (FEATURE GRID)
+           ========================================================================= */}
+        <section id="features" className="py-20 border-t border-white/10">
+          <div className="text-center max-w-2xl mx-auto space-y-3">
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
+              Document Coverage
             </span>
-            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+              Built Specifically for Real Financial Documents
+            </h2>
+            <p className="text-xs sm:text-sm text-white/70">
+              Purpose-built analyzers for retail loan agreements, credit sanction letters, and amortization schedules.
+            </p>
+
+            {/* Target Document Types Pills */}
+            <div className="pt-3 flex flex-wrap items-center justify-center gap-2">
               {DOC_TYPES.map((doc) => (
                 <span
                   key={doc}
-                  className="rounded-full border border-white/10 bg-surface/60 px-3.5 py-1 text-xs text-white/80 font-medium shadow-sm"
+                  className="rounded-full border border-white/10 bg-surface/80 px-3.5 py-1 text-xs text-white/80 font-medium shadow-sm"
                 >
                   {doc}
                 </span>
@@ -265,27 +366,29 @@ export function LandingPage() {
             </div>
           </div>
 
-          {/* 4 Core Capabilities Grid (Replaces fake statistics) */}
-          <div className="mt-16 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 w-full text-left">
-            {CAPABILITIES.map((cap) => (
-              <div
-                key={cap.num}
-                className="group rounded-2xl border border-white/10 bg-surface/40 p-5 backdrop-blur-md hover:border-white/25 hover:bg-surface/70 transition-all"
-              >
-                <span className="text-xs font-mono font-bold text-muted-foreground group-hover:text-white transition-colors">
-                  {cap.num}
-                </span>
-                <h3 className="mt-2 text-sm font-bold text-white">{cap.title}</h3>
-                <p className="mt-1.5 text-xs text-white/65 leading-relaxed">{cap.description}</p>
-              </div>
-            ))}
+          <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {FEATURE_CARDS.map((f, i) => {
+              const Icon = f.icon;
+              return (
+                <div
+                  key={i}
+                  className="rounded-3xl border border-white/10 bg-surface/50 p-6 backdrop-blur-md hover:border-white/25 hover:bg-surface/80 transition-all space-y-3"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white shadow-inner">
+                    <Icon className="h-5 w-5 text-white/90" />
+                  </div>
+                  <h3 className="text-sm font-bold text-white">{f.title}</h3>
+                  <p className="text-xs text-white/65 leading-relaxed">{f.desc}</p>
+                </div>
+              );
+            })}
           </div>
         </section>
 
         {/* =========================================================================
-            SECTION 2: HOW IT WORKS (VISUAL RAG WORKFLOW)
+            SECTION 3: HOW IT WORKS (VISUAL RAG WORKFLOW)
            ========================================================================= */}
-        <section id="how-it-works" className="py-16 sm:py-24 border-t border-white/10">
+        <section id="how-it-works" className="py-20 border-t border-white/10">
           <div className="text-center max-w-2xl mx-auto space-y-3">
             <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
               Architecture & Traceability
@@ -298,10 +401,8 @@ export function LandingPage() {
             </p>
           </div>
 
-          {/* Visual Architecture Flowchart */}
           <div className="mt-12 rounded-3xl border border-white/10 bg-surface/50 p-6 sm:p-10 backdrop-blur-xl shadow-2xl space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-              {/* Step 1 */}
               <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-center space-y-2">
                 <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/10 text-white font-bold text-sm">
                   1
@@ -310,12 +411,10 @@ export function LandingPage() {
                 <p className="text-[11px] text-muted-foreground">KFS, Loan Agreements, Sanction Letters & Schedules</p>
               </div>
 
-              {/* Arrow */}
               <div className="hidden md:flex justify-center text-white/30">
                 <ChevronRight className="h-6 w-6" />
               </div>
 
-              {/* Step 2 */}
               <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-center space-y-2">
                 <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/10 text-white font-bold text-sm">
                   2
@@ -324,12 +423,10 @@ export function LandingPage() {
                 <p className="text-[11px] text-muted-foreground">BM25 + Dense Search & Reciprocal Rank Fusion</p>
               </div>
 
-              {/* Arrow */}
               <div className="hidden md:flex justify-center text-white/30">
                 <ChevronRight className="h-6 w-6" />
               </div>
 
-              {/* Step 3 */}
               <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-center space-y-2">
                 <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-amber-400 text-black font-bold text-sm shadow-md">
                   3
@@ -340,7 +437,6 @@ export function LandingPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-              {/* Step 4 */}
               <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-center space-y-2">
                 <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white/10 text-white font-bold text-sm">
                   4
@@ -349,12 +445,10 @@ export function LandingPage() {
                 <p className="text-[11px] text-muted-foreground">Answerability threshold gate & PII sanitization</p>
               </div>
 
-              {/* Arrow */}
               <div className="hidden md:flex justify-center text-white/30">
                 <ChevronRight className="h-6 w-6" />
               </div>
 
-              {/* Step 5 */}
               <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-center space-y-2">
                 <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-emerald-400 text-black font-bold text-sm shadow-md">
                   5
@@ -363,12 +457,10 @@ export function LandingPage() {
                 <p className="text-[11px] text-emerald-200/70">Every numeric fact verified against source page & chunk</p>
               </div>
 
-              {/* Arrow */}
               <div className="hidden md:flex justify-center text-white/30">
                 <ChevronRight className="h-6 w-6" />
               </div>
 
-              {/* Step 6 */}
               <div className="rounded-2xl border border-white/20 bg-white text-black p-4 text-center space-y-2 shadow-xl">
                 <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-black text-white font-bold text-sm">
                   6
@@ -381,9 +473,9 @@ export function LandingPage() {
         </section>
 
         {/* =========================================================================
-            SECTION 3: WHY FINEXPLAIN? (ARCHITECTURAL COMPARISON)
+            SECTION 4: WHY FINEXPLAIN? (ARCHITECTURAL COMPARISON)
            ========================================================================= */}
-        <section id="why-finexplain" className="py-16 sm:py-24 border-t border-white/10">
+        <section id="why-finexplain" className="py-20 border-t border-white/10">
           <div className="text-center max-w-2xl mx-auto space-y-3">
             <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
               Direct Comparison
@@ -397,7 +489,6 @@ export function LandingPage() {
           </div>
 
           <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Left: Traditional PDF Chat */}
             <div className="rounded-3xl border border-rose-500/20 bg-rose-500/5 p-6 sm:p-8 space-y-5">
               <div className="flex items-center gap-2 text-rose-400">
                 <XCircle className="h-5 w-5" />
@@ -424,7 +515,6 @@ export function LandingPage() {
               </div>
             </div>
 
-            {/* Right: FinExplain Engine */}
             <div className="rounded-3xl border border-emerald-500/30 bg-emerald-500/5 p-6 sm:p-8 space-y-5 shadow-lg shadow-emerald-500/5">
               <div className="flex items-center gap-2 text-emerald-400">
                 <CheckCircle2 className="h-5 w-5" />
@@ -454,9 +544,9 @@ export function LandingPage() {
         </section>
 
         {/* =========================================================================
-            SECTION 4: ASK YOUR LOAN ANYTHING (INTERACTIVE EXAMPLES)
+            SECTION 5: ASK YOUR LOAN ANYTHING (INTERACTIVE EXAMPLES)
            ========================================================================= */}
-        <section id="examples" className="py-16 sm:py-24 border-t border-white/10">
+        <section id="examples" className="py-20 border-t border-white/10">
           <div className="text-center max-w-2xl mx-auto space-y-3">
             <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
               Live Product Demo
@@ -470,7 +560,6 @@ export function LandingPage() {
           </div>
 
           <div className="mt-10 max-w-3xl mx-auto space-y-4">
-            {/* Tab Selector */}
             <div className="flex rounded-2xl bg-surface p-1 border border-white/10 text-xs font-semibold">
               <button
                 type="button"
@@ -496,7 +585,6 @@ export function LandingPage() {
               </button>
             </div>
 
-            {/* Interactive Showcase Card */}
             {activeTab === "conflict" ? (
               <div className="rounded-3xl border border-amber-500/30 bg-surface/80 p-6 sm:p-8 backdrop-blur-xl space-y-5 animate-in fade-in duration-300">
                 <div className="space-y-1.5">
@@ -590,44 +678,9 @@ export function LandingPage() {
         </section>
 
         {/* =========================================================================
-            SECTION 5: BUILT FOR FINANCIAL DOCUMENTS (6-CARD GRID)
-           ========================================================================= */}
-        <section id="features" className="py-16 sm:py-24 border-t border-white/10">
-          <div className="text-center max-w-2xl mx-auto space-y-3">
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
-              Core Capabilities
-            </span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Built for Real Financial Documents
-            </h2>
-            <p className="text-xs sm:text-sm text-white/70">
-              Purpose-built analyzers for retail loan agreements, credit sanction letters, and amortization schedules.
-            </p>
-          </div>
-
-          <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {FEATURE_CARDS.map((f, i) => {
-              const Icon = f.icon;
-              return (
-                <div
-                  key={i}
-                  className="rounded-3xl border border-white/10 bg-surface/50 p-6 backdrop-blur-md hover:border-white/25 hover:bg-surface/80 transition-all space-y-3"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white shadow-inner">
-                    <Icon className="h-5 w-5 text-white/90" />
-                  </div>
-                  <h3 className="text-sm font-bold text-white">{f.title}</h3>
-                  <p className="text-xs text-white/65 leading-relaxed">{f.desc}</p>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* =========================================================================
             SECTION 6: REAL QUESTIONS. REAL EVIDENCE. (SCENARIOS)
            ========================================================================= */}
-        <section id="scenarios" className="py-16 sm:py-24 border-t border-white/10">
+        <section id="scenarios" className="py-20 border-t border-white/10">
           <div className="text-center max-w-2xl mx-auto space-y-3">
             <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
               Practical Audits
@@ -660,7 +713,7 @@ export function LandingPage() {
         {/* =========================================================================
             SECTION 7: RISK AWARENESS & LIMITATION GATE
            ========================================================================= */}
-        <section className="py-16 sm:py-20 border-t border-white/10">
+        <section className="py-20 border-t border-white/10">
           <div className="rounded-3xl border border-white/15 bg-gradient-to-b from-surface/80 to-surface/30 p-8 sm:p-12 backdrop-blur-xl text-center space-y-6 max-w-4xl mx-auto shadow-2xl">
             <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white mx-auto shadow-inner">
               <Lock className="h-6 w-6" />
@@ -699,7 +752,7 @@ export function LandingPage() {
         {/* =========================================================================
             SECTION 8: FINAL CTA
            ========================================================================= */}
-        <section className="py-16 text-center space-y-6">
+        <section className="py-20 text-center space-y-6">
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
             Ready to Audit Your Loan Documents?
           </h2>
@@ -720,7 +773,7 @@ export function LandingPage() {
         {/* =========================================================================
             FOOTER
            ========================================================================= */}
-        <footer className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 py-8 text-xs text-muted-foreground">
+        <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-white/10 py-8 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white font-bold text-black text-[10px]">
               Fx
