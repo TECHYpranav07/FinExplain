@@ -75,7 +75,7 @@ export interface QueryResponse {
   missing_information?: MissingInformation[];
   questions_to_ask_provider?: string[];
   what_to_verify?: string[];
-  conditions?: string[];
+  conditions?: Array<StructuredFact | string>;
   citations?: Citation[];
   retrieved_chunks?: any[];
   conflicts?: any[];

@@ -4,8 +4,9 @@ import { getDocument, formatBytes } from "@/lib/documents";
 import { api, type QueryResponse } from "@/lib/api";
 import { useMutation } from "@tanstack/react-query";
 import { Info } from "lucide-react";
-import { PageHeader, Panel, Badge, EvidenceBadge, ScoreGauge, KeyValue, CitationChip, EmptyState } from "@/components/finex/primitives";
+import { PageHeader, Panel, Badge, EvidenceBadge, SeverityBadge, ScoreGauge, KeyValue, CitationChip, EmptyState } from "@/components/finex/primitives";
 import { FormattedMarkdown } from "@/components/finex/FormattedMarkdown";
+import { StructuredFactCard } from "@/components/finex/StructuredFactCard";
 
 export function DocumentAnalysisPage() {
   const { id } = useParams<{ id: string }>();
@@ -191,70 +192,141 @@ export function DocumentAnalysisPage() {
                   </div>
                 </div>
 
-                {/* Plain Language Summary */}
-                {analysisResult.plain_language_explanation && (
-                  <div className="rounded-lg border border-white/10 bg-surface-2 p-4">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                      Plain Language Summary
-                    </h4>
-                    <FormattedMarkdown content={analysisResult.plain_language_explanation} />
+                {/* Dynamic Tab Content */}
+                {activeTab === "facts" && (
+                  <div className="space-y-4">
+                    {analysisResult.key_facts && analysisResult.key_facts.length > 0 ? (
+                      <div>
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                          Key Extracted Facts ({analysisResult.key_facts.length})
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {analysisResult.key_facts.map((f, i) => (
+                            <StructuredFactCard key={i} fact={f} isCondition={false} />
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No specific structured facts extracted.</p>
+                    )}
+
+                    {analysisResult.conditions && analysisResult.conditions.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-3">
+                          Conditional Clauses ({analysisResult.conditions.length})
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {analysisResult.conditions.map((c, i) => (
+                            <StructuredFactCard key={i} fact={c} isCondition={true} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {/* Why did FinExplain provide this response? */}
-                {(analysisResult.why_this_answer || analysisResult.evidence_status === "NOT_SPECIFIED") && (
-                  <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-4 text-xs">
-                    <div className="flex items-center gap-2 mb-1.5 font-semibold text-amber-300">
-                      <Info className="h-4 w-4 shrink-0" />
-                      <span>Why did FinExplain provide this response?</span>
-                    </div>
-                    <p className="text-white/85 leading-relaxed">
-                      {analysisResult.why_this_answer ||
-                        "You requested subjective advice (e.g. why to choose or avoid this loan) with exact citations. Because loan documents contain binding legal and numerical clauses rather than promotional advice, synthesized advisory claims could not be verified against the source text. To protect you from AI hallucinations, FinExplain blocked ungrounded statements, assigned NOT_SPECIFIED status, and generated actionable lender questions instead."}
-                    </p>
+                {activeTab === "evidence" && (
+                  <div className="space-y-4">
+                    {analysisResult.citations && analysisResult.citations.length > 0 ? (
+                      <div>
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                          Claim-Level Citations & Audit Trail ({analysisResult.citations.length})
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {analysisResult.citations.map((c, i) => (
+                            <CitationChip
+                              key={i}
+                              page={c.page || 1}
+                              section={c.section || "Clause"}
+                              verified={c.verified ?? true}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No citations available for this query.</p>
+                    )}
                   </div>
                 )}
 
-                {/* Answer / Findings */}
-                {analysisResult.answer && (
-                  <div className="rounded-lg border border-white/10 bg-surface p-4">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                      AI Analysis Findings
-                    </h4>
-                    <FormattedMarkdown content={analysisResult.answer} />
+                {activeTab === "risks" && (
+                  <div className="space-y-4">
+                    {analysisResult.risk_factors && analysisResult.risk_factors.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {analysisResult.risk_factors.map((rf: any, i: number) => (
+                          <div key={i} className="rounded-lg border border-white/10 bg-surface-2 p-3.5 flex flex-col justify-between">
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-semibold text-white">
+                                  {rf.title || rf.field?.replace(/_/g, " ") || "Risk Factor"}
+                                </span>
+                                <SeverityBadge level={rf.severity || "MEDIUM"} />
+                              </div>
+                              <p className="text-xs text-muted-foreground leading-relaxed">{rf.description}</p>
+                            </div>
+                            {rf.value && (
+                              <div className="mt-2.5 pt-2 border-t border-white/5 font-mono text-xs text-white">
+                                {rf.value}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No high-severity risk factors detected.</p>
+                    )}
                   </div>
                 )}
 
-                {/* Citations & Evidence */}
-                {analysisResult.citations && analysisResult.citations.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                      Claim-Level Citations & Audit Trail
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {analysisResult.citations.map((c, i) => (
-                        <CitationChip
-                          key={i}
-                          page={c.page || 1}
-                          section={c.section || "Clause"}
-                          verified={c.verified ?? true}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {activeTab === "qa" && (
+                  <div className="space-y-5">
+                    {/* Plain Language Summary */}
+                    {analysisResult.plain_language_explanation && (
+                      <div className="rounded-lg border border-white/10 bg-surface-2 p-4">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                          Plain Language Summary
+                        </h4>
+                        <FormattedMarkdown content={analysisResult.plain_language_explanation} />
+                      </div>
+                    )}
 
-                {/* Questions to Ask Lender */}
-                {analysisResult.questions_to_ask_provider && analysisResult.questions_to_ask_provider.length > 0 && (
-                  <div className="rounded-lg border border-warning/20 bg-warning/5 p-4">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-warning mb-2">
-                      <i className="fa-solid fa-circle-question mr-1.5" /> Recommended Questions for Lender
-                    </h4>
-                    <ul className="space-y-1.5 text-xs text-white/90 list-disc list-inside">
-                      {analysisResult.questions_to_ask_provider.map((q, i) => (
-                        <li key={i}>{q}</li>
-                      ))}
-                    </ul>
+                    {/* Why did FinExplain provide this response? */}
+                    {(analysisResult.why_this_answer || analysisResult.evidence_status === "NOT_SPECIFIED") && (
+                      <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-4 text-xs">
+                        <div className="flex items-center gap-2 mb-1.5 font-semibold text-amber-300">
+                          <Info className="h-4 w-4 shrink-0" />
+                          <span>Why did FinExplain provide this response?</span>
+                        </div>
+                        <p className="text-white/85 leading-relaxed">
+                          {analysisResult.why_this_answer ||
+                            "You requested subjective advice with exact citations. Because loan documents contain factual legal and numerical clauses rather than promotional advice, synthesized advisory claims could not be verified against the source text. To protect you from AI hallucinations, FinExplain blocked ungrounded statements, assigned NOT_SPECIFIED status, and generated actionable lender questions instead."}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Answer / Findings */}
+                    {analysisResult.answer && (
+                      <div className="rounded-lg border border-white/10 bg-surface p-4">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                          AI Analysis Findings
+                        </h4>
+                        <FormattedMarkdown content={analysisResult.answer} />
+                      </div>
+                    )}
+
+                    {/* Questions to Ask Lender */}
+                    {analysisResult.questions_to_ask_provider && analysisResult.questions_to_ask_provider.length > 0 && (
+                      <div className="rounded-lg border border-warning/20 bg-warning/5 p-4">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-warning mb-2">
+                          <i className="fa-solid fa-circle-question mr-1.5" /> Recommended Questions for Lender
+                        </h4>
+                        <ul className="space-y-1.5 text-xs text-white/90 list-disc list-inside">
+                          {analysisResult.questions_to_ask_provider.map((q, i) => (
+                            <li key={i}>{q}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

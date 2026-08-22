@@ -14,6 +14,7 @@ import {
   ErrorState,
 } from "@/components/finex/primitives";
 import { FormattedMarkdown } from "@/components/finex/FormattedMarkdown";
+import { StructuredFactCard } from "@/components/finex/StructuredFactCard";
 
 const QUICK_PROMPTS = [
   "What is the processing fee and APR calculation?",
@@ -221,28 +222,28 @@ export function QueryPage() {
           {(currentResult.key_facts?.length || currentResult.conditions?.length) ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {currentResult.key_facts && currentResult.key_facts.length > 0 && (
-                <Panel title="Key Extracted Facts">
-                  <ul className="space-y-2 text-xs text-white/90">
+                <Panel
+                  title="Key Extracted Facts"
+                  subtitle={`${currentResult.key_facts.length} verified terms extracted from document`}
+                >
+                  <div className="grid grid-cols-1 gap-3">
                     {currentResult.key_facts.map((f, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <i className="fa-solid fa-check text-success mt-0.5" />
-                        <span>{typeof f === "string" ? f : JSON.stringify(f)}</span>
-                      </li>
+                      <StructuredFactCard key={i} fact={f} isCondition={false} />
                     ))}
-                  </ul>
+                  </div>
                 </Panel>
               )}
 
               {currentResult.conditions && currentResult.conditions.length > 0 && (
-                <Panel title="Conditional Clauses">
-                  <ul className="space-y-2 text-xs text-white/90">
+                <Panel
+                  title="Conditional Clauses"
+                  subtitle={`${currentResult.conditions.length} terms with active preconditions/waivers`}
+                >
+                  <div className="grid grid-cols-1 gap-3">
                     {currentResult.conditions.map((c, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <i className="fa-solid fa-circle-exclamation text-warning mt-0.5" />
-                        <span>{typeof c === "string" ? c : JSON.stringify(c)}</span>
-                      </li>
+                      <StructuredFactCard key={i} fact={c} isCondition={true} />
                     ))}
-                  </ul>
+                  </div>
                 </Panel>
               )}
             </div>
