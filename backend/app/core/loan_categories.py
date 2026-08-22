@@ -15,7 +15,9 @@ from pydantic import BaseModel, Field
 class EvidenceStatus(str, Enum):
     EXPLICIT = "EXPLICIT"          # Document clearly states the information
     CONDITIONAL = "CONDITIONAL"    # Applies only under a stated condition / illustrative
-    MIXED = "MIXED"                # Conflicting information across sources
+    PARTIAL = "PARTIAL"            # Evidence supports only part of the requested answer
+    CONFLICTED = "CONFLICTED"      # Conflicting information across sources
+    MIXED = "MIXED"                # Backward-compatibility alias for CONFLICTED
     NOT_SPECIFIED = "NOT_SPECIFIED" # Documents do not contain the information
 
 

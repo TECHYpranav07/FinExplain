@@ -35,9 +35,12 @@ export function evidenceTone(status?: string) {
       return "success" as const;
     case "CONDITIONAL":
       return "warning" as const;
+    case "PARTIAL":
     case "INFERRED":
       return "info" as const;
+    case "CONFLICTED":
     case "CONFLICTING":
+    case "MIXED":
       return "danger" as const;
     default:
       return "neutral" as const;

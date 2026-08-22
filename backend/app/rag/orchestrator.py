@@ -390,11 +390,10 @@ def process_query(
     # Step 19: Determine overall evidence status
     # ===================================================================
     statuses = set(f.status for f in structured_facts)
-    # FIN-027: If conflicts were detected, force MIXED status
-    if all_conflicts:
-        overall_status = "MIXED"
-    elif EvidenceStatus.MIXED in statuses:
-        overall_status = "MIXED"
+    if all_conflicts or EvidenceStatus.CONFLICTED in statuses or EvidenceStatus.MIXED in statuses:
+        overall_status = "CONFLICTED"
+    elif EvidenceStatus.PARTIAL in statuses:
+        overall_status = "PARTIAL"
     elif EvidenceStatus.CONDITIONAL in statuses and EvidenceStatus.EXPLICIT in statuses:
         overall_status = "CONDITIONAL"
     elif EvidenceStatus.EXPLICIT in statuses:
@@ -418,10 +417,15 @@ def process_query(
             "synthesized claims could not be verified against the source text. "
             "To prevent AI hallucinations, FinExplain blocked ungrounded statements and generated actionable lender questions instead."
         )
-    elif overall_status == "MIXED":
+    elif overall_status in ("CONFLICTED", "MIXED"):
         why_this_answer = (
             "Conflicting terms were identified across document sections or schedules. "
             "FinExplain highlighted the discrepancies to prevent misleading calculations."
+        )
+    elif overall_status == "PARTIAL":
+        why_this_answer = (
+            "The retrieved evidence supports only part of your inquiry. "
+            "FinExplain provided the verified facts and flagged the unverified aspects."
         )
     elif overall_status == "CONDITIONAL":
         why_this_answer = (

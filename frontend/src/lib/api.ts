@@ -24,7 +24,7 @@ export interface StructuredFact {
   currency?: string;
   condition?: string;
   illustrative_only?: boolean;
-  status?: "EXPLICIT" | "CONDITIONAL" | "MIXED" | "NOT_SPECIFIED";
+  status?: "EXPLICIT" | "CONDITIONAL" | "PARTIAL" | "CONFLICTED" | "MIXED" | "NOT_SPECIFIED";
   source_document?: string;
   product_name?: string;
   page?: number;
