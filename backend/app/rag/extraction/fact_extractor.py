@@ -83,10 +83,19 @@ def extract_structured_facts(
         section = chunk.get("section_title") or ""
         text = chunk.get("text", "")
         chunk_id = chunk.get("id") or chunk.get("chunk_id") or chunk.get("embedding_id") or ""
-        header = f"[Chunk {chunk_id}, Page {page}"
+        p_name = chunk.get("product_name") or (chunk.get("metadata") or {}).get("product_name") or product_name or ""
+        d_name = chunk.get("document_name") or (chunk.get("metadata") or {}).get("document_name") or document_name or ""
+        
+        header_parts = [f"Chunk {chunk_id}"]
+        if p_name:
+            header_parts.append(f"Product: {p_name}")
+        if d_name:
+            header_parts.append(f"Doc: {d_name}")
+        header_parts.append(f"Page {page}")
         if section:
-            header += f", Section: {section}"
-        header += "]"
+            header_parts.append(f"Section: {section}")
+            
+        header = f"[{', '.join(header_parts)}]"
         parts.append(f"{header}\n{text}")
 
     chunks_text = "\n\n---\n\n".join(parts)

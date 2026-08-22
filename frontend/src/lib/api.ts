@@ -26,6 +26,7 @@ export interface StructuredFact {
   illustrative_only?: boolean;
   status?: "EXPLICIT" | "CONDITIONAL" | "MIXED" | "NOT_SPECIFIED";
   source_document?: string;
+  product_name?: string;
   page?: number;
   section?: string;
   source_text?: string;

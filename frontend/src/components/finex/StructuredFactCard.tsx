@@ -75,10 +75,13 @@ export function StructuredFactCard({ fact: rawFact, isCondition = false }: Struc
       </div>
 
       <div className="flex items-center justify-between border-t border-white/5 pt-2 text-[11px]">
-        {fact.page ? (
-          <span className="text-white/50 flex items-center gap-1">
-            <FileText className="h-3 w-3" />
-            Page {fact.page} {fact.source_document ? `(${fact.source_document})` : ""}
+        {fact.product_name || fact.source_document || fact.page ? (
+          <span className="text-white/60 flex items-center gap-1 truncate max-w-[65%]" title={fact.product_name || fact.source_document}>
+            <FileText className="h-3 w-3 shrink-0" />
+            <span className="truncate">
+              {fact.product_name ? `${fact.product_name} • ` : ""}
+              {fact.page ? `Page ${fact.page}` : fact.source_document || "Verified"}
+            </span>
           </span>
         ) : (
           <span className="text-white/40">Verified Fact</span>
