@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/authContext";
 
 const NAV = [
   { to: "/app", label: "Dashboard", icon: "fa-solid fa-gauge-high", exact: true },
@@ -48,6 +49,22 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
 export function AppShell() {
   const [drawer, setDrawer] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/", { replace: true });
+  };
+
+  const userInitials = user?.name
+    ? user.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "FA";
 
   useEffect(() => setDrawer(false), [location.pathname]);
 
@@ -78,13 +95,48 @@ export function AppShell() {
           <NavList />
         </div>
 
-        <div className="border-t border-white/10 p-4">
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+        {/* User Profile & Sign Out Footer */}
+        <div className="border-t border-white/10 p-3.5 space-y-3 bg-surface/40">
+          {/* User Preview */}
+          <div className="flex items-center gap-2.5 px-1">
+            {user?.picture ? (
+              <img
+                src={user.picture}
+                alt={user.name || "User"}
+                className="h-8 w-8 rounded-full object-cover border border-white/20 shrink-0"
+              />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white font-semibold text-xs border border-white/10 shrink-0">
+                {userInitials}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-white">
+                {user?.name || "Financial Auditor"}
+              </p>
+              <p className="truncate text-[10px] text-muted-foreground">
+                {user?.email || "auditor@finexplain.ai"}
+              </p>
+            </div>
+          </div>
+
+          {/* Logout Button */}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/40 hover:text-rose-300 transition-all shadow-sm group"
+          >
+            <i className="fa-solid fa-arrow-right-from-bracket text-[11px] group-hover:-translate-x-0.5 transition-transform" aria-hidden="true" />
+            <span>Sign Out</span>
+          </button>
+
+          {/* Status & Version */}
+          <div className="flex items-center justify-between px-1 text-[10px] text-muted-foreground pt-1 border-t border-white/5">
             <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               API Connected
             </span>
-            <Link to="/app/settings" className="hover:text-white transition-colors">v1.0</Link>
+            <Link to="/app/settings" className="text-white/40 hover:text-white transition-colors">v1.0</Link>
           </div>
         </div>
       </aside>
@@ -139,11 +191,22 @@ export function AppShell() {
               <i className="fa-solid fa-sliders text-xs" aria-hidden="true" />
             </Link>
 
+            {/* User Profile Header Chip */}
             <div className="flex items-center gap-2 rounded-md border border-white/10 bg-surface px-2.5 py-1">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-3 text-[10px] font-semibold text-white">
-                CR
+              {user?.picture ? (
+                <img
+                  src={user.picture}
+                  alt={user.name || "User"}
+                  className="h-6 w-6 rounded-full object-cover border border-white/20 shrink-0"
+                />
+              ) : (
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-3 text-[10px] font-semibold text-white">
+                  {userInitials}
+                </span>
+              )}
+              <span className="hidden text-xs text-muted-foreground sm:block truncate max-w-[120px]">
+                {user?.name || "Credit Analyst"}
               </span>
-              <span className="hidden text-xs text-muted-foreground sm:block">Credit Analyst</span>
             </div>
           </div>
         </header>
@@ -185,8 +248,43 @@ export function AppShell() {
                 <i className="fa-solid fa-xmark text-xs" aria-hidden="true" />
               </button>
             </div>
+
             <div className="flex-1 overflow-y-auto">
               <NavList onNavigate={() => setDrawer(false)} />
+            </div>
+
+            {/* Mobile Drawer Logout & User Profile */}
+            <div className="border-t border-white/10 p-4 space-y-3 bg-surface/40">
+              <div className="flex items-center gap-2.5">
+                {user?.picture ? (
+                  <img
+                    src={user.picture}
+                    alt={user.name || "User"}
+                    className="h-8 w-8 rounded-full object-cover border border-white/20 shrink-0"
+                  />
+                ) : (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white font-semibold text-xs border border-white/10 shrink-0">
+                    {userInitials}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-white">
+                    {user?.name || "Financial Auditor"}
+                  </p>
+                  <p className="truncate text-[10px] text-muted-foreground">
+                    {user?.email || "auditor@finexplain.ai"}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/40 hover:text-rose-300 transition-all shadow-sm"
+              >
+                <i className="fa-solid fa-arrow-right-from-bracket text-[11px]" aria-hidden="true" />
+                <span>Sign Out</span>
+              </button>
             </div>
           </div>
         </div>
