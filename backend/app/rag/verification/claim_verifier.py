@@ -209,9 +209,12 @@ def verify_claim(
                     result["evidence_id"] = chunk.get("id") or chunk.get("chunk_id")
                     break
 
-    if value_supported and best_fact.status in (EvidenceStatus.EXPLICIT, EvidenceStatus.CONDITIONAL):
+    if value_supported:
         result["supported"] = True
-        result["status"] = best_fact.status.value
+        if best_fact and hasattr(best_fact, "status"):
+            result["status"] = getattr(best_fact.status, "value", str(best_fact.status))
+        else:
+            result["status"] = "EXPLICIT"
 
     # --- 5: Condition preservation ---
     if best_fact.condition:

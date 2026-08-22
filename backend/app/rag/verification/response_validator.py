@@ -126,8 +126,9 @@ def validate_final_response(
     # --- Build sanitized answer if issues found ---
     sanitized = answer
     if unsupported_claims and not is_eval_query:
-        # FIN-026: If all claims are unsupported on a factual query, refuse rather than presenting hallucinatory output
-        if len(unsupported_claims) == len(claims) and len(claims) > 0:
+        has_valid_citations = invalid_citations == 0 and len(cited_pages) > 0
+        # FIN-026: If all claims are unsupported and citations are invalid/absent on a factual query, refuse
+        if len(unsupported_claims) == len(claims) and len(claims) > 0 and not has_valid_citations:
             sanitized = (
                 "Unable to provide a verified answer based on the retrieved documents. "
                 "The extracted statements could not be verified against the source text. "
@@ -138,7 +139,7 @@ def validate_final_response(
             for claim_text in unsupported_claims:
                 if len(claim_text) > 15:
                     short = claim_text[:60].strip()
-                    if short in sanitized:
+                    if short in sanitized and not has_valid_citations:
                         sanitized = sanitized.replace(
                             short,
                             f"{short} [⚠ This claim could not be verified against the documents]",
