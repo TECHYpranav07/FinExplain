@@ -193,42 +193,31 @@ def process_query(
         }
 
     # ===================================================================
-    # Step 8: Structured fact extraction (only for audit/calc/compare)
+    # Step 8: Structured fact extraction (fast heuristic, 0 token overhead)
     # ===================================================================
-    is_product_audit_query = (
-        intent_result.intent in ("review", "summary", "comparison", "risk", "calculation")
-        or any(k in clean_question.lower() for k in ("confidence score", "risk score", "risk factor", "how risky", "audit report", "detailed report", "quality score", "risk report", "summarize", "summary", "calculate"))
+    product_name = None
+    document_name = None
+    if reranked_chunks:
+        metadata = reranked_chunks[0].get("metadata") or {}
+        product_name = reranked_chunks[0].get("product_name") or metadata.get("product_name")
+        document_name = reranked_chunks[0].get("document_name") or metadata.get("document_name")
+
+    structured_facts = extract_structured_facts(
+        reranked_chunks,
+        product_name=product_name,
+        document_name=document_name,
     )
+    logger.info(f"[Orchestrator] Extracted {len(structured_facts)} structured facts")
 
-    structured_facts = []
-    missing_info = []
-    all_conflicts = chunk_conflicts
+    # Step 9: Condition annotation
+    structured_facts = annotate_facts_with_conditions(structured_facts, reranked_chunks)
 
-    if is_product_audit_query:
-        logger.info("[Orchestrator] Extracting structured facts for product audit/calculation...")
-        product_name = None
-        document_name = None
-        if reranked_chunks:
-            metadata = reranked_chunks[0].get("metadata") or {}
-            product_name = reranked_chunks[0].get("product_name") or metadata.get("product_name")
-            document_name = reranked_chunks[0].get("document_name") or metadata.get("document_name")
+    # Step 10: Missing information detection
+    missing_info = detect_missing_information(structured_facts)
 
-        structured_facts = extract_structured_facts(
-            reranked_chunks,
-            product_name=product_name,
-            document_name=document_name,
-        )
-        logger.info(f"[Orchestrator] Extracted {len(structured_facts)} structured facts")
-
-        # Step 9: Condition annotation
-        structured_facts = annotate_facts_with_conditions(structured_facts, reranked_chunks)
-
-        # Step 10: Missing information detection
-        missing_info = detect_missing_information(structured_facts)
-
-        # Step 11: Fact-level conflict detection
-        fact_conflicts = detect_fact_conflicts(structured_facts)
-        all_conflicts = chunk_conflicts + fact_conflicts
+    # Step 11: Fact-level conflict detection
+    fact_conflicts = detect_fact_conflicts(structured_facts)
+    all_conflicts = chunk_conflicts + fact_conflicts
 
     # ===================================================================
     # Step 12: Scenario extraction (if calculation intent)
@@ -297,6 +286,10 @@ def process_query(
     risk_factors = []
     risk_score_result = {"score": None, "level": None}
 
+    is_product_audit_query = (
+        intent_result.intent in ("review", "summary", "comparison", "risk")
+        or any(k in clean_question.lower() for k in ("confidence score", "risk score", "risk factor", "how risky", "audit report", "detailed report", "quality score", "risk report", "summarize", "summary"))
+    )
     if is_product_audit_query:
         cost_drivers = detect_cost_drivers(structured_facts)
         risk_factors = risk_engine.detect_risk_factors(
