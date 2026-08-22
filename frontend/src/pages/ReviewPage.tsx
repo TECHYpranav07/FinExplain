@@ -12,13 +12,65 @@ import {
   EmptyState,
 } from "@/components/finex/primitives";
 import { FormattedMarkdown } from "@/components/finex/FormattedMarkdown";
+import { cn } from "@/lib/utils";
+
+/**
+ * InlineMarkdown: Renders bold text, citations, and currency cleanly
+ * without showing raw markdown asterisks or breaking layout.
+ */
+export function InlineMarkdown({ text, className }: { text?: string; className?: string }) {
+  if (!text) return null;
+
+  // Clean initial markers like **Title:** or leading bullets
+  const cleaned = text.replace(/^[*-]\s*/, "").replace(/^\d+\.\s*/, "").trim();
+
+  // Tokenize by **bold** or [citation]
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*.*?\*\*|\[.*?\])/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(cleaned)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(cleaned.substring(lastIndex, match.index));
+    }
+    const token = match[0];
+    if (token.startsWith("**") && token.endsWith("**")) {
+      const boldContent = token.slice(2, -2).trim();
+      parts.push(
+        <strong key={match.index} className="font-semibold text-white">
+          {boldContent}
+        </strong>
+      );
+    } else if (token.startsWith("[") && token.endsWith("]")) {
+      const citeContent = token.slice(1, -1).trim();
+      parts.push(
+        <span
+          key={match.index}
+          className="inline-flex items-center gap-1 rounded bg-white/5 border border-white/10 px-1.5 py-0.5 text-[10px] font-mono text-white/70 mx-1 align-baseline"
+        >
+          <i className="fa-regular fa-bookmark text-[9px] text-primary" />
+          {citeContent}
+        </span>
+      );
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < cleaned.length) {
+    parts.push(cleaned.substring(lastIndex));
+  }
+
+  return <span className={cn("break-words", className)}>{parts}</span>;
+}
 
 interface ParsedAudit {
   rawText: string;
   facilityTitle: string;
-  facilitySummary: string;
-  riskProfile: string;
-  riskVerdict: "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
+  facilitySynopsis: string;
+  riskSynopsis: string;
+  riskVerdictLabel: string;
+  riskVerdictLevel: "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
   parameters: Array<{
     parameter: string;
     value: string;
@@ -58,13 +110,23 @@ function parseCostDriver(cd: any) {
   return cd || {};
 }
 
+function cleanRawMarkdown(str: string): string {
+  if (!str) return "";
+  return str
+    .replace(/\*\*/g, "")
+    .replace(/^[*-]\s*/, "")
+    .replace(/^\d+\.\s*/, "")
+    .trim();
+}
+
 function parseAuditMarkdown(text: string, structuredData?: any): ParsedAudit {
   const result: ParsedAudit = {
     rawText: text,
-    facilityTitle: "Credit Facility Assessment",
-    facilitySummary: "",
-    riskProfile: "Moderate Risk / Conditional Assessment",
-    riskVerdict: "MODERATE",
+    facilityTitle: "Loan Agreement Assessment",
+    facilitySynopsis: "",
+    riskSynopsis: "",
+    riskVerdictLabel: "MODERATE RISK",
+    riskVerdictLevel: "MODERATE",
     parameters: [],
     redFlags: [],
     costDrivers: [],
@@ -74,7 +136,7 @@ function parseAuditMarkdown(text: string, structuredData?: any): ParsedAudit {
 
   if (!text) return result;
 
-  // Split into sections based on markdown emojis / headers
+  // Split into sections based on headers / emojis
   const lines = text.split("\n");
   let currentSection = "intro";
   const sectionBuckets: Record<string, string[]> = {
@@ -119,23 +181,34 @@ function parseAuditMarkdown(text: string, structuredData?: any): ParsedAudit {
   // 1. Parse Executive Verdict
   const verdictLines = sectionBuckets.verdict.filter((l) => l.trim().length > 0);
   for (const v of verdictLines) {
-    if (v.toLowerCase().includes("nature of credit facility:") || v.toLowerCase().includes("facility amounting")) {
-      result.facilitySummary = v.replace(/^[*-]\s*/, "").replace(/^Nature of Credit Facility:\s*/i, "").trim();
-    } else if (v.toLowerCase().includes("risk profile:") || v.toLowerCase().includes("verdict:")) {
-      result.riskProfile = v.replace(/^[*-]\s*/, "").replace(/^Borrowing Parameters & General Risk Profile:\s*/i, "").trim();
-    } else if (!result.facilitySummary && v.length > 20) {
-      result.facilitySummary = v.trim();
+    const trimmed = v.trim();
+    const cleanLower = trimmed.toLowerCase();
+
+    if (cleanLower.includes("nature of credit facility:") || cleanLower.includes("facility amounting")) {
+      result.facilitySynopsis = trimmed.replace(/^[*-]\s*/, "").replace(/^(\*\*)?Nature of Credit Facility:(\*\*)?\s*/i, "").trim();
+    } else if (cleanLower.includes("risk profile:") || cleanLower.includes("risk assessment:") || cleanLower.includes("verdict:")) {
+      result.riskSynopsis = trimmed.replace(/^[*-]\s*/, "").replace(/^(\*\*)?Borrowing Parameters & General Risk Profile:(\*\*)?\s*/i, "").replace(/^(\*\*)?General Risk Profile:(\*\*)?\s*/i, "").trim();
+    } else if (!result.facilitySynopsis && trimmed.length > 25 && !trimmed.startsWith("#")) {
+      result.facilitySynopsis = trimmed.replace(/^[*-]\s*/, "").trim();
+    } else if (!result.riskSynopsis && trimmed.length > 25 && !trimmed.startsWith("#")) {
+      result.riskSynopsis = trimmed.replace(/^[*-]\s*/, "").trim();
     }
   }
 
-  if (result.riskProfile.toLowerCase().includes("critical") || text.toLowerCase().includes("critical risk")) {
-    result.riskVerdict = "CRITICAL";
-  } else if (result.riskProfile.toLowerCase().includes("high risk")) {
-    result.riskVerdict = "HIGH";
-  } else if (result.riskProfile.toLowerCase().includes("low risk")) {
-    result.riskVerdict = "LOW";
+  // Determine Risk Verdict Level & Short Badge Label
+  const combinedRiskText = (result.riskSynopsis + " " + text).toLowerCase();
+  if (combinedRiskText.includes("critical risk") || combinedRiskText.includes("predatory")) {
+    result.riskVerdictLevel = "CRITICAL";
+    result.riskVerdictLabel = "CRITICAL RISK";
+  } else if (combinedRiskText.includes("high risk") || combinedRiskText.includes("elevated risk")) {
+    result.riskVerdictLevel = "HIGH";
+    result.riskVerdictLabel = "ELEVATED RISK";
+  } else if (combinedRiskText.includes("low risk") || combinedRiskText.includes("standard terms")) {
+    result.riskVerdictLevel = "LOW";
+    result.riskVerdictLabel = "LOW RISK";
   } else {
-    result.riskVerdict = "MODERATE";
+    result.riskVerdictLevel = "MODERATE";
+    result.riskVerdictLabel = "MODERATE RISK";
   }
 
   // 2. Parse Financial Parameters Table
@@ -144,14 +217,14 @@ function parseAuditMarkdown(text: string, structuredData?: any): ParsedAudit {
     if (!line.includes("|") || line.includes("---") || line.toLowerCase().includes("parameter")) continue;
     const parts = line.split("|").map((p) => p.trim()).filter(Boolean);
     if (parts.length >= 2) {
-      const parameter = parts[0] || "";
+      const parameter = cleanRawMarkdown(parts[0] || "");
       const rawVal = parts[1] || "";
-      const category = parts[2] || "";
-      const status = parts[3] || "";
+      const category = cleanRawMarkdown(parts[2] || "");
+      const status = cleanRawMarkdown(parts[3] || "");
 
       // Extract citation if present [ ... ]
       const citeMatch = rawVal.match(/\[(.*?)\]/);
-      const cleanVal = rawVal.replace(/\[(.*?)\]/g, "").trim();
+      const cleanVal = rawVal.replace(/\[(.*?)\]/g, "").replace(/\*\*/g, "").trim();
 
       result.parameters.push({
         parameter,
@@ -167,7 +240,6 @@ function parseAuditMarkdown(text: string, structuredData?: any): ParsedAudit {
   if (result.parameters.length === 0 && structuredData?.loan_summary) {
     const rates = structuredData.loan_summary.rates || [];
     const amounts = structuredData.loan_summary.amounts || [];
-    const tenure = structuredData.repayment_conditions || [];
 
     for (const a of amounts) {
       result.parameters.push({
@@ -195,9 +267,9 @@ function parseAuditMarkdown(text: string, structuredData?: any): ParsedAudit {
     const clean = line.replace(/^[*-]\s*/, "").replace(/^\d+\.\s*/, "").trim();
     if (!clean || clean.startsWith("#")) continue;
 
-    // Check if there's a bold title or colon separation: "Title: Description"
+    // Check if there's a bold title or colon separation: "**Title:** Description"
     const colonIdx = clean.indexOf(":");
-    let title = "Contractual Hazard";
+    let title = "Contractual Discretion Risk";
     let desc = clean;
     let citation = "";
 
@@ -206,7 +278,7 @@ function parseAuditMarkdown(text: string, structuredData?: any): ParsedAudit {
       citation = citeMatch[1];
     }
 
-    if (colonIdx > 0 && colonIdx < 50) {
+    if (colonIdx > 0 && colonIdx < 60) {
       title = clean.substring(0, colonIdx).replace(/\*\*/g, "").trim();
       desc = clean.substring(colonIdx + 1).replace(/\[(.*?)\]/g, "").trim();
     } else {
@@ -241,7 +313,7 @@ function parseAuditMarkdown(text: string, structuredData?: any): ParsedAudit {
     let title = "Omitted Parameter";
     let desc = clean;
 
-    if (colonIdx > 0 && colonIdx < 50) {
+    if (colonIdx > 0 && colonIdx < 60) {
       title = clean.substring(0, colonIdx).replace(/\*\*/g, "").trim();
       desc = clean.substring(colonIdx + 1).replace(/\[(.*?)\]/g, "").trim();
     } else {
@@ -278,13 +350,13 @@ function parseAuditMarkdown(text: string, structuredData?: any): ParsedAudit {
   const amountParam = result.parameters.find((p) => p.parameter.toLowerCase().includes("amount") || p.parameter.toLowerCase().includes("principal"));
   const rateParam = result.parameters.find((p) => p.parameter.toLowerCase().includes("interest") || p.parameter.toLowerCase().includes("rate"));
   if (amountParam && rateParam) {
-    result.facilityTitle = `${amountParam.value} · ${rateParam.value} Credit Facility`;
+    result.facilityTitle = `${amountParam.value} · ${rateParam.value} Term Facility`;
   } else if (amountParam) {
     result.facilityTitle = `${amountParam.value} Credit Facility`;
-  } else if (result.facilitySummary.includes("₹")) {
-    const rupeeMatch = result.facilitySummary.match(/₹[\d,]+/);
+  } else if (result.facilitySynopsis.includes("₹")) {
+    const rupeeMatch = result.facilitySynopsis.match(/₹[\d,]+/);
     if (rupeeMatch) {
-      result.facilityTitle = `${rupeeMatch[0]} Loan Facility`;
+      result.facilityTitle = `${rupeeMatch[0]} Term Loan Facility`;
     }
   }
 
@@ -614,48 +686,58 @@ export function ReviewPage() {
               {/* Hero Executive Scorecard */}
               <div className="rounded-2xl border border-white/15 bg-gradient-to-b from-surface-2 to-surface p-6 space-y-5 shadow-lg">
                 <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-1.5 max-w-3xl">
+                  <div className="space-y-2 flex-1 min-w-0">
                     <div className="flex items-center gap-2.5">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/10 text-white text-xs">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-white text-xs shrink-0">
                         <i className="fa-solid fa-shield-halved" />
                       </span>
-                      <h3 className="text-lg font-bold text-white tracking-tight">
+                      <h3 className="text-lg font-bold text-white tracking-tight truncate">
                         {parsedAudit.facilityTitle}
                       </h3>
                     </div>
-                    {parsedAudit.facilitySummary && (
-                      <p className="text-xs text-white/85 leading-relaxed pl-8.5">
-                        {parsedAudit.facilitySummary}
-                      </p>
+
+                    {parsedAudit.facilitySynopsis && (
+                      <div className="text-xs text-white/85 leading-relaxed pl-9 break-words">
+                        <InlineMarkdown text={parsedAudit.facilitySynopsis} />
+                      </div>
+                    )}
+
+                    {parsedAudit.riskSynopsis && (
+                      <div className="text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3.5 mt-2 ml-9 leading-relaxed break-words">
+                        <div className="flex items-center gap-1.5 font-bold text-amber-300 text-[11px] uppercase tracking-wider mb-1">
+                          <i className="fa-solid fa-circle-exclamation text-[10px]" />
+                          <span>Risk Assessment Verdict</span>
+                        </div>
+                        <InlineMarkdown text={parsedAudit.riskSynopsis} />
+                      </div>
                     )}
                   </div>
 
                   <div className="shrink-0 flex items-center gap-2">
                     <div
-                      className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold ${
-                        parsedAudit.riskVerdict === "CRITICAL"
+                      className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold whitespace-nowrap ${
+                        parsedAudit.riskVerdictLevel === "CRITICAL"
                           ? "border-rose-500/40 bg-rose-500/15 text-rose-300"
-                          : parsedAudit.riskVerdict === "HIGH"
+                          : parsedAudit.riskVerdictLevel === "HIGH"
                           ? "border-orange-500/40 bg-orange-500/15 text-orange-300"
-                          : parsedAudit.riskVerdict === "LOW"
+                          : parsedAudit.riskVerdictLevel === "LOW"
                           ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
                           : "border-amber-500/40 bg-amber-500/15 text-amber-300"
                       }`}
                     >
                       <i className="fa-solid fa-gauge-high text-xs" />
-                      <span>{parsedAudit.riskProfile || "Moderate Risk Assessment"}</span>
+                      <span>{parsedAudit.riskVerdictLabel}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Key Parameter Matrix Grid */}
-                <div className="pt-2 border-t border-white/10">
+                <div className="pt-3 border-t border-white/10">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-3">
                     Contractual Terms & Rate Schedule
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {parsedAudit.parameters.map((param, pIdx) => {
-                      const isApr = param.parameter.toLowerCase().includes("apr");
                       const isMissing = param.value.toLowerCase().includes("not specified") || param.value.toLowerCase().includes("missing");
                       const isRate = param.parameter.toLowerCase().includes("interest") || param.parameter.toLowerCase().includes("rate");
 
@@ -683,14 +765,14 @@ export function ReviewPage() {
                             )}
                           </div>
 
-                          <div className="text-base font-bold text-white tracking-tight">
-                            {param.value}
+                          <div className="text-base font-bold text-white tracking-tight break-words">
+                            <InlineMarkdown text={param.value} />
                           </div>
 
                           <div className="flex items-center justify-between text-[11px] pt-1 border-t border-white/5 text-muted-foreground">
-                            <span>{param.category || "Standard Term"}</span>
+                            <span className="truncate">{param.category || "Standard Term"}</span>
                             {param.citation && (
-                              <span className="font-mono text-[10px] text-white/50">{param.citation}</span>
+                              <span className="font-mono text-[10px] text-white/50 shrink-0">{param.citation}</span>
                             )}
                           </div>
                         </div>
@@ -710,30 +792,33 @@ export function ReviewPage() {
                     {parsedAudit.redFlags.map((flag, fIdx) => (
                       <div
                         key={fIdx}
-                        className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4.5 space-y-2.5 transition-all hover:border-amber-500/50"
+                        className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 transition-all hover:border-amber-500/50"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-2.5">
-                            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300 text-xs shrink-0">
-                              <i className="fa-solid fa-triangle-exclamation" />
-                            </span>
-                            <h4 className="text-sm font-bold text-amber-200">
-                              {flag.title}
-                            </h4>
+                        <div className="flex items-start gap-3">
+                          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300 text-xs shrink-0 mt-0.5">
+                            <i className="fa-solid fa-triangle-exclamation" />
+                          </span>
+
+                          <div className="space-y-1.5 flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <h4 className="text-sm font-bold text-amber-200">
+                                <InlineMarkdown text={flag.title} />
+                              </h4>
+                              <SeverityBadge level={flag.severity} />
+                            </div>
+
+                            <p className="text-xs text-white/90 leading-relaxed break-words">
+                              <InlineMarkdown text={flag.description} />
+                            </p>
+
+                            {flag.citation && (
+                              <div className="pt-1 flex items-center gap-1.5 text-[11px] text-amber-300/80 font-mono">
+                                <i className="fa-regular fa-bookmark text-[10px]" />
+                                <span>Evidence: {flag.citation}</span>
+                              </div>
+                            )}
                           </div>
-                          <SeverityBadge level={flag.severity} />
                         </div>
-
-                        <p className="text-xs text-white/90 leading-relaxed pl-8.5">
-                          {flag.description}
-                        </p>
-
-                        {flag.citation && (
-                          <div className="pl-8.5 text-[11px] text-amber-300/70 font-mono flex items-center gap-1.5">
-                            <i className="fa-regular fa-bookmark text-[10px]" />
-                            <span>Evidence: {flag.citation}</span>
-                          </div>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -780,10 +865,14 @@ export function ReviewPage() {
                     {parsedAudit.missingItems.map((item, mIdx) => (
                       <div key={mIdx} className="rounded-xl border border-white/10 bg-surface-2 p-3.5 space-y-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-bold text-white">{item.title}</span>
+                          <span className="text-xs font-bold text-white">
+                            <InlineMarkdown text={item.title} />
+                          </span>
                           <Badge tone="danger">Missing</Badge>
                         </div>
-                        <p className="text-xs text-muted-foreground leading-relaxed">{item.description}</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed break-words">
+                          <InlineMarkdown text={item.description} />
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -812,16 +901,16 @@ export function ReviewPage() {
                         key={qIdx}
                         className="rounded-xl border border-white/10 bg-surface-2 p-4 transition-all hover:border-white/20 flex items-start justify-between gap-4"
                       >
-                        <div className="space-y-1.5 flex-1">
+                        <div className="space-y-1.5 flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-white/10 font-mono text-[11px] font-bold text-white">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-white/10 font-mono text-[11px] font-bold text-white shrink-0">
                               {(qIdx + 1).toString().padStart(2, "0")}
                             </span>
                             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                               Written Clarification Demand
                             </span>
                           </div>
-                          <p className="text-xs font-medium text-white pl-7 leading-relaxed italic">
+                          <p className="text-xs font-medium text-white pl-7 leading-relaxed italic break-words">
                             "{question}"
                           </p>
                         </div>
@@ -874,13 +963,15 @@ export function ReviewPage() {
                         </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-xs font-semibold text-white leading-relaxed">
-                              {itemText}
+                            <p className="text-xs font-semibold text-white leading-relaxed break-words">
+                              <InlineMarkdown text={itemText} />
                             </p>
                             <EvidenceBadge status={status} />
                           </div>
                           {itemNote && (
-                            <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">{itemNote}</p>
+                            <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed break-words">
+                              <InlineMarkdown text={itemNote} />
+                            </p>
                           )}
                           {item.evidence && (
                             <div className="mt-2 text-[11px] text-white/50 font-mono">
@@ -938,8 +1029,8 @@ export function ReviewPage() {
                               <EvidenceBadge status={status} />
                             </div>
                           </div>
-                          <p className="text-xs text-muted-foreground leading-relaxed">
-                            {conditionText}
+                          <p className="text-xs text-muted-foreground leading-relaxed break-words">
+                            <InlineMarkdown text={conditionText} />
                           </p>
                         </div>
                         <div className="mt-4 pt-2.5 border-t border-white/5 flex items-center justify-between">
@@ -985,8 +1076,8 @@ export function ReviewPage() {
                           </span>
                           <Badge tone="danger">HIGH RISK</Badge>
                         </div>
-                        <p className="text-xs text-white/80 leading-relaxed">
-                          {c.description || "Contradictory values detected across operative schedules."}
+                        <p className="text-xs text-white/80 leading-relaxed break-words">
+                          <InlineMarkdown text={c.description || "Contradictory values detected across operative schedules."} />
                         </p>
                       </div>
                     ))}
@@ -1009,10 +1100,10 @@ export function ReviewPage() {
                     {missingList.map((m: any, idx: number) => (
                       <div key={idx} className="rounded-xl border border-white/10 bg-surface-2 p-3.5">
                         <span className="text-xs font-semibold text-white block">
-                          {m.title || m.field?.replace(/_/g, " ").toUpperCase() || "Unspecified Field"}
+                          <InlineMarkdown text={m.title || m.field?.replace(/_/g, " ").toUpperCase() || "Unspecified Field"} />
                         </span>
-                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                          {m.description || m.reason || "Not specified in document clauses."}
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed break-words">
+                          <InlineMarkdown text={m.description || m.reason || "Not specified in document clauses."} />
                         </p>
                       </div>
                     ))}
