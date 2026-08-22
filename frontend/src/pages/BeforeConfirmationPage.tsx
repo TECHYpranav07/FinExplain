@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { api, type BeforeConfirmationResponse, type ChecklistItem } from "@/lib/api";
 import { ProductPicker } from "@/components/finex/ProductSelect";
@@ -65,10 +66,10 @@ export function BeforeConfirmationPage() {
     }
   };
 
-  const handleCopySingleQuestion = async (question: string, idx: number) => {
-    if (!question) return;
+  const handleCopySingleQuestion = async (q: string, idx: number) => {
+    if (!q) return;
     try {
-      await navigator.clipboard.writeText(question);
+      await navigator.clipboard.writeText(q);
       setCopiedQuestionIdx(idx);
       setTimeout(() => setCopiedQuestionIdx(null), 2000);
     } catch {
@@ -90,8 +91,7 @@ export function BeforeConfirmationPage() {
     URL.revokeObjectURL(url);
   };
 
-  // Metrics computation
-  const checklist = result?.checklist || [];
+  const checklist: ChecklistItem[] = result?.checklist || [];
   const totalItems = checklist.length;
   const verifiedCount = result?.summary?.verified_items ?? checklist.filter((i) => i.marker === "✓").length;
   const cautionCount = result?.summary?.caution_items ?? checklist.filter((i) => i.marker === "⚠").length;
@@ -133,7 +133,7 @@ export function BeforeConfirmationPage() {
       <PageHeader
         eyebrow="Decision Support & Borrower Protection"
         title="Before You Confirm"
-        description="A prioritized, evidence-backed pre-signing checklist: verified rates, lock-in terms, hidden traps, and exact written questions to demand from your lender."
+        description="A prioritized, actionable checklist of non-negotiable verifications, floating rate risks, and lender-facing questions before contract execution."
         action={
           <button
             type="button"
@@ -149,7 +149,7 @@ export function BeforeConfirmationPage() {
             ) : (
               <>
                 <i className="fa-regular fa-circle-check text-xs" />
-                <span>Generate Action Checklist</span>
+                <span>Generate Checklist</span>
               </>
             )}
           </button>
@@ -169,14 +169,35 @@ export function BeforeConfirmationPage() {
       </Panel>
 
       {confirmMutation.isError && (
-        <ErrorState
-          message={
-            confirmMutation.error instanceof Error
-              ? confirmMutation.error.message
-              : "Failed to generate pre-confirmation checklist."
-          }
-          onRetry={handleGenerate}
-        />
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-5 space-y-3.5">
+          <div className="flex items-start gap-3">
+            <i className="fa-solid fa-circle-exclamation text-rose-400 text-lg mt-0.5" />
+            <div className="space-y-1 flex-1">
+              <h4 className="text-sm font-semibold text-rose-300">Document Upload Required</h4>
+              <p className="text-xs text-white/80 leading-relaxed">
+                {confirmMutation.error instanceof Error
+                  ? confirmMutation.error.message
+                  : "No document clauses found for the selected loan product."}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-rose-500/20">
+            <Link
+              to="/app/documents"
+              className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-bold text-black hover:bg-white/90 transition-colors shadow-sm"
+            >
+              <i className="fa-regular fa-file-lines text-xs" />
+              <span>Go to Documents & Upload PDF</span>
+            </Link>
+            <button
+              type="button"
+              onClick={handleGenerate}
+              className="rounded-lg border border-white/10 bg-surface px-4 py-2 text-xs font-medium text-white/80 hover:text-white hover:bg-surface-2 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
       )}
 
       {!result && !confirmMutation.isPending && !confirmMutation.isError && (

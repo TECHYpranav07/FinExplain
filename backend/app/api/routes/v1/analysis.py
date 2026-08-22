@@ -47,10 +47,26 @@ def _extract_facts_for_products(product_ids: List[str], user_id: str = None) -> 
     )
 
     if not all_chunks:
-        raise HTTPException(
-            status_code=404,
-            detail="No document chunks found for the specified products.",
-        )
+        from app.db.supabase_client import get_supabase_client
+        supabase = get_supabase_client()
+        docs_count = 0
+        if supabase:
+            try:
+                doc_res = supabase.table("documents").select("id").in_("product_id", product_ids).execute()
+                docs_count = len(doc_res.data or [])
+            except Exception:
+                docs_count = 0
+
+        if docs_count == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="No documents have been uploaded for the selected loan product yet. Please go to Documents to upload and index your loan agreement PDF first.",
+            )
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail="No indexed document clauses could be retrieved for this product. Please ensure the document ingestion finished successfully in the Documents section.",
+            )
 
     # Rerank for relevance
     reranked = rerank_chunks(
