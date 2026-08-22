@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { type ChatMessage } from "@/lib/chatStorage";
 import {
   EvidenceBadge,
@@ -13,8 +13,6 @@ import {
   Sparkles,
   ShieldAlert,
   Gauge,
-  ChevronDown,
-  ChevronUp,
   ArrowRight,
   AlertCircle,
 } from "lucide-react";
@@ -29,8 +27,8 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
   const isUser = message.role === "user";
   const res = message.response;
 
-  // Only auto-expand audit metrics if the user EXPLICITLY asked for risk/confidence scores
-  const isExplicitRiskQuery = React.useMemo(() => {
+  // Render product-level metrics ONLY when user explicitly asks for confidence/risk/audit evaluations
+  const isExplicitProductAuditQuery = React.useMemo(() => {
     const q = (message.content || "").toLowerCase();
     return (
       q.includes("risk factor") ||
@@ -39,12 +37,11 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
       q.includes("risk rating") ||
       q.includes("how risky") ||
       q.includes("quality score") ||
+      q.includes("audit report") ||
+      q.includes("risk report") ||
       (q.includes("risk") && (q.includes("score") || q.includes("factor")))
     );
   }, [message.content]);
-
-  const [expandedMetrics, setExpandedMetrics] = useState(false);
-  const showMetrics = isExplicitRiskQuery || expandedMetrics;
 
   if (isUser) {
     return (
@@ -137,41 +134,29 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
               )}
             </div>
 
-            {/* Document Audit Metrics & Risk Breakdown — Rendered ONLY when explicitly asked or toggled */}
-            {showMetrics && (
+            {/* Product-Level Offer Audit Metrics & Risk Breakdown — Rendered ONLY when explicitly asked */}
+            {isExplicitProductAuditQuery && (
               <div className="rounded-2xl border border-white/10 bg-surface-3/50 p-4 space-y-4 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-white uppercase tracking-wider">
-                    <Gauge className="h-3.5 w-3.5 text-primary-light" />
-                    <span>Document Audit & Risk Metrics</span>
-                  </div>
-                  {!isExplicitRiskQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setExpandedMetrics(false)}
-                      className="text-[11px] text-muted-foreground hover:text-white flex items-center gap-1"
-                    >
-                      <span>Hide</span>
-                      <ChevronUp className="h-3 w-3" />
-                    </button>
-                  )}
+                <div className="flex items-center gap-1.5 text-xs font-bold text-white uppercase tracking-wider border-b border-white/10 pb-2">
+                  <Gauge className="h-3.5 w-3.5 text-primary-light" />
+                  <span>Product Offer Audit & Risk Profile</span>
                 </div>
 
-                {/* Score Gauges Grid */}
+                {/* Product Score Gauges Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="rounded-xl border border-white/10 bg-surface-2/70 p-3.5">
                     <ScoreGauge
                       value={confidenceValue}
-                      label="Confidence Score"
-                      description="Retrieval relevance & citation provenance certainty."
+                      label="Offer Transparency / Confidence"
+                      description="Measures document completeness, disclosure quality & citation certainty."
                       tone="info"
                     />
                   </div>
                   <div className="rounded-xl border border-white/10 bg-surface-2/70 p-3.5">
                     <ScoreGauge
                       value={riskValue}
-                      label="Risk Rating"
-                      description="Calculated deterministically from clauses & fee traps."
+                      label="Loan Facility Risk Rating"
+                      description="Derived deterministically from penalty clauses, fee traps & disclosure omissions."
                       tone={riskValue > 50 ? "danger" : "warning"}
                     />
                   </div>
@@ -182,7 +167,7 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
                   <div className="space-y-2 pt-1">
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-white">
                       <ShieldAlert className="h-3.5 w-3.5 text-amber-400" />
-                      <span>Identified Risk Factors ({res.risk_factors.length})</span>
+                      <span>Identified Facility Risk Factors ({res.risk_factors.length})</span>
                     </div>
                     <div className="grid grid-cols-1 gap-2">
                       {res.risk_factors.map((rf: any, idx: number) => (
@@ -217,13 +202,13 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
                   <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs space-y-1">
                     <div className="flex items-center gap-1.5 text-amber-300 font-semibold text-[11px]">
                       <AlertCircle className="h-3.5 w-3.5" />
-                      <span>Missing Mandatory Disclosures:</span>
+                      <span>Missing Mandatory Regulatory Disclosures:</span>
                     </div>
                     <p className="text-white/80 text-[11px] leading-relaxed">
                       {res.missing_information
                         .map((m: any) => m.field?.replace("_", " ").toUpperCase())
                         .join(", ")}{" "}
-                      not found in agreement documents.
+                      not found in provided agreement documents.
                     </p>
                   </div>
                 )}

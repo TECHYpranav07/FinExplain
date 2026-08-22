@@ -295,13 +295,11 @@ def process_query(
     # ===================================================================
     # Step 14: Cost driver & Risk factor detection (deterministic)
     # ===================================================================
-    cost_drivers = []
-    lender_questions = []
-    is_risk_or_meta_query = (
+    is_product_audit_query = (
         intent_result.intent in ("review", "summary", "comparison", "risk")
-        or any(k in clean_question.lower() for k in ("risk", "confidence", "score", "audit", "factor", "quality", "rating"))
+        or any(k in clean_question.lower() for k in ("confidence score", "risk score", "risk factor", "how risky", "audit report", "detailed report", "quality score", "risk report", "summarize", "summary"))
     )
-    if is_risk_or_meta_query:
+    if is_product_audit_query:
         cost_drivers = detect_cost_drivers(structured_facts)
         risk_factors = risk_engine.detect_risk_factors(
             facts=structured_facts,
@@ -319,7 +317,7 @@ def process_query(
         )
     else:
         risk_factors = []
-        risk_score_result = {"score": 20, "level": "LOW"}
+        risk_score_result = {"score": None, "level": None}
 
     # ===================================================================
     # Step 15: Generate answer (with structured context)
@@ -384,7 +382,7 @@ def process_query(
         structured_facts,
         reranked_chunks,
         calculation_result,
-        is_meta_query=is_risk_or_meta_query,
+        is_meta_query=is_product_audit_query,
     )
     if not validation["valid"]:
         logger.info(f"[Orchestrator] Validation issues: {validation['issues']}")
