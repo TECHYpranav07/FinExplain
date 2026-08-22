@@ -100,11 +100,24 @@ def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+import uuid
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.constants import DEFAULT_DEMO_USER_ID
 
 security = HTTPBearer(auto_error=False)
+
+
+def ensure_valid_uuid(val: Any) -> str:
+    """Ensure a user ID string is a valid RFC 4122 UUID for PostgreSQL compatibility."""
+    if not val:
+        return DEFAULT_DEMO_USER_ID
+    val_str = str(val).strip()
+    try:
+        return str(uuid.UUID(val_str))
+    except (ValueError, AttributeError, TypeError):
+        # Deterministically convert arbitrary string into a valid UUIDv5
+        return str(uuid.uuid5(uuid.NAMESPACE_DNS, val_str))
 
 
 def get_current_user(
@@ -119,8 +132,10 @@ def get_current_user(
         token = credentials.credentials
         payload = decode_access_token(token)
         if payload and "sub" in payload:
+            raw_id = payload["sub"]
+            valid_uuid = ensure_valid_uuid(raw_id)
             return {
-                "id": payload["sub"],
+                "id": valid_uuid,
                 "email": payload.get("email", ""),
                 "name": payload.get("name", ""),
             }
@@ -153,10 +168,12 @@ def get_current_user_optional(
         token = credentials.credentials
         payload = decode_access_token(token)
         if payload and "sub" in payload:
+            raw_id = payload["sub"]
             return {
-                "id": payload["sub"],
+                "id": ensure_valid_uuid(raw_id),
                 "email": payload.get("email", ""),
                 "name": payload.get("name", ""),
             }
     return None
+
 

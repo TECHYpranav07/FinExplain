@@ -17,13 +17,15 @@ from app.auth.jwt_handler import (
 )
 from app.core.config import settings
 
+from app.core.constants import DEFAULT_DEMO_USER_ID
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # In-memory user store for demo/development (persistent across active runtime)
 # In production, can sync to Supabase/PostgreSQL user table
 USERS_DB: Dict[str, Dict[str, Any]] = {
     "demo@finexplain.ai": {
-        "id": "demo-user-001",
+        "id": DEFAULT_DEMO_USER_ID,
         "email": "demo@finexplain.ai",
         "name": "FinExplain Auditor",
         "hashed_password": hash_password("demo1234"),
@@ -68,7 +70,7 @@ async def register(req: RegisterRequest):
     if len(req.password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
 
-    user_id = f"user-{uuid.uuid4().hex[:10]}"
+    user_id = str(uuid.uuid4())
     name = req.name or email_key.split("@")[0].title()
     
     user_record = {
@@ -109,7 +111,7 @@ async def login(req: LoginRequest):
     if not user or not verify_password(req.password, user.get("hashed_password", "")):
         # FIN-DEMO: In dev mode, auto-provision user if new to provide instant seamless testing
         if settings.is_development:
-            user_id = f"user-{uuid.uuid4().hex[:10]}"
+            user_id = str(uuid.uuid4())
             name = email_key.split("@")[0].title()
             user = {
                 "id": user_id,
@@ -151,7 +153,7 @@ async def google_auth(req: GoogleAuthRequest):
     name = req.name or email_key.split("@")[0].title()
 
     if email_key not in USERS_DB:
-        user_id = f"google-{req.google_id or uuid.uuid4().hex[:10]}"
+        user_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"google:{req.google_id or email_key}"))
         USERS_DB[email_key] = {
             "id": user_id,
             "email": email_key,
