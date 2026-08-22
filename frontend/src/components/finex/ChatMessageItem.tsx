@@ -238,10 +238,10 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
             )}
 
             {/* In-Chat HITL Escalation Review Mini-Card (Placed cleanly at bottom of answer when required) */}
-            {res.hitl_required && (
+            {(res.hitl_required || res.status === "hilt_escalated") && (
               <HitlReviewCard
-                reason={res.hitl_reason}
-                type={res.hitl_type}
+                reason={res.hitl_reason || "Low retrieval confidence requires borrower or auditor verification."}
+                type={res.hitl_type || "LOW_CONFIDENCE_AUDIT"}
                 status={res.hitl_status || "PENDING"}
                 reviewerNote={res.hitl_reviewer_note}
                 resolvedAt={res.hitl_resolved_at}

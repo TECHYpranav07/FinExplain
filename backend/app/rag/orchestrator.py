@@ -487,6 +487,13 @@ def process_query(
         hitl_reason = (
             f"The requested parameter ('{targeted_missing[0].get('field', '').replace('_', ' ').upper()}') is missing from the uploaded documents."
         )
+    elif evidence_score_result.get("score", 100) < 40:
+        hitl_required = True
+        hitl_type = "LOW_CONFIDENCE_AUDIT"
+        hitl_reason = (
+            f"Evidence confidence score is {evidence_score_result['score']}/100 (below confidence threshold of 40). "
+            "Manual review or lender confirmation is recommended."
+        )
 
     result: Dict[str, Any] = {
         # --- Backward-compatible fields ---
@@ -555,12 +562,17 @@ def process_query(
     # ===================================================================
     # Step 20: HILT escalation (if evidence score is very low)
     # ===================================================================
-    if evidence_score_result["score"] < 40:
+    if evidence_score_result["score"] < 40 or hitl_required:
         from app.hilt.workflow import escalate_to_hilt
         hilt_result = escalate_to_hilt(question, product_ids)
         result["status"] = "hilt_escalated"
         result["hilt_info"] = hilt_result
-        logger.warning(f"[Step 8/8] 🚨 HILT Escalation triggered: Evidence score ({evidence_score_result['score']}/100) below threshold")
+        result["hitl_required"] = True
+        result["hitl_status"] = "PENDING"
+        if not result.get("hitl_reason"):
+            result["hitl_reason"] = f"Evidence score is {evidence_score_result['score']}/100 (below confidence threshold of 40). Manual review recommended."
+            result["hitl_type"] = "LOW_CONFIDENCE_AUDIT"
+        logger.warning(f"[Step 8/8] 🚨 HILT Escalation triggered: {result['hitl_reason']}")
 
     # ===================================================================
     # Step 21: Cache

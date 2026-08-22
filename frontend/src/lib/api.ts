@@ -92,9 +92,10 @@ export interface QueryResponse {
   conflicts?: any[];
   intent?: string;
   calculation_results?: any;
+  status?: string;
   hitl_required?: boolean;
   hitl_reason?: string;
-  hitl_type?: "CONFLICT_REVIEW" | "RISK_ACCEPTANCE" | "DISCLOSURE_GAP" | "GENERAL";
+  hitl_type?: "CONFLICT_REVIEW" | "RISK_ACCEPTANCE" | "DISCLOSURE_GAP" | "GENERAL" | "LOW_CONFIDENCE_AUDIT";
   hitl_status?: "PENDING" | "APPROVED" | "REJECTED";
   hitl_reviewer_note?: string;
   hitl_resolved_at?: string;
