@@ -63,11 +63,7 @@ class Settings(BaseSettings):
 
     @property
     def active_llm_model(self) -> str:
-        if self.LLM_MODEL:
-            return self.LLM_MODEL
-        if self.LLM_PROVIDER.lower() == "gemini":
-            return self.GEMINI_MODEL
-        return self.GROQ_MODEL
+        return self.GEMINI_MODEL or self.LLM_MODEL or "gemini-2.5-flash"
 
     @property
     def is_development(self) -> bool:

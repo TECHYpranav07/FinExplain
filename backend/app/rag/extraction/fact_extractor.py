@@ -98,7 +98,6 @@ def extract_structured_facts(
 
     try:
         response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
             messages=[
                 {
                     "role": "system",

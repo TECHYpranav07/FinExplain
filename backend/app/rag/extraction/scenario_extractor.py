@@ -53,7 +53,6 @@ def extract_user_scenario(query: str) -> Dict[str, Any]:
 
     try:
         response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
             messages=[
                 {
                     "role": "system",

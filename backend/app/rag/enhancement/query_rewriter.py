@@ -21,7 +21,6 @@ Return ONLY the rewritten query, nothing else.
 """
     try:
         response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             max_tokens=100

@@ -59,7 +59,6 @@ def extract_claims(answer: str) -> List[Dict[str, Any]]:
     try:
         prompt = CLAIM_EXTRACTION_PROMPT.format(answer=answer)
         response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
             messages=[
                 {
                     "role": "system",
