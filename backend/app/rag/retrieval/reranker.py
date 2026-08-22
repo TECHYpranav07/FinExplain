@@ -1,4 +1,3 @@
-from sentence_transformers import CrossEncoder
 from typing import List, Dict, Any
 
 # Load cross-encoder once
@@ -7,6 +6,9 @@ _reranker = None
 def get_reranker():
     global _reranker
     if _reranker is None:
+        # Keep the heavyweight ML dependency out of API startup. It is only
+        # needed when a query has retrieved chunks to rerank.
+        from sentence_transformers import CrossEncoder
         _reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
     return _reranker
 

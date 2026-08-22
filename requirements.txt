@@ -9,7 +9,7 @@ python-multipart==0.0.20
 # DATABASE (Supabase PostgreSQL)
 # ==============================================
 supabase==2.11.0
-postgrest==0.19.2
+postgrest>=0.19.0
 
 # ==============================================
 # CONFIGURATION & ENVIRONMENT

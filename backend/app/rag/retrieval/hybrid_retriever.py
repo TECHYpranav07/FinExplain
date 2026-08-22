@@ -17,23 +17,24 @@ def reciprocal_rank_fusion(
     
     # Process dense results
     for rank, item in enumerate(dense_results, start=1):
-        chunk_id = item["id"]
+        chunk_id = item.get("id") or item.get("chunk_id") or item.get("embedding_id") or f"dense_{rank}"
         scores[chunk_id] += 1.0 / (k + rank)
         chunk_map[chunk_id] = item
     
     # Process sparse results
     for rank, item in enumerate(sparse_results, start=1):
-        chunk_id = item.get("id", item.get("embedding_id"))
+        chunk_id = item.get("id") or item.get("chunk_id") or item.get("embedding_id")
         if not chunk_id:
             # Try to find by text match
             for existing_id, existing_item in chunk_map.items():
                 if existing_item.get("text") == item.get("text"):
                     chunk_id = existing_id
                     break
+        if not chunk_id:
+            chunk_id = f"sparse_{rank}"
         
-        if chunk_id:
-            scores[chunk_id] += 1.0 / (k + rank)
-            chunk_map[chunk_id] = item
+        scores[chunk_id] += 1.0 / (k + rank)
+        chunk_map[chunk_id] = item
     
     # Sort by RRF score
     sorted_chunks = sorted(scores.items(), key=lambda x: x[1], reverse=True)

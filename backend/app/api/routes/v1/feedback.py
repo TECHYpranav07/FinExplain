@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional
 from app.db.repositories.feedback_repo import store_feedback
+from app.core.constants import DEFAULT_DEMO_USER_ID
 
 router = APIRouter()
 
@@ -14,7 +15,7 @@ class FeedbackRequest(BaseModel):
 @router.post("/")
 async def submit_feedback(request: FeedbackRequest) -> dict:
     """Submit user feedback to improve the system."""
-    user_id = "test-user-123"
+    user_id = DEFAULT_DEMO_USER_ID
     result = store_feedback(
         user_id=user_id,
         query=request.query,

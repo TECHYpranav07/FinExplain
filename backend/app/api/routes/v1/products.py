@@ -3,12 +3,13 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from app.db.repositories import product_repo
 import uuid
+from app.core.constants import DEFAULT_DEMO_USER_ID
 
 router = APIRouter()
 
 # Default test user ID (UUID format to match Supabase schema)
 # This is the test user already in Supabase (created manually)
-DEFAULT_USER_ID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+DEFAULT_USER_ID = DEFAULT_DEMO_USER_ID
 
 class CreateProductRequest(BaseModel):
     name: str

@@ -5,7 +5,6 @@ import io
 
 from app.ingestion.parser import parse_pdf
 from app.ingestion.chunker import chunk_hierarchical
-from app.ingestion.embedder import generate_embeddings
 from app.external.pinecone_client import get_pinecone_index
 from app.db.repositories.document_repo import (
     create_document, 
@@ -23,13 +22,17 @@ def process_document(
     """
     Full ingestion pipeline:
     1. Check if document already exists (hash deduplication).
-    2. Parse PDF.
-    3. Create hierarchical chunks.
+    2. Parse PDF (with section heading extraction & metadata detection).
+    3. Create hierarchical chunks with rich metadata.
     4. Generate embeddings.
     5. Store chunks in Supabase.
-    6. Upsert vectors to Pinecone.
+    6. Upsert vectors to Pinecone (with enriched metadata).
     7. Update document status to 'indexed'.
     """
+    # Loading sentence-transformers is expensive; keep it out of API startup
+    # and initialize it only when an upload actually needs embeddings.
+    from app.ingestion.embedder import generate_embeddings
+
     
     # Step 1: Hash the file
     file_hash = hashlib.sha256(file_bytes).hexdigest()
@@ -47,12 +50,15 @@ def process_document(
     product = get_product_by_id(product_id)
     if not product:
         raise ValueError(f"Product with ID {product_id} not found.")
-    
-    # Step 2: Parse PDF
+
+    product_name = product.get("name", "")
+
+    # Step 2: Parse PDF (now returns sections and document metadata)
     parsed = parse_pdf(file_bytes)
     full_text = parsed["full_text"]
     pages = parsed["pages"]
     total_pages = parsed["total_pages"]
+    doc_metadata = parsed.get("document_metadata", {})
     
     # Step 3: Create document record (status = processing)
     doc = create_document(
@@ -65,8 +71,16 @@ def process_document(
     )
     document_id = doc["id"]
     
-    # Step 4: Chunk hierarchically
-    raw_chunks = chunk_hierarchical(pages, child_token_size=200, parent_token_size=800)
+    # Step 4: Chunk hierarchically with enriched metadata
+    raw_chunks = chunk_hierarchical(
+        pages,
+        child_token_size=200,
+        parent_token_size=800,
+        document_name=file_name,
+        product_name=product_name,
+        effective_date=doc_metadata.get("effective_date"),
+        document_version=doc_metadata.get("document_version"),
+    )
     
     # Separate child and parent chunks for processing
     children = []
@@ -82,14 +96,19 @@ def process_document(
     child_texts = [c["text"] for c in children]
     child_embeddings = generate_embeddings(child_texts)
     
-    # Step 6: Prepare Pinecone vectors
+    # Step 6: Prepare Pinecone vectors with enriched metadata
     pinecone_vectors = []
     for i, child in enumerate(children):
-        vector_id = f"{document_id}_{i}"
+        vector_id = child.get("chunk_id", f"{document_id}_{i}")
         metadata = {
             "document_id": document_id,
             "product_id": product_id,
+            "document_name": file_name,
+            "product_name": product_name,
             "page_num": child["page_num"],
+            "section_title": child.get("section_title") or "",
+            "effective_date": doc_metadata.get("effective_date") or "",
+            "document_version": doc_metadata.get("document_version") or "",
             "text": child["text"][:500],  # Pinecone metadata limit
             "chunk_type": "child"
         }
@@ -104,11 +123,16 @@ def process_document(
     parent_embeddings = generate_embeddings(parent_texts)
     
     for i, parent in enumerate(parents):
-        vector_id = f"{document_id}_parent_{i}"
+        vector_id = parent.get("chunk_id", f"{document_id}_parent_{i}")
         metadata = {
             "document_id": document_id,
             "product_id": product_id,
+            "document_name": file_name,
+            "product_name": product_name,
             "page_num": parent["page_num"],
+            "section_title": parent.get("section_title") or "",
+            "effective_date": doc_metadata.get("effective_date") or "",
+            "document_version": doc_metadata.get("document_version") or "",
             "text": parent["text"][:500],
             "chunk_type": "parent"
         }
@@ -118,9 +142,12 @@ def process_document(
             "metadata": metadata
         })
     
-    # Step 7: Upsert to Pinecone
-    index = get_pinecone_index()
-    index.upsert(vectors=pinecone_vectors)
+    # Step 7: Upsert to Pinecone (optional if configured)
+    try:
+        index = get_pinecone_index()
+        index.upsert(vectors=pinecone_vectors)
+    except Exception as e:
+        pass  # Pinecone not configured; chunks will be stored in database/local memory
     
     # Step 8: Prepare chunks for Supabase insertion
     db_chunks = []
@@ -130,11 +157,11 @@ def process_document(
         db_chunks.append({
             "document_id": document_id,
             "parent_chunk_id": None,  # Will link after parents are inserted
-            "section_name": None,
+            "section_name": child.get("section_title"),
             "page_number": child["page_num"],
             "text": child["text"],
             "token_count": child["token_count"],
-            "embedding_id": f"{document_id}_{i}"
+            "embedding_id": child.get("chunk_id", f"{document_id}_{i}")
         })
     
     # Insert parent chunks
@@ -142,11 +169,11 @@ def process_document(
         db_chunks.append({
             "document_id": document_id,
             "parent_chunk_id": None,
-            "section_name": None,
+            "section_name": parent.get("section_title"),
             "page_number": parent["page_num"],
             "text": parent["text"],
             "token_count": parent["token_count"],
-            "embedding_id": f"{document_id}_parent_{i}"
+            "embedding_id": parent.get("chunk_id", f"{document_id}_parent_{i}")
         })
     
     # Step 9: Insert chunks into Supabase
@@ -159,5 +186,6 @@ def process_document(
         "status": "success",
         "document_id": document_id,
         "total_chunks": len(inserted_chunks),
+        "document_metadata": doc_metadata,
         "message": "Document processed and indexed successfully."
     }

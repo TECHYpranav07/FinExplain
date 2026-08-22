@@ -24,6 +24,7 @@ class CitationItem(BaseModel):
     verified: bool = False
 
 class QueryAskResponse(BaseModel):
+    # --- Backward-compatible fields ---
     answer: str
     confidence_score: float
     confidence_label: str
@@ -31,6 +32,24 @@ class QueryAskResponse(BaseModel):
     retrieved_chunks: List[Dict[str, Any]] = Field(default_factory=list)
     intent: Optional[str] = None
     status: Optional[str] = "ok"
+
+    # --- New structured fields ---
+    plain_language_explanation: Optional[str] = None
+    key_facts: List[Dict[str, Any]] = Field(default_factory=list)
+    conditions: List[Dict[str, Any]] = Field(default_factory=list)
+    calculations: List[Dict[str, Any]] = Field(default_factory=list)
+    evidence: List[Dict[str, Any]] = Field(default_factory=list)
+    missing_information: List[Dict[str, Any]] = Field(default_factory=list)
+    conflicts: List[Dict[str, Any]] = Field(default_factory=list)
+    evidence_status: Optional[str] = None
+    what_to_verify: List[str] = Field(default_factory=list)
+    evidence_score: Optional[int] = None
+    claim_coverage: Optional[float] = None
+    calculation_valid: Optional[bool] = None
+    risk_score: Optional[int] = None
+    risk_level: Optional[str] = None
+    risk_factors: List[Dict[str, Any]] = Field(default_factory=list)
+    questions_to_ask_provider: List[str] = Field(default_factory=list)
 
 class FeedbackSubmitRequest(BaseModel):
     query: str
@@ -44,3 +63,21 @@ class HILTTaskCreateRequest(BaseModel):
 
 class HILTTaskResolveRequest(BaseModel):
     resolution_data: Dict[str, Any]
+
+# --- New analysis schemas ---
+
+class LoanReviewRequest(BaseModel):
+    product_ids: List[str] = Field(..., description="Product IDs to analyse")
+
+class LoanReviewResponse(BaseModel):
+    review: Dict[str, Any] = Field(default_factory=dict)
+    review_text: Optional[str] = None
+    checklist: Optional[List[Dict[str, Any]]] = None
+    cost_drivers: Optional[List[Dict[str, Any]]] = None
+
+class BeforeConfirmationRequest(BaseModel):
+    product_ids: List[str] = Field(..., description="Product IDs to analyse")
+
+class BeforeConfirmationResponse(BaseModel):
+    checklist: List[Dict[str, Any]] = Field(default_factory=list)
+    checklist_text: Optional[str] = None

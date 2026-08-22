@@ -1,0 +1,895 @@
+No — **the output is not fully correct**. There are several important RAG/logic failures here. The good news is that the underlying document is simple enough that we can identify exactly where the pipeline went wrong.
+
+I verified the uploaded `sample_loan_details.pdf` directly, including the rendered pages.
+
+## 1. What the actual document says
+
+The document clearly contains:
+
+* Loan amount: **₹8,00,000**
+* Interest rate: **10.50% fixed**
+* Tenure: **48 months**
+* EMI: **₹20,492 approx.**
+* Processing fee: **₹8,000**
+* Documentation fee: **₹1,500**
+* Late payment fee: **₹500 — illustrative only; subject to lender policy**
+* Prepayment charge: **2% of outstanding principal — illustrative only**
+* Scheduled repayment information
+* Important disclaimer that the entire document is **fictional/testing data** and that the displayed interest, fees, penalties and repayment amounts are illustrative.   
+
+So your RAG is definitely **retrieving the wrong/insufficient context in some parts of the pipeline**, because the later "Document Review Summary" claims many of these fields are missing.
+
+---
+
+# 2. Let's verify the first answer
+
+The user asked:
+
+> **"I need ₹500,000 and will repay in 6 months. What are my total costs?"**
+
+This is a **scenario**, not the loan's original documented terms.
+
+That's important.
+
+The document says:
+
+> Loan amount = ₹8,00,000
+> Tenure = 48 months
+> Interest = 10.50% fixed
+
+The user's scenario says:
+
+> Principal = ₹5,00,000
+> Planned repayment = 6 months
+
+Therefore:
+
+### User-provided values
+
+```text
+Loan amount = ₹500,000
+Planned repayment = 6 months
+```
+
+### Document-provided values
+
+```text
+Interest rate = 10.50%
+Original documented tenure = 48 months
+Processing fee = ₹8,000
+Documentation fee = ₹1,500
+Prepayment = 2% of outstanding principal
+               BUT illustrative only
+Late fee = ₹500
+           BUT illustrative + subject to lender policy
+```
+
+That distinction needs to exist explicitly in your RAG.
+
+---
+
+# 3. The ₹15,423.64 interest calculation
+
+The RAG calculated:
+
+> Interest = ₹15,423.64
+
+Mathematically, this is consistent with treating **₹500,000 as a new 6-month loan at 10.5% using a standard reducing-balance EMI formula**.
+
+I verified the calculation:
+
+```text
+Principal = ₹500,000
+Rate = 10.5% annually
+Term = 6 months
+
+EMI ≈ ₹85,903.94
+
+Total repayment ≈ ₹515,423.66
+
+Interest ≈ ₹15,423.66
+```
+
+So the arithmetic itself is essentially correct.
+
+### BUT there is a major RAG problem.
+
+The uploaded document **does not state that the ₹500,000 loan has a 6-month tenure**.
+
+It says:
+
+> **Loan Tenure: 48 months**. 
+
+The user said they **will repay it in 6 months**.
+
+Those are not necessarily the same thing.
+
+---
+
+# 4. This is the biggest issue in your calculation engine
+
+Your RAG assumed:
+
+> "6 months repayment" = "6-month loan."
+
+But the user could mean:
+
+> "I take the loan under the documented 48-month terms, but I want to fully repay/foreclose it after 6 months."
+
+Those are completely different scenarios.
+
+### Scenario A — 6-month loan
+
+```text
+Loan = ₹500,000
+Tenure = 6 months
+Rate = 10.5%
+```
+
+Then approximately:
+
+```text
+Interest ≈ ₹15,424
+```
+
+### Scenario B — 48-month loan, but borrower forecloses after 6 months
+
+Then the calculation needs:
+
+```text
+48-month EMI
+×
+6 payments
++
+interest paid during those 6 months
++
+remaining principal
++
+possible prepayment charge
+```
+
+That is a completely different calculation.
+
+And because the document explicitly says **48 months**, your system should **ask/clarify this instead of assuming**.
+
+This is exactly the type of issue your robust RAG needs to catch.
+
+---
+
+# 5. The prepayment charge is incorrectly presented
+
+The RAG says:
+
+> **"Pre-payment charge 2% of outstanding principal applies only if you choose to pay off the loan before the 6-month term ends."**
+
+❌ This is not supported.
+
+The document actually says:
+
+> **"Prepayment Charge — 2% of outstanding principal — Illustrative only."** 
+
+And the conditions say:
+
+> Any prepayment or foreclosure is subject to the applicable agreement and lender policy. 
+
+Therefore your RAG should say:
+
+> **Prepayment charge: 2% of outstanding principal is shown in the sample document, but it is explicitly marked "illustrative only" and is subject to the applicable agreement and lender policy. It should not be treated as a confirmed charge.**
+
+### Status should NOT be:
+
+🟢 EXPLICIT
+
+It should be something like:
+
+🟠 **CONDITIONAL / ILLUSTRATIVE**
+
+or, if your four-status system must remain strict:
+
+> **CONDITIONAL**
+
+with an additional flag:
+
+```text
+illustrative_only = true
+```
+
+---
+
+# 6. Same problem with the ₹500 late fee
+
+The RAG says:
+
+> Late payment fee = ₹500
+
+That's incomplete.
+
+The document says:
+
+> **₹500 — Illustrative only; subject to lender policy.** 
+
+So your structured fact should be:
+
+```json
+{
+  "field": "late_payment_fee",
+  "value": 500,
+  "currency": "INR",
+  "status": "CONDITIONAL",
+  "illustrative_only": true,
+  "condition": "subject to lender policy"
+}
+```
+
+It should **not** be treated as a confirmed ₹500 contractual penalty.
+
+---
+
+# 7. The "fixed rate" statement
+
+The RAG says:
+
+> "The interest rate is fixed for the whole term; it does not change."
+
+This is mostly reasonable because the document says:
+
+> **10.50% per annum (fixed)**. 
+
+But because the document itself says:
+
+> interest calculations, fees, penalties and repayment amounts are illustrative and do not represent actual lender terms, 
+
+the system should preserve that disclaimer.
+
+Better:
+
+> **The sample document states a fixed interest rate of 10.50% per annum. However, this document is explicitly fictional/testing data and says its financial terms are illustrative rather than actual lender terms.**
+
+---
+
+# 8. Processing fee = ₹8,000
+
+This part is correct.
+
+The document explicitly says:
+
+> Processing Fee = ₹8,000
+> One-time sample charge. 
+
+So:
+
+🟢 **EXPLICIT**
+
+is appropriate.
+
+But your output says:
+
+> "payable up-front when the loan is disbursed."
+
+That specific timing is **not stated** in this document.
+
+The document only says:
+
+> "One-time sample charge."
+
+Therefore don't add "up-front" unless another clause actually says it.
+
+---
+
+# 9. Documentation fee = ₹1,500
+
+Also correct.
+
+The document explicitly says:
+
+> Documentation Fee = ₹1,500
+> One-time sample charge. 
+
+So:
+
+🟢 **EXPLICIT**
+
+is correct.
+
+Again, don't claim it is necessarily payable "up-front" unless the document says so.
+
+---
+
+# 10. The "APR not specified" finding
+
+This one appears correct.
+
+I don't see an APR in the document.
+
+So:
+
+> **APR → NOT_SPECIFIED**
+
+is valid.
+
+However, your risk classification:
+
+> **APR missing → HIGH**
+
+is too simplistic.
+
+Missing APR can be important, but the system shouldn't automatically say:
+
+> Missing field = high risk.
+
+It should say something like:
+
+> **Information gap: APR is not provided. This limits the ability to compare the loan's overall cost with other products.**
+
+Then perhaps:
+
+```text
+Risk: MEDIUM
+Decision uncertainty: HIGH
+```
+
+That's a much better distinction.
+
+---
+
+# 11. "Early Repayment — NOT_SPECIFIED"
+
+This is **incorrect**.
+
+Your document explicitly contains:
+
+> **Prepayment Charge: 2% of outstanding principal** 
+
+and:
+
+> **Any prepayment or foreclosure is subject to the applicable agreement and lender policy.** 
+
+Therefore the system cannot say:
+
+> "No information about early repayment."
+
+Correct:
+
+### Early repayment
+
+**Information exists, but exact applicability is not confirmed.**
+
+```text
+Prepayment charge:
+2% of outstanding principal
+
+Status:
+CONDITIONAL / ILLUSTRATIVE
+
+Important:
+Subject to applicable agreement and lender policy.
+```
+
+This is a **retrieval/field-normalization problem** in your RAG.
+
+Your system has:
+
+```text
+PREPAYMENT CHARGE
+```
+
+but your missing-information detector is apparently looking only for:
+
+```text
+EARLY REPAYMENT
+```
+
+You need a synonym mapping:
+
+```text
+early repayment
+prepayment
+pre-payment
+foreclosure
+foreclosure charge
+early settlement
+loan settlement
+pre-closure
+preclosure
+```
+
+All should map to the same conceptual field:
+
+```text
+EARLY_REPAYMENT
+```
+
+---
+
+# 12. "Repayment Schedule — NOT_SPECIFIED"
+
+Also **incorrect as written**.
+
+The document has a repayment schedule. It gives:
+
+* installment
+* due date
+* EMI
+* principal
+* interest
+* balance
+
+for the first six installments. 
+
+However, there's an important distinction.
+
+The schedule is for:
+
+> **₹8,00,000 / 48 months**
+
+while the user scenario is:
+
+> **₹5,00,000 / 6 months**
+
+Therefore the correct result is:
+
+> **A repayment schedule exists in the document, but a scenario-specific schedule for your ₹5,00,000 loan is not provided.**
+
+That's much more precise.
+
+Your RAG should distinguish:
+
+```text
+DOCUMENT_FIELD_EXISTS
+```
+
+from:
+
+```text
+SCENARIO_SPECIFIC_FIELD_EXISTS
+```
+
+---
+
+# 13. The Document Review Summary is seriously wrong
+
+This section:
+
+> "No specific details about the loan..."
+
+is simply contradicted by the PDF.
+
+The document contains detailed loan information:
+
+> Personal Loan
+> Home renovation
+> ₹8,00,000
+> 10.50% fixed
+> 48 months
+> ₹20,492 EMI
+> Dates
+> Active status. 
+
+So this:
+
+> **Loan Summary: No specific details**
+
+❌ Wrong.
+
+---
+
+### Headline Rate
+
+The RAG says:
+
+> Interest rate and APR are not specified.
+
+❌ Partially wrong.
+
+Correct:
+
+```text
+Interest rate = 10.50% fixed → EXPLICIT
+APR = Not specified → NOT_SPECIFIED
+```
+
+---
+
+### Total Known Fees
+
+RAG says:
+
+> Fees not specified.
+
+❌ Completely wrong.
+
+Correct:
+
+```text
+Processing fee = ₹8,000 → EXPLICIT
+Documentation fee = ₹1,500 → EXPLICIT
+Late fee = ₹500 → CONDITIONAL / ILLUSTRATIVE
+Prepayment charge = 2% → CONDITIONAL / ILLUSTRATIVE
+```
+
+
+
+---
+
+### Repayment Terms
+
+RAG says:
+
+> Tenure and schedule not specified.
+
+❌ Wrong.
+
+Correct:
+
+```text
+Tenure = 48 months → EXPLICIT
+EMI = ₹20,492 approx. → EXPLICIT
+Sample repayment schedule = available → EXPLICIT
+```
+
+ 
+
+---
+
+### Early Repayment
+
+RAG says:
+
+> No information.
+
+❌ Wrong.
+
+Prepayment is explicitly mentioned. 
+
+---
+
+### Late Payment
+
+RAG says:
+
+> No information.
+
+❌ Wrong.
+
+₹500 is explicitly listed, although marked illustrative and subject to lender policy. 
+
+---
+
+### Conditions
+
+RAG says:
+
+> No conditions identified.
+
+❌ Wrong.
+
+The document contains:
+
+> "subject to lender policy"
+
+and
+
+> "subject to the applicable agreement and lender policy."
+
+
+
+---
+
+# 14. There is also a major issue with the "structured key facts"
+
+It says:
+
+> LOAN AMOUNT = 800000
+
+> LOAN TENURE = 48 months
+
+Those are actually **correct document facts**.
+
+But the user's scenario is:
+
+> ₹500,000
+> 6 months
+
+So your system needs to explicitly distinguish:
+
+### Document facts
+
+```text
+Loan amount = ₹800,000
+Tenure = 48 months
+```
+
+### User scenario
+
+```text
+Requested amount = ₹500,000
+Planned repayment = 6 months
+```
+
+Never overwrite one with the other.
+
+---
+
+# 15. The biggest architecture bug I see
+
+Your pipeline appears to be mixing these three things:
+
+```text
+DOCUMENT FACTS
++
+USER SCENARIO
++
+CALCULATED VALUES
+```
+
+They need to be completely separate.
+
+I'd create:
+
+```python
+document_facts
+user_scenario
+calculation_results
+```
+
+### Example
+
+```json
+{
+  "document_facts": {
+    "loan_amount": 800000,
+    "interest_rate": 0.105,
+    "tenure_months": 48,
+    "processing_fee": 8000,
+    "documentation_fee": 1500,
+    "late_payment_fee": 500,
+    "prepayment_charge_percent": 2
+  },
+
+  "user_scenario": {
+    "loan_amount": 500000,
+    "planned_repayment_months": 6
+  },
+
+  "calculation_results": {}
+}
+```
+
+Then the engine decides what can be calculated.
+
+---
+
+# 16. Your ₹24,923 total needs a qualification
+
+The RAG says:
+
+> Total known cost = ₹24,923.64
+
+That's only valid under a specific assumption:
+
+> **Treat ₹500,000 as a 6-month amortizing loan at 10.5%.**
+
+But that's not necessarily the user's actual documented loan scenario.
+
+If the document's **48-month tenure remains applicable**, and the user simply wants to settle after six months, then the calculation is different.
+
+So your system should **not give a definitive total yet**.
+
+It should respond:
+
+> **I can calculate this, but I need to clarify one thing: do you mean a new 6-month loan, or a 48-month loan that you plan to fully repay after 6 months?**
+
+That's actually a **better RAG answer** than the current one.
+
+---
+
+# 17. What the correct answer should look like
+
+For this exact document, I'd want your RAG to generate something like:
+
+## Direct Answer
+
+> I can estimate the cost, but there is one important ambiguity. The document specifies a **48-month loan at 10.50% fixed**, while you said you plan to repay ₹500,000 in 6 months. If you mean a **6-month loan**, the estimated interest is about **₹15,424**, plus the ₹8,000 processing fee and ₹1,500 documentation fee, giving a known cost of about **₹24,924**.  
+>
+> However, if you mean a **48-month loan that you will foreclose after 6 months**, the calculation is different and a prepayment charge may need to be considered. The document lists a 2% prepayment charge, but explicitly marks it as **illustrative only** and says prepayment is subject to the applicable agreement and lender policy. 
+
+Then:
+
+### Known document costs
+
+| Item              |                       Value | Status                        |
+| ----------------- | --------------------------: | ----------------------------- |
+| Interest rate     |                10.50% fixed | 🟢 Explicit                   |
+| Processing fee    |                      ₹8,000 | 🟢 Explicit                   |
+| Documentation fee |                      ₹1,500 | 🟢 Explicit                   |
+| Late fee          |                        ₹500 | 🟠 Illustrative / conditional |
+| Prepayment charge | 2% of outstanding principal | 🟠 Illustrative / conditional |
+| APR               |                  Not stated | ⚪ Not specified               |
+| Original tenure   |                   48 months | 🟢 Explicit                   |
+
+---
+
+# 18. Your risk detector should have caught this
+
+For this document + scenario, I'd expect:
+
+### 🔴 Scenario ambiguity
+
+**High**
+
+> The document specifies a 48-month tenure, while the user says they will repay in 6 months. It is unclear whether this means a 6-month loan or early foreclosure after six months.
+
+This is a **new risk category you should add**:
+
+> **SCENARIO / DOCUMENT MISMATCH**
+
+That's very important.
+
+---
+
+### 🟠 Prepayment condition
+
+> The document lists a 2% prepayment charge, but marks it illustrative and subject to the applicable agreement/lender policy.
+
+---
+
+### 🟠 Missing APR
+
+> APR isn't provided, so complete cost comparison with other loans is limited.
+
+---
+
+### 🟠 Illustrative terms
+
+> The document explicitly states that fees, penalties and repayment amounts are illustrative and not actual lender terms. 
+
+This should probably be **HIGH priority for a real application**, because the document itself says it is fictional and should not be treated as an actual loan contract.
+
+---
+
+# 19. One more thing your RAG should catch
+
+The PDF says:
+
+> **"FICTIONAL DATA — NOT A REAL LOAN DOCUMENT."** 
+
+and later:
+
+> **"No real person, bank, lender, or account is represented."** 
+
+Your RAG should detect this as:
+
+```text
+DOCUMENT_AUTHENTICITY_WARNING
+```
+
+and display:
+
+> ⚠️ **Document warning**
+>
+> This document is explicitly marked as fictional/testing data. Its financial terms should not be treated as an actual lender offer or contract.
+
+This is **much more important than a generic "confidence score."**
+
+---
+
+# 20. So here's the actual audit of your current RAG
+
+| Output                                       | Correct? | Problem                                                                                  |
+| -------------------------------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| ₹8,000 processing fee                        | ✅        | Correct                                                                                  |
+| ₹1,500 documentation fee                     | ✅        | Correct                                                                                  |
+| 10.5% fixed rate                             | ✅        | Correct                                                                                  |
+| ₹500 late fee                                | ⚠️       | Must preserve "illustrative / subject to lender policy"                                  |
+| 2% prepayment                                | ⚠️       | Must preserve "illustrative / subject to agreement/policy"                               |
+| APR missing                                  | ✅        | Correct                                                                                  |
+| ₹15,423 interest                             | ⚠️       | Math is okay under a 6-month-loan assumption, but assumption isn't supported by document |
+| ₹24,923 total cost                           | ⚠️       | Only valid under the 6-month-loan assumption                                             |
+| "Interest calculated on outstanding balance" | ⚠️       | Inferred from schedule/calculation method, not explicitly stated                         |
+| "Fees payable upfront"                       | ❌        | Not stated                                                                               |
+| "No early repayment information"             | ❌        | Prepayment is explicitly mentioned                                                       |
+| "No repayment schedule"                      | ❌        | Sample schedule exists                                                                   |
+| "No interest rate"                           | ❌        | 10.5% is explicitly stated                                                               |
+| "No processing fee"                          | ❌        | ₹8,000 explicitly stated                                                                 |
+| "No late payment info"                       | ❌        | ₹500 explicitly stated                                                                   |
+| "No conditions"                              | ❌        | Multiple conditions exist                                                                |
+| No conflict found                            | ⚠️       | The internal calculation engine conflict should not be treated as a document conflict    |
+| Risk: APR HIGH                               | ⚠️       | Missing APR should increase uncertainty, not automatically mean high financial risk      |
+| Early repayment missing                      | ❌        | Synonym/entity mapping failure                                                           |
+| Document Review Summary                      | ❌        | Major retrieval/aggregation failure                                                      |
+| Fictional-document warning                   | ❌        | Important document-level warning is missing                                              |
+
+---
+
+# 21. The exact bug your Antigravity prompt should address
+
+Your current system appears to be doing something like:
+
+```text
+Retrieve chunks
+       ↓
+LLM generates answer
+       ↓
+LLM generates "missing fields"
+       ↓
+LLM generates risk factors
+       ↓
+LLM generates checklist
+```
+
+That's why you get contradictions like:
+
+> **Structured Key Facts: Interest Rate = 10.50%**
+
+while simultaneously:
+
+> **Document Review: Interest Rate = NOT_SPECIFIED**
+
+That should be **impossible** in a robust architecture.
+
+You need:
+
+```text
+                    DOCUMENT
+                       ↓
+              STRUCTURED FACT STORE
+                       ↓
+             ┌─────────┴─────────┐
+             ↓                   ↓
+       User Scenario        Document Review
+             ↓                   ↓
+             └─────────┬─────────┘
+                       ↓
+                 RULE ENGINE
+                       ↓
+        ┌──────────────┼──────────────┐
+        ↓              ↓              ↓
+     Missing        Conflicts       Risks
+        ↓              ↓              ↓
+        └──────────────┼──────────────┘
+                       ↓
+                 CALCULATOR
+                       ↓
+                  LLM ANSWER
+                       ↓
+                CLAIM VERIFIER
+                       ↓
+               FINAL VALIDATOR
+```
+
+**The missing-information detector should NEVER ask the LLM "is APR present?"**
+
+It should query your structured fact store:
+
+```python
+facts["apr"]
+```
+
+If no verified APR fact exists:
+
+```text
+NOT_SPECIFIED
+```
+
+That's deterministic.
+
+---
+
+## Most important fixes to make now
+
+I would tell Antigravity to prioritize these **before adding more prompts**:
+
+1. **Separate document facts from user scenario.**
+2. **Create a canonical loan-field schema.**
+3. **Map synonyms:** `prepayment = early repayment = foreclosure = pre-closure`.
+4. **Make missing-information detection deterministic.**
+5. **Make conflict detection deterministic.**
+6. **Make risk detection rule-based + evidence-backed.**
+7. **Don't classify illustrative charges as confirmed charges.**
+8. **Don't assume "repay in 6 months" means "6-month loan."**
+9. **Add a document-level authenticity/disclaimer detector.**
+10. **Make calculations expose their assumptions.**
+11. **Don't let the Document Review Summary independently hallucinate facts.**
+12. **Run the final response against the structured fact store before displaying it.**
+
+The most serious problem right now isn't that the LLM's wording is imperfect. **It's that different parts of your RAG are producing mutually contradictory views of the same document.** Fixing that data/validation architecture will improve the system far more than adding another giant system prompt.

@@ -1,9 +1,10 @@
 from app.db.repositories.hilt_repo import create_hilt_task, resolve_hilt_task
+from app.core.constants import DEFAULT_DEMO_USER_ID
 from typing import Dict, Any, List
 import json
 
 class HILTManager:
-    def __init__(self, user_id: str = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"):
+    def __init__(self, user_id: str = DEFAULT_DEMO_USER_ID):
         self.user_id = user_id
 
     def create_review_task(self, query: str, confidence: float, conflicts: List[Dict], product_ids: List[str]) -> str:
