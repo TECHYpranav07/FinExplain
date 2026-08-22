@@ -52,14 +52,32 @@ Return ONLY the JSON array.
 def extract_claims(answer: str) -> List[Dict[str, Any]]:
     """
     Deterministically break answer into discrete factual claims using sentence
-    and citation parsing, eliminating unnecessary LLM token consumption and latency.
+    and citation parsing, protecting bracketed citations [Page X, Section Y. Title]
+    and decimal abbreviations from premature splitting.
     """
-    sentences = re.split(r'(?<=[.!?\n])\s+', answer.strip())
+    text = answer.strip()
+    if not text:
+        return []
+
+    lines = [l.strip() for l in text.split('\n') if l.strip()]
+    sentences: List[str] = []
+
+    for line in lines:
+        # Protect periods inside bracketed citations (e.g. [Page 2, Section 4. Fees & Charges])
+        masked = re.sub(r'\[([^\]]*)\]', lambda m: '[' + m.group(1).replace('.', '§DOT§') + ']', line)
+        # Protect common abbreviations and numbers
+        masked = re.sub(r'\b(p\.a|e\.g|i\.e|vs|no|sec|dept|fig|vol|rs|inr)\.', r'\1§DOT§', masked, flags=re.IGNORECASE)
+        masked = re.sub(r'(?<=\d)\.(?=\d)', '§DOT§', masked)
+
+        # Split on actual sentence endings followed by space and capital letter or bracket
+        parts = re.split(r'(?<=[.!?])\s+(?=[A-Z0-9\[])', masked)
+        for p in parts:
+            restored = p.replace('§DOT§', '.').strip()
+            if restored and len(restored) > 10:
+                sentences.append(restored)
+
     claims: List[Dict[str, Any]] = []
-    for s in sentences:
-        s_clean = s.strip()
-        if not s_clean or len(s_clean) < 10:
-            continue
+    for s_clean in sentences:
         # Extract cited page if present (e.g. [Page 1, Section 2])
         page_match = re.search(r'\[(?:.*?Page\s*)(\d+)', s_clean, re.IGNORECASE)
         cited_page = int(page_match.group(1)) if page_match else None
