@@ -292,26 +292,30 @@ def process_query(
             processing_fee_type=processing_fee_type,
             evidence_ids=[f.source_chunk_id for f in structured_facts if f.source_chunk_id],
         )
-        logger.info(f"[Orchestrator] Calculation complete. Unknown costs: {calculation_result.get('unknown_costs', [])}")
-
     # ===================================================================
     # Step 14: Cost driver & Risk factor detection (deterministic)
     # ===================================================================
-    cost_drivers = detect_cost_drivers(structured_facts)
-    risk_factors = risk_engine.detect_risk_factors(
-        facts=structured_facts,
-        missing=missing_info,
-        conflicts=all_conflicts,
-        scenario=scenario,
-    )
-    risk_score_result = risk_engine.calculate_risk_score(risk_factors)
-    lender_questions = generate_lender_questions(
-        facts=structured_facts,
-        missing=missing_info,
-        conflicts=all_conflicts,
-        risk_factors=risk_factors,
-        scenario=scenario,
-    )
+    cost_drivers = []
+    lender_questions = []
+    if intent_result.intent in ("review", "summary", "comparison", "risk"):
+        cost_drivers = detect_cost_drivers(structured_facts)
+        risk_factors = risk_engine.detect_risk_factors(
+            facts=structured_facts,
+            missing=missing_info,
+            conflicts=all_conflicts,
+            scenario=scenario,
+        )
+        risk_score_result = risk_engine.calculate_risk_score(risk_factors)
+        lender_questions = generate_lender_questions(
+            facts=structured_facts,
+            missing=missing_info,
+            conflicts=all_conflicts,
+            risk_factors=risk_factors,
+            scenario=scenario,
+        )
+    else:
+        risk_factors = []
+        risk_score_result = {"score": 20, "level": "LOW"}
 
     # ===================================================================
     # Step 15: Generate answer (with structured context)

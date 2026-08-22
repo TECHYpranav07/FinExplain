@@ -1,16 +1,12 @@
-import React, { useState } from "react";
+import React from "react";
 import { type ChatMessage } from "@/lib/chatStorage";
 import {
-  Panel,
-  ScoreGauge,
   EvidenceBadge,
-  SeverityBadge,
   CitationChip,
 } from "@/components/finex/primitives";
 import { FormattedMarkdown } from "@/components/finex/FormattedMarkdown";
-import { StructuredFactCard } from "@/components/finex/StructuredFactCard";
 import { HitlReviewCard } from "@/components/finex/HitlReviewCard";
-import { User, Sparkles, ChevronDown, ChevronUp, ArrowRight, ShieldCheck } from "lucide-react";
+import { User, Sparkles } from "lucide-react";
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -19,7 +15,6 @@ interface ChatMessageItemProps {
 }
 
 export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatMessageItemProps) {
-  const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
   const isUser = message.role === "user";
 
   if (isUser) {
@@ -45,7 +40,6 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
 
   // Assistant Response Turn
   const res = message.response;
-  const hasExtraFacts = (res?.key_facts?.length || 0) > 0 || (res?.conditions?.length || 0) > 0;
 
   return (
     <div className="flex items-start gap-3.5 max-w-4xl mr-auto my-4 w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -77,7 +71,7 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
             <div className="flex items-center gap-2.5">
               <i className="fa-solid fa-spinner fa-spin text-xs text-primary-light" />
               <span className="text-xs font-medium text-white/90">
-                Verifying loan agreement clauses & calculating exact terms...
+                Auditing agreement clauses & verifying exact terms...
               </span>
             </div>
             <div className="space-y-1.5 pt-1">
@@ -113,7 +107,7 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
               )}
             </div>
 
-            {/* In-Chat HITL Escalation Review Mini-Card (Placed cleanly at bottom of answer) */}
+            {/* In-Chat HITL Escalation Review Mini-Card (Placed cleanly at bottom of answer when required) */}
             {res.hitl_required && (
               <HitlReviewCard
                 reason={res.hitl_reason}
@@ -127,100 +121,6 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
                   }
                 }}
               />
-            )}
-
-            {/* Optional / Collapsible Technical Audit & Deep Evidence (Collapsed by Default) */}
-            {hasExtraFacts && (
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface px-3 py-1.5 text-[11px] font-medium text-white/70 hover:text-white hover:bg-surface-2 transition-colors"
-                >
-                  <ShieldCheck className="h-3.5 w-3.5 text-primary-light" />
-                  <span>
-                    {showTechnicalDetails
-                      ? "Hide Technical Audit Details"
-                      : `View Technical Audit Evidence (${res.key_facts?.length || 0} terms verified)`}
-                  </span>
-                  {showTechnicalDetails ? (
-                    <ChevronUp className="h-3 w-3 ml-0.5" />
-                  ) : (
-                    <ChevronDown className="h-3 w-3 ml-0.5" />
-                  )}
-                </button>
-
-                {showTechnicalDetails && (
-                  <div className="mt-3 space-y-4 rounded-xl border border-white/10 bg-surface-2/40 p-4 animate-in fade-in duration-200">
-                    {/* Metrics Bar */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <ScoreGauge
-                        value={Math.round((res.confidence_score || 0.9) * 100)}
-                        label="Confidence Score"
-                        description="Measures retrieval relevance & citation certainty."
-                        tone="success"
-                      />
-                      <ScoreGauge
-                        value={res.risk_score || 20}
-                        label="Risk Rating"
-                        description="Derived deterministically from operative clauses."
-                        tone={res.risk_score && res.risk_score > 50 ? "danger" : "warning"}
-                      />
-                    </div>
-
-                    {/* Key Facts & Conditions Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                      {res.key_facts && res.key_facts.length > 0 && (
-                        <Panel
-                          title="Key Extracted Facts"
-                          subtitle={`${res.key_facts.length} verified terms`}
-                        >
-                          <div className="grid grid-cols-1 gap-2">
-                            {res.key_facts.map((f, i) => (
-                              <StructuredFactCard key={i} fact={f} isCondition={false} />
-                            ))}
-                          </div>
-                        </Panel>
-                      )}
-
-                      {res.conditions && res.conditions.length > 0 && (
-                        <Panel
-                          title="Conditional Clauses"
-                          subtitle={`${res.conditions.length} active conditions`}
-                        >
-                          <div className="grid grid-cols-1 gap-2">
-                            {res.conditions.map((c, i) => (
-                              <StructuredFactCard key={i} fact={c} isCondition={true} />
-                            ))}
-                          </div>
-                        </Panel>
-                      )}
-                    </div>
-
-                    {/* Recommended Questions to Ask Provider */}
-                    {res.questions_to_ask_provider && res.questions_to_ask_provider.length > 0 && (
-                      <div className="rounded-xl border border-warning/30 bg-warning/5 p-3.5 space-y-2">
-                        <span className="text-[11px] font-semibold text-white uppercase tracking-wider block">
-                          Recommended Follow-up Inquiries:
-                        </span>
-                        <div className="grid grid-cols-1 gap-1.5">
-                          {res.questions_to_ask_provider.map((q, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              onClick={() => onAskQuestion && onAskQuestion(q)}
-                              className="group flex items-center justify-between gap-2 text-left rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/90 hover:bg-white/10 transition-all"
-                            >
-                              <span className="leading-snug truncate">{q}</span>
-                              <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-white shrink-0" />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
             )}
           </div>
         )}

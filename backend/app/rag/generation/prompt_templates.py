@@ -801,18 +801,18 @@ DETERMINISTIC EVIDENCE SCORE:
 {evidence_score}
 
 ==================================================
-INSTRUCTIONS & PRECISION RULES (TOKEN EFFICIENT)
+INSTRUCTIONS & PRECISION RULES (STRICT CONCISENESS)
 ==================================================
 
-1. ADAPTIVE SCOPE & DIRECTNESS:
-   - If the user asks a SPECIFIC TARGETED QUESTION (e.g., "What is the interest rate?", "What is the prepayment fee?", "What happens if delayed?"):
-     -> Give a PRECISE, DIRECT, CONCISE answer focusing ONLY on that specific topic.
-     -> State the exact numbers/terms, conditions, waivers, and document/page citations.
-     -> Do NOT generate long unnecessary boilerplate sections when only a specific fact was requested.
+1. ADAPTIVE SCOPE & DIRECTNESS (CRITICAL):
+   - If the user asks a SPECIFIC TARGETED FACTUAL QUESTION (e.g., "What is the interest rate?", "What is the processing fee?", "What is the late payment fee?", "What happens if delayed?"):
+     -> Give a PRECISE, DIRECT, CONCISE answer (1 to 3 sentences maximum).
+     -> State the exact numeric value or term, any applicable active condition or waiver, and the exact citation [Page X, Section Y].
+     -> Do NOT output extra boilerplate sections, do NOT output repetitive subheadings (like "Direct Answer", "Key Financial Details", "Evidence", "Exact Text", "Claim-Level Citations"), and do NOT list unrelated facts or fees. Answer ONLY what is asked directly and stop.
    - If the user asks for a SUMMARY (e.g., "Summarize the loan terms", "Give me an overview"):
-     -> Provide a concise structured summary (Core Rates, Key Fees, Main Conditions, and Gaps).
-   - If the user asks for a COMPREHENSIVE DETAILED REPORT or FULL AUDIT:
-     -> Provide an in-depth multi-section audit covering Direct Answer, Financial Details, Calculations, Conditions, and Verification gaps.
+     -> Provide a structured summary (Core Rates, Key Fees, Main Conditions, and Gaps).
+   - If the user asks for a COMPREHENSIVE DETAILED AUDIT or COMPARISON:
+     -> Provide an in-depth structured review with clear subheadings (###).
 
 2. MULTI-PRODUCT COMPARISON RULES (WHEN 2+ PRODUCTS ARE QUERIED):
    - When retrieved evidence belongs to multiple loan products/documents:
@@ -823,7 +823,6 @@ INSTRUCTIONS & PRECISION RULES (TOKEN EFFICIENT)
         - Relevant rates, fees, terms, and page numbers from Product 2.
         ### Comparison & Key Differences
         - Side-by-side comparison of rates, fees, and conditions.
-        - Point out which product has lower costs or more favorable terms under the requested scenario (e.g., "Product A has a lower processing fee of 1% vs 2% in Product B, but Product B waives prepayment penalties after 12 months").
 
 3. EVIDENCE & SAFETY RULES:
    - Answer only from the supplied evidence and structured calculation results.
@@ -832,9 +831,9 @@ INSTRUCTIONS & PRECISION RULES (TOKEN EFFICIENT)
    - If information is not in the documents, state: "Not specified in the provided documents."
    - If two documents conflict on a term, state: "Conflict detected between [Doc A] and [Doc B]."
 
-4. TONE & STYLE:
-   - Use clean, professional markdown with clean subheadings (###) and bullet points.
-   - Keep answers clear, readable, and strictly grounded in the document evidence.
+4. FORMATTING RULES:
+   - Do NOT wrap entire sentences, statements, or questions in asterisks (e.g., do NOT output *What is...* or **What is...**).
+   - Write cleanly as plain natural text without unnecessary formatting noise.
 """
 
 
