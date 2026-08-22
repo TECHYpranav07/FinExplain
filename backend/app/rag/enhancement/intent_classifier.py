@@ -20,20 +20,31 @@ class IntentResult(BaseModel):
 
 def classify_intent(query: str) -> IntentResult:
     """
-    Classify the user's query intent using heuristic matching with LLM fallback.
+    Classify the user's query intent using fast deterministic heuristic matching with LLM fallback.
     """
     q_lower = query.lower().strip()
 
-    # Fast heuristic checks for risk, audit, score, and summary
+    # 1. Fast deterministic heuristic checks (Zero LLM tokens used)
     if any(k in q_lower for k in ("risk factor", "risk score", "confidence score", "confidence and risk", "how risky", "risk rating")):
         return IntentResult(intent=QueryIntent.RISK, confidence=0.95, extracted_entities={})
     
-    if any(k in q_lower for k in ("summary", "summarize", "overview of loan", "audit report", "executive summary")):
+    if any(k in q_lower for k in ("summary", "summarize", "overview of loan", "audit report", "executive summary", "review the loan")):
         return IntentResult(intent=QueryIntent.SUMMARY, confidence=0.90, extracted_entities={})
 
-    if any(k in q_lower for k in ("compare", "comparison", "vs", "difference between")):
+    if any(k in q_lower for k in ("compare", "comparison", " vs ", "difference between")):
         return IntentResult(intent=QueryIntent.COMPARISON, confidence=0.90, extracted_entities={})
 
+    if any(k in q_lower for k in (
+        "interest rate", "rate of interest", "processing fee", "documentation fee",
+        "late payment", "prepayment", "foreclosure", "tenure", "emi", "apr",
+        "penal", "penalty", "grace period", "what is the", "what is", "how much is"
+    )):
+        return IntentResult(intent=QueryIntent.LOOKUP, confidence=0.95, extracted_entities={})
+
+    if any(k in q_lower for k in ("calculate", "total cost", "how much will i pay", "amortization")):
+        return IntentResult(intent=QueryIntent.CALCULATION, confidence=0.95, extracted_entities={})
+
+    # 2. LLM fallback only if heuristic does not match
     prompt = f"""
 Classify the following user question about loans into one of these categories:
 - comparison: Comparing two or more loan products (e.g., "Which is cheaper?")
@@ -56,7 +67,7 @@ Return ONLY a JSON object with:
         response = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            max_tokens=200
+            max_tokens=150
         )
         content = response.choices[0].message.content.strip()
         if content.startswith("```"):

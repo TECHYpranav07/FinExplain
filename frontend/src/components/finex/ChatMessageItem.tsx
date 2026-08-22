@@ -29,23 +29,22 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
   const isUser = message.role === "user";
   const res = message.response;
 
-  const isRiskOrAuditQuery = React.useMemo(() => {
+  // Only auto-expand audit metrics if the user EXPLICITLY asked for risk/confidence scores
+  const isExplicitRiskQuery = React.useMemo(() => {
     const q = (message.content || "").toLowerCase();
     return (
-      q.includes("risk") ||
-      q.includes("confidence") ||
-      q.includes("score") ||
-      q.includes("audit") ||
-      q.includes("factor") ||
-      q.includes("quality") ||
-      q.includes("rating") ||
-      res?.intent === "risk" ||
-      res?.intent === "review"
+      q.includes("risk factor") ||
+      q.includes("risk score") ||
+      q.includes("confidence score") ||
+      q.includes("risk rating") ||
+      q.includes("how risky") ||
+      q.includes("quality score") ||
+      (q.includes("risk") && (q.includes("score") || q.includes("factor")))
     );
-  }, [message.content, res?.intent]);
+  }, [message.content]);
 
   const [expandedMetrics, setExpandedMetrics] = useState(false);
-  const showMetrics = isRiskOrAuditQuery || expandedMetrics;
+  const showMetrics = isExplicitRiskQuery || expandedMetrics;
 
   if (isUser) {
     return (
@@ -138,15 +137,15 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
               )}
             </div>
 
-            {/* Document Audit Metrics & Risk Breakdown (Prominently rendered when asked or toggled) */}
-            {showMetrics ? (
+            {/* Document Audit Metrics & Risk Breakdown — Rendered ONLY when explicitly asked or toggled */}
+            {showMetrics && (
               <div className="rounded-2xl border border-white/10 bg-surface-3/50 p-4 space-y-4 animate-in fade-in duration-200">
                 <div className="flex items-center justify-between border-b border-white/10 pb-2">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-white uppercase tracking-wider">
                     <Gauge className="h-3.5 w-3.5 text-primary-light" />
                     <span>Document Audit & Risk Metrics</span>
                   </div>
-                  {!isRiskOrAuditQuery && (
+                  {!isExplicitRiskQuery && (
                     <button
                       type="button"
                       onClick={() => setExpandedMetrics(false)}
@@ -250,21 +249,6 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
                     </div>
                   </div>
                 )}
-              </div>
-            ) : (
-              /* Compact Audit Metrics Toggle Button */
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setExpandedMetrics(true)}
-                  className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-2 px-2.5 py-1 text-[11px] font-medium text-white/70 hover:text-white hover:bg-surface-3 transition-colors"
-                >
-                  <Gauge className="h-3 w-3 text-primary-light" />
-                  <span>
-                    Audit Metrics (Confidence: {confidenceValue}%, Risk: {riskValue}%)
-                  </span>
-                  <ChevronDown className="h-3 w-3 opacity-60 ml-0.5" />
-                </button>
               </div>
             )}
 

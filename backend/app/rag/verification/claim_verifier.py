@@ -51,43 +51,30 @@ Return ONLY the JSON array.
 
 def extract_claims(answer: str) -> List[Dict[str, Any]]:
     """
-    Use the LLM to break *answer* into discrete factual claims.
-    Falls back to sentence-level splitting if the LLM call fails.
+    Deterministically break answer into discrete factual claims using sentence
+    and citation parsing, eliminating unnecessary LLM token consumption and latency.
     """
-    from app.rag.generation.generator import client  # lazy import
+    sentences = re.split(r'(?<=[.!?\n])\s+', answer.strip())
+    claims: List[Dict[str, Any]] = []
+    for s in sentences:
+        s_clean = s.strip()
+        if not s_clean or len(s_clean) < 10:
+            continue
+        # Extract cited page if present (e.g. [Page 1, Section 2])
+        page_match = re.search(r'\[(?:.*?Page\s*)(\d+)', s_clean, re.IGNORECASE)
+        cited_page = int(page_match.group(1)) if page_match else None
 
-    try:
-        prompt = CLAIM_EXTRACTION_PROMPT.format(answer=answer)
-        response = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You decompose text into factual claims. Output only valid JSON.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.0,
-            max_tokens=1024,
-        )
-        raw = response.choices[0].message.content.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-            raw = raw.strip()
-        claims = json.loads(raw)
-        if isinstance(claims, list):
-            return claims
-    except Exception as e:
-        logger.warning(f"[ClaimVerifier] LLM claim extraction failed: {e}")
+        # Extract cited doc if present
+        doc_match = re.search(r'\[([^,\]]+)(?:,\s*Page|\s*Page)', s_clean, re.IGNORECASE)
+        cited_doc = doc_match.group(1).strip() if doc_match else None
 
-    # Fallback: sentence splitting
-    sentences = re.split(r'(?<=[.!?])\s+', answer)
-    return [
-        {"claim": s.strip(), "type": "general", "cited_page": None, "cited_document": None}
-        for s in sentences
-        if s.strip() and len(s.strip()) > 10
-    ]
+        claims.append({
+            "claim": s_clean,
+            "type": "value" if re.search(r'\d', s_clean) else "general",
+            "cited_page": cited_page,
+            "cited_document": cited_doc,
+        })
+    return claims
 
 
 # ---------------------------------------------------------------------------
