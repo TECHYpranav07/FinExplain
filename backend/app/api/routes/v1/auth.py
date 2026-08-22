@@ -6,7 +6,7 @@ and token verification without dummy/demo user bypasses.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Header
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import uuid
 import time
@@ -21,7 +21,11 @@ from app.auth.jwt_handler import (
 )
 from app.core.config import settings
 
-from app.db.repositories.user_repo import ensure_user_exists
+from app.db.repositories.user_repo import (
+    ensure_user_exists,
+    get_user_by_email,
+    update_user_password,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -31,22 +35,23 @@ USERS_DB: Dict[str, Dict[str, Any]] = {}
 
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
     name: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 
 class GoogleAuthRequest(BaseModel):
     credential: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     name: Optional[str] = None
     google_id: Optional[str] = None
     picture: Optional[str] = None
+
 
 
 class AuthResponse(BaseModel):
@@ -93,8 +98,43 @@ def _parse_google_credential(credential: str) -> Dict[str, Any]:
 async def register(req: RegisterRequest):
     """Register a new user account."""
     email_key = req.email.lower().strip()
-    if email_key in USERS_DB:
-        raise HTTPException(status_code=400, detail="An account with this email already exists.")
+    
+    # Check in-memory store and Supabase database
+    existing_db = get_user_by_email(email_key)
+    if email_key in USERS_DB or existing_db:
+        # If user exists in DB with a real password hash, prompt to sign in
+        if existing_db and existing_db.get("hashed_password") not in ("dummy_hashed_password", "oauth_or_dev", "oauth_or_authenticated", None, ""):
+            raise HTTPException(status_code=400, detail="An account with this email already exists. Please sign in.")
+        # If existing record was a placeholder from dev/oauth, update password
+        if existing_db:
+            hashed_pwd = hash_password(req.password)
+            name = req.name or existing_db.get("full_name") or email_key.split("@")[0].title()
+            update_user_password(existing_db["id"], hashed_pwd)
+            user_record = {
+                "id": existing_db["id"],
+                "email": email_key,
+                "name": name,
+                "hashed_password": hashed_pwd,
+                "role": "user",
+                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            }
+            USERS_DB[email_key] = user_record
+            token = create_access_token({
+                "sub": existing_db["id"],
+                "email": email_key,
+                "name": name,
+                "role": "user",
+            })
+            return {
+                "access_token": token,
+                "token_type": "bearer",
+                "user": {
+                    "id": existing_db["id"],
+                    "email": email_key,
+                    "name": name,
+                    "role": "user"
+                }
+            }
     
     if len(req.password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
@@ -146,7 +186,38 @@ async def login(req: LoginRequest):
     email_key = req.email.lower().strip()
     user = USERS_DB.get(email_key)
     
-    if not user or not verify_password(req.password, user.get("hashed_password", "")):
+    # If not in active memory, fetch from Supabase database
+    if not user:
+        db_user = get_user_by_email(email_key)
+        if db_user:
+            user = {
+                "id": db_user["id"],
+                "email": db_user["email"],
+                "name": db_user.get("full_name") or db_user.get("name") or email_key.split("@")[0].title(),
+                "hashed_password": db_user.get("hashed_password", ""),
+                "role": db_user.get("role", "user"),
+                "picture": db_user.get("picture"),
+            }
+            USERS_DB[email_key] = user
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Account not found. Please register or check your email."
+        )
+
+    stored_hash = user.get("hashed_password", "")
+    is_valid = verify_password(req.password, stored_hash)
+
+    # In development mode, allow placeholder/dev hashes to be updated to the entered password
+    if not is_valid and settings.is_development and stored_hash in ("dummy_hashed_password", "oauth_or_dev", "oauth_or_authenticated", None, ""):
+        new_hash = hash_password(req.password)
+        user["hashed_password"] = new_hash
+        USERS_DB[email_key] = user
+        update_user_password(user["id"], new_hash)
+        is_valid = True
+
+    if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
     # Ensure user exists in Supabase PostgreSQL users table
@@ -207,26 +278,39 @@ async def google_auth(req: GoogleAuthRequest):
             detail="Google Authentication failed: No email or valid Google credential provided."
         )
 
-    # Provision user profile if new
-    if email_key not in USERS_DB:
-        user_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"google:{google_id or email_key}"))
-        USERS_DB[email_key] = {
+    # Look up in memory or in Supabase
+    user = USERS_DB.get(email_key)
+    if not user:
+        db_user = get_user_by_email(email_key)
+        if db_user:
+            user = {
+                "id": db_user["id"],
+                "email": db_user["email"],
+                "name": db_user.get("full_name") or name or email_key.split("@")[0].title(),
+                "picture": picture or db_user.get("picture"),
+                "role": db_user.get("role", "user"),
+            }
+            USERS_DB[email_key] = user
+
+    # If still not found, provision new user UUID
+    if not user:
+        user_id = str(uuid.uuid4())
+        user = {
             "id": user_id,
             "email": email_key,
-            "name": name,
+            "name": name or email_key.split("@")[0].title(),
             "picture": picture,
             "role": "user",
             "auth_provider": "google",
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         }
+        USERS_DB[email_key] = user
     else:
-        # Update name or picture if available
         if name:
-            USERS_DB[email_key]["name"] = name
+            user["name"] = name
         if picture:
-            USERS_DB[email_key]["picture"] = picture
-
-    user = USERS_DB[email_key]
+            user["picture"] = picture
+        USERS_DB[email_key] = user
 
     # Ensure user exists in Supabase PostgreSQL users table
     ensure_user_exists(
@@ -255,6 +339,7 @@ async def google_auth(req: GoogleAuthRequest):
             "role": user.get("role", "user")
         }
     }
+
 
 
 

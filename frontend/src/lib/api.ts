@@ -107,20 +107,70 @@ export interface ChecklistItem {
   marker?: string;
   item?: string;
   title?: string;
+  value?: string;
+  category?: string;
+  priority?: "HIGH" | "MEDIUM" | "LOW" | string;
   condition?: string;
   status?: string;
-  evidence?: { document?: string; page?: number };
+  action_guidance?: string;
+  suggested_question?: string;
+  evidence?: { document?: string; page?: number; section?: string; chunk_id?: string };
 }
 
 export interface BeforeConfirmationResponse {
   checklist_text?: string;
   checklist?: ChecklistItem[];
+  summary?: {
+    total_items?: number;
+    verified_items?: number;
+    caution_items?: number;
+    missing_items?: number;
+    conflict_items?: number;
+    total_facts_reviewed?: number;
+  };
   risk_factors?: RiskFactor[];
   cost_drivers?: CostDriver[];
   key_facts?: StructuredFact[];
   missing_information?: MissingInformation[];
   questions?: string[];
 }
+
+export interface ComparisonFieldItem {
+  field: string;
+  product_a?: { value?: any; unit?: string; condition?: string };
+  product_b?: { value?: any; unit?: string; condition?: string };
+  status_a?: string;
+  status_b?: string;
+  winner?: string;
+  [key: string]: any;
+}
+
+export interface LoanCompareRequest {
+  product_ids: string[];
+  scenario?: {
+    loan_amount?: number;
+    tenure_months?: number;
+    prepayment_month?: number;
+    [key: string]: any;
+  };
+}
+
+export interface LoanCompareResponse {
+  comparison_text?: string;
+  field_comparisons?: ComparisonFieldItem[];
+  products?: Product[];
+  summary?: {
+    total_products?: number;
+    comparison_complete?: boolean;
+    comparison_summary?: string;
+  };
+  winner_summary?: {
+    known_cost_a?: number;
+    known_cost_b?: number;
+  };
+}
+
+
 
 export interface DocumentUploadResponse {
   message: string;
@@ -273,6 +323,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  compare: (payload: LoanCompareRequest) =>
+    request<LoanCompareResponse>("/api/v1/analysis/compare", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
 
   // HITL & Feedback
   listHitlTasks: () => request<any[]>("/api/v1/hilt/tasks"),

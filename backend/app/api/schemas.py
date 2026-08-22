@@ -81,3 +81,16 @@ class BeforeConfirmationRequest(BaseModel):
 class BeforeConfirmationResponse(BaseModel):
     checklist: List[Dict[str, Any]] = Field(default_factory=list)
     checklist_text: Optional[str] = None
+    summary: Optional[Dict[str, Any]] = None
+
+class LoanCompareRequest(BaseModel):
+    product_ids: List[str] = Field(..., min_length=2, description="At least 2 product IDs to compare")
+    scenario: Optional[Dict[str, Any]] = None
+
+class LoanCompareResponse(BaseModel):
+    comparison_text: Optional[str] = None
+    field_comparisons: List[Dict[str, Any]] = Field(default_factory=list)
+    products: List[Dict[str, Any]] = Field(default_factory=list)
+    summary: Optional[Dict[str, Any]] = None
+    winner_summary: Optional[Dict[str, Any]] = None
+
