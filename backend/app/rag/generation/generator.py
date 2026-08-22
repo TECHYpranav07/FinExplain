@@ -43,7 +43,7 @@ def generate_answer(
     scenario: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Generate an answer using Groq LLM with evidence-first prompting.
+    Generate an answer using Gemini LLM with evidence-first prompting.
 
     Backward-compatible: callers passing only ``(query, context)`` still work.
     When the enriched kwargs are provided, uses the full structured QA prompt.

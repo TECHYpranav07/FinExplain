@@ -1261,7 +1261,7 @@ Never expose:
 ```text
 SUPABASE_KEY
 PINECONE_API_KEY
-GROQ_API_KEY
+GEMINI_API_KEY
 HUGGINGFACE_API_KEY
 REDIS credentials
 ```
@@ -1470,7 +1470,7 @@ FastAPI
 RAG pipeline
 database layer
 Pinecone integration
-Groq integration
+Google Gemini integration
 ingestion pipeline
 financial calculator
 verification engine

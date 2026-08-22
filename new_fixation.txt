@@ -97,7 +97,7 @@ Search the entire repository and Git-tracked files for:
 - provider credentials
 - Redis credentials
 - Pinecone credentials
-- Groq credentials
+- Gemini credentials
 - Supabase service keys
 
 NEVER print the actual secrets in output.

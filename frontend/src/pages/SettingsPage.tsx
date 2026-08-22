@@ -104,7 +104,7 @@ export function SettingsPage() {
       <Panel title="Architecture Specifications">
         <div className="space-y-1">
           <KeyValue label="Retrieval Engine" value="Hybrid BM25 + Pinecone Dense Embeddings" />
-          <KeyValue label="Reasoning Core" value="Groq LLaMA 3.3 70B / Gemini 2.0 Flash" />
+          <KeyValue label="Reasoning Core" value="Gemini 3.5 Flash-Light" />
           <KeyValue label="Verification Model" value="Deterministic NLI & Citation Extraction" />
           <KeyValue label="Database Layer" value="Supabase PostgreSQL" />
           <KeyValue label="Task Queue" value="Celery + Redis / Sync Fallback" />

@@ -32,9 +32,9 @@ Standard LLM pipelines fail on financial agreements due to arithmetic hallucinat
          ┌──────────────────────────────┬─────────────┴────────────────┬──────────────────────────────┐
          │                              │                              │                              │
 ┌────────▼─────────────┐     ┌──────────▼───────────┐     ┌────────────▼───────────┐     ┌────────────▼───────────┐
-│ Supabase PostgreSQL  │     │   Pinecone Vector    │     │   Groq LLM Engine      │     │Deterministic Calculator│
+│ Supabase PostgreSQL  │     │   Pinecone Vector    │     │   Gemini LLM Engine    │     │Deterministic Calculator│
 │ • Metadata & Chunks  │     │ • Dense Index (384d) │     │ • Evidence-First       │     │ • EMI & Amortization   │
-│ • BM25 Full-Text FTS │     │ • HuggingFace/Torch  │     │   Prompting (Llama-3)  │     │ • Scenario Simulation  │
+│ • BM25 Full-Text FTS │     │ • HuggingFace/Torch  │     │   Prompting (Gemini)   │     │ • Scenario Simulation  │
 └──────────────────────┘     └──────────────────────┘     └────────────────────────┘     └────────────────────────┘
          │                              │                              │                              │
          └──────────────────────────────┼──────────────────────────────┴──────────────────────────────┘
@@ -60,7 +60,7 @@ Standard LLM pipelines fail on financial agreements due to arithmetic hallucinat
 | **Embeddings** | SentenceTransformers (`all-MiniLM-L6-v2`, 384 dimensions), Hugging Face Inference API / PyTorch Fallback |
 | **Hybrid Search** | [Pinecone](https://www.pinecone.io/) (Dense) + [Supabase PostgreSQL](https://supabase.com/) (`tsvector` BM25 Sparse) |
 | **Reranking** | Cross-Encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`) |
-| **LLM Engine** | [Groq API](https://groq.com/) (`llama3-70b-8192`, `llama-3.3-70b-versatile`) |
+| **LLM Engine** | [Google Gemini API](https://aistudio.google.com/) (`gemini-3.5-flash-light`, `gemini-2.5-flash`) |
 | **Document Processing** | PyMuPDF (`fitz`), Hierarchical Parent-Child Chunker |
 | **Testing** | Pytest (22 deterministic scenario tests covering calculations, conflicts, and verification) |
 
@@ -150,7 +150,7 @@ fine-explain/
         │
         ├── external/                               # Third-party integrations
         │   ├── pinecone_client.py                  # Pinecone vector operations
-        │   ├── groq_client.py                      # Groq LLM client
+        │   ├── llm_client.py                       # Google Gemini LLM client
         │   └── huggingface_client.py               # Hugging Face Inference API / fallback
         │
         ├── ingestion/                              # Document processing pipeline
@@ -181,7 +181,7 @@ fine-explain/
         │   │   ├── response_validator.py           # Final answer validator
         │   │   └── grounder.py                     # Citation coverage & source verification
         │   └── generation/                         # LLM prompt templates & generation
-        │       ├── generator.py                    # Groq generation with evidence constraint
+        │       ├── generator.py                    # Gemini generation with evidence constraint
         │       └── prompt_templates.py             # Strict evidence-first prompt templates
         │
         └── tools/                                  # Deterministic financial tools
@@ -245,8 +245,9 @@ SUPABASE_KEY=your-supabase-anon-or-service-key
 PINECONE_API_KEY=your-pinecone-api-key
 PINECONE_INDEX_NAME=fine-explain
 
-# Groq API (Evidence-First LLM Generation)
-GROQ_API_KEY=your-groq-api-key
+# Google Gemini API (Evidence-First LLM Generation)
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-3.5-flash-light
 
 # Hugging Face (Optional: for cloud embeddings)
 HUGGINGFACE_API_KEY=your-hf-api-key
