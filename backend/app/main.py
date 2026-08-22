@@ -110,12 +110,20 @@ async def health_ready():
         checks["supabase"] = f"error: {type(e).__name__}"
         overall = "degraded"
 
-    # Check Groq API key configured
-    if settings.GROQ_API_KEY and settings.GROQ_API_KEY != "your-groq-api-key":
-        checks["groq"] = "configured"
+    # Check LLM Provider & API key configured in .env
+    provider = (settings.LLM_PROVIDER or "gemini").lower()
+    if provider == "gemini":
+        if settings.effective_gemini_api_key and settings.effective_gemini_api_key != "your-gemini-api-key":
+            checks["llm"] = f"gemini ({settings.active_llm_model})"
+        else:
+            checks["llm"] = "gemini_key_not_configured"
+            overall = "degraded"
     else:
-        checks["groq"] = "not_configured"
-        overall = "degraded"
+        if settings.GROQ_API_KEY and settings.GROQ_API_KEY != "your-groq-api-key":
+            checks["llm"] = f"groq ({settings.active_llm_model})"
+        else:
+            checks["llm"] = "groq_key_not_configured"
+            overall = "degraded"
 
     # Check Pinecone
     try:

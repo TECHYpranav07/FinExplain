@@ -33,8 +33,18 @@ class Settings(BaseSettings):
     PINECONE_API_KEY: str = ""
     PINECONE_INDEX_NAME: str = "finexplain"
 
-    # Groq (LLM Engine)
+    # LLM Provider Configuration ("gemini" or "groq")
+    LLM_PROVIDER: str = "gemini"
+    GEMINI_API_KEY: str = ""
+    GOOGLE_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+
+    # Optional Groq fallback
     GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+
+    # Generic model override (if set, overrides provider-specific model)
+    LLM_MODEL: Optional[str] = None
 
     # Redis (Caching)
     REDIS_URL: Optional[str] = "redis://localhost:6379/0"
@@ -46,6 +56,18 @@ class Settings(BaseSettings):
 
     # Storage Bucket
     STORAGE_BUCKET: str = "loan_docs"
+
+    @property
+    def effective_gemini_api_key(self) -> str:
+        return self.GEMINI_API_KEY or self.GOOGLE_API_KEY or ""
+
+    @property
+    def active_llm_model(self) -> str:
+        if self.LLM_MODEL:
+            return self.LLM_MODEL
+        if self.LLM_PROVIDER.lower() == "gemini":
+            return self.GEMINI_MODEL
+        return self.GROQ_MODEL
 
     @property
     def is_development(self) -> bool:
@@ -60,8 +82,12 @@ if not settings.is_development:
         _missing.append("SUPABASE_URL")
     if not settings.SUPABASE_KEY:
         _missing.append("SUPABASE_KEY")
-    if not settings.GROQ_API_KEY:
-        _missing.append("GROQ_API_KEY")
+    if settings.LLM_PROVIDER.lower() == "gemini":
+        if not settings.effective_gemini_api_key:
+            _missing.append("GEMINI_API_KEY (or GOOGLE_API_KEY)")
+    elif settings.LLM_PROVIDER.lower() == "groq":
+        if not settings.GROQ_API_KEY:
+            _missing.append("GROQ_API_KEY")
     if _missing:
         raise RuntimeError(
             f"ENVIRONMENT={settings.ENVIRONMENT} but critical settings are missing: "

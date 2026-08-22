@@ -1,0 +1,1523 @@
+You are now the principal engineer responsible for fixing the FinExplain repository.
+
+Repository:
+samadhanmane/FinExplain
+
+You have access to the complete repository.
+
+IMPORTANT:
+
+This is a financial-document RAG system.
+
+Do NOT optimize for "it runs".
+
+Optimize for:
+
+1. Security
+2. Tenant isolation
+3. Financial correctness
+4. Evidence correctness
+5. Citation correctness
+6. Retrieval quality
+7. Reliability
+8. Cost control
+9. Performance
+10. Testing
+11. Reproducibility
+12. Production readiness
+
+The existing system has already been audited and contains significant security,
+RAG, financial calculation, reliability, cost, testing and deployment problems.
+
+Your job is NOT to rewrite everything blindly.
+
+Your job is to systematically inspect the existing implementation,
+fix the root causes, preserve useful components, remove broken/dead
+components, and leave the repository in a working state.
+
+==================================================
+PHASE 0 — SAFETY BEFORE CODE CHANGES
+==================================================
+
+Before modifying application code:
+
+1. Inspect the entire repository.
+
+2. Identify:
+   - frontend
+   - backend
+   - RAG
+   - ingestion
+   - retrieval
+   - embeddings
+   - vector DB
+   - LLM
+   - calculation engine
+   - verification
+   - cache
+   - workers
+   - database
+   - authentication
+   - deployment
+   - tests
+
+3. Do NOT assume README behavior matches implementation.
+
+4. Read the existing audit findings.
+
+5. Create:
+
+   docs/FIX_PLAN.md
+
+containing:
+   - current architecture
+   - discovered problems
+   - planned fixes
+   - dependencies
+   - migration requirements
+   - testing strategy
+
+6. Before changing a subsystem, identify all files that depend on it.
+
+Do not break unrelated functionality.
+
+==================================================
+PHASE 1 — SECRETS AND SECURITY
+==================================================
+
+This phase has the highest priority.
+
+Search the entire repository and Git-tracked files for:
+
+- API keys
+- passwords
+- tokens
+- JWT secrets
+- database credentials
+- provider credentials
+- Redis credentials
+- Pinecone credentials
+- Groq credentials
+- Supabase service keys
+
+NEVER print the actual secrets in output.
+
+Immediately remove credentials from source-controlled files.
+
+Replace them with environment variables.
+
+Create:
+
+.env.example
+
+containing placeholders only.
+
+Rotate/revoke any credentials that may have been exposed.
+
+Add secret scanning to the repository.
+
+Never commit:
+
+.env
+credentials
+private keys
+tokens
+
+If Git history contains credentials, document the remediation required.
+
+==================================================
+PHASE 2 — AUTHENTICATION
+==================================================
+
+Implement real authentication.
+
+Every protected API route must require authentication.
+
+Inspect:
+
+dependencies.py
+API routes
+middleware
+frontend authentication
+
+Do not merely create an authentication function.
+
+Actually attach authentication dependencies/middleware to every protected route.
+
+Create a clear distinction between:
+
+PUBLIC:
+- health/liveness if appropriate
+
+PROTECTED:
+- document upload
+- document retrieval
+- query
+- comparison
+- analysis
+- feedback
+- HILT
+- deletion
+- document management
+
+Reject unauthenticated access with HTTP 401.
+
+Never use a fixed demo user in production code.
+
+==================================================
+PHASE 3 — AUTHORIZATION AND TENANT ISOLATION
+==================================================
+
+Every resource must belong to an authenticated owner/tenant.
+
+At minimum track:
+
+user_id
+tenant_id
+product_id
+document_id
+document_version_id
+
+Every repository query must enforce ownership.
+
+Never allow:
+
+product_id = None
+
+to mean:
+
+"search everything".
+
+Use fail-closed behavior.
+
+If a query has no valid scope:
+
+return a validation error or explicit public-corpus behavior.
+
+Vector retrieval must filter by:
+
+tenant_id
+product_id
+document_id
+document_version_id
+
+where applicable.
+
+Database repositories must enforce the same ownership constraints.
+
+Do not rely on frontend filtering for security.
+
+==================================================
+PHASE 4 — CORS
+==================================================
+
+Remove wildcard production CORS.
+
+Do not use:
+
+allow_origins=["*"]
+
+with credentials.
+
+Implement explicit environment-configured origins.
+
+Example:
+
+CORS_ORIGINS=https://frontend.example.com
+
+Validate configuration at startup.
+
+==================================================
+PHASE 5 — FILE UPLOAD SECURITY
+==================================================
+
+Implement strict document upload validation.
+
+Require:
+
+- maximum file size
+- MIME validation
+- PDF magic-byte validation
+- filename sanitization
+- temporary-file safety
+- malformed-PDF handling
+- decompression limits
+- processing timeout
+- cleanup
+
+Do not trust the filename extension.
+
+Do not store arbitrary user filenames as filesystem paths.
+
+Generate server-side IDs.
+
+Reject unsupported files.
+
+==================================================
+PHASE 6 — DOCUMENT STORAGE AND LIFECYCLE
+==================================================
+
+Create a real document lifecycle.
+
+States:
+
+UPLOADED
+PROCESSING
+INDEXING
+READY
+FAILED
+DELETING
+DELETED
+
+Persist:
+
+document_id
+tenant_id
+product_id
+version
+source_uri
+sha256
+status
+created_at
+updated_at
+error_code
+
+Original PDFs should be stored durably.
+
+Do not use fake storage paths.
+
+Do not treat local sample PDFs as production fallback data.
+
+==================================================
+PHASE 7 — INGESTION PIPELINE
+==================================================
+
+Refactor ingestion into:
+
+UPLOAD
+→ PARSE
+→ QUALITY CHECK
+→ CHUNK
+→ EMBED
+→ INDEX
+→ VERIFY
+→ READY
+
+If any stage fails:
+
+mark document FAILED.
+
+Never silently swallow errors.
+
+Never mark a document indexed when Pinecone/vector indexing failed.
+
+Implement compensating cleanup for partial indexing.
+
+The pipeline must be idempotent.
+
+Uploading the same document twice should not create uncontrolled duplicates.
+
+Idempotency must be scoped by:
+
+tenant_id
+product_id
+document_hash
+
+==================================================
+PHASE 8 — PDF EXTRACTION
+==================================================
+
+Improve PDF extraction.
+
+Preserve:
+
+- document ID
+- page number
+- section
+- heading
+- table
+- paragraph
+- source span
+- document version
+
+Use OCR fallback when required.
+
+Detect poor extraction quality.
+
+If extraction quality is below threshold:
+
+do not silently continue.
+
+Mark the document as requiring review or return a controlled failure.
+
+Tables must not be flattened into meaningless text.
+
+==================================================
+PHASE 9 — CHUNKING
+==================================================
+
+Replace fragile chunking with structure-aware chunking.
+
+Preserve:
+
+chunk_id
+parent_chunk_id
+document_id
+document_version_id
+page_start
+page_end
+section
+heading
+source_text
+char_start
+char_end
+token_count
+
+Parent-child relationships must actually be persisted.
+
+Do not calculate parent IDs only in memory.
+
+Use a real tokenizer where practical.
+
+Do not arbitrarily split financial clauses.
+
+Keep headings and conditions with the clauses they qualify.
+
+Do not destroy tables.
+
+==================================================
+PHASE 10 — EMBEDDING CONTRACT
+==================================================
+
+Create a strict embedding configuration.
+
+Store:
+
+embedding_provider
+embedding_model
+embedding_dimension
+embedding_version
+
+Every vector must have compatible metadata.
+
+At startup verify:
+
+actual_dimension == configured_dimension
+
+Do not silently mix embedding models.
+
+If embedding model changes:
+
+require index version change and reindexing.
+
+Create:
+
+EmbeddingConfig
+
+with explicit:
+
+model
+dimension
+version
+
+==================================================
+PHASE 11 — VECTOR DATABASE
+==================================================
+
+Fix Pinecone integration.
+
+Do not create/reconfigure indexes unnecessarily at runtime.
+
+Use a deterministic index configuration.
+
+Validate:
+
+dimension
+metric
+index readiness
+
+Every vector must include:
+
+tenant_id
+product_id
+document_id
+document_version_id
+chunk_id
+embedding_version
+
+Implement deletion.
+
+Implement reindexing.
+
+Implement versioning.
+
+Implement partial-write recovery.
+
+Never report READY if vector indexing failed.
+
+==================================================
+PHASE 12 — RETRIEVAL
+==================================================
+
+Build a reliable retrieval pipeline.
+
+Preferred:
+
+Dense retrieval
++
+BM25/exact retrieval
+↓
+RRF
+↓
+optional reranker
+
+Do NOT introduce more advanced retrieval methods unless evaluation proves they help.
+
+Retrieval must:
+
+1. enforce tenant scope
+2. enforce product/document scope
+3. apply metadata filters
+4. retrieve top-N
+5. remove duplicates
+6. calculate retrieval scores
+7. apply relevance threshold
+8. preserve provenance
+
+If no sufficiently relevant evidence exists:
+
+return:
+
+INSUFFICIENT_EVIDENCE
+
+Do NOT send random chunks to the LLM.
+
+==================================================
+PHASE 13 — RERANKER
+==================================================
+
+The reranker must not be a single point of failure.
+
+If reranker fails:
+
+use a safe deterministic RRF fallback.
+
+Never return HTTP 500 simply because reranking failed unless the entire retrieval system is invalid.
+
+Move blocking model inference out of async request handlers.
+
+Use:
+
+worker
+thread pool
+process pool
+or another appropriate isolation mechanism.
+
+Only keep reranking if benchmark results show meaningful improvement.
+
+==================================================
+PHASE 14 — REMOVE WASTED LLM CALLS
+==================================================
+
+Trace every LLM invocation.
+
+Create a table in:
+
+docs/LLM_CALL_GRAPH.md
+
+containing:
+
+call
+purpose
+input
+output
+downstream usage
+cost
+latency
+required?
+
+Remove calls whose output is discarded.
+
+Especially remove unused multi-query generation.
+
+Do not perform LLM calls simply because they are available.
+
+Prefer deterministic logic for:
+
+- calculations
+- filtering
+- sorting
+- validation
+- formatting
+- conflict detection where deterministic rules are possible
+
+==================================================
+PHASE 15 — LLM CLIENT
+==================================================
+
+Create one centralized LLM client.
+
+The client must handle:
+
+- model configuration
+- timeout
+- retry
+- exponential backoff
+- retry budget
+- rate-limit handling
+- token accounting
+- structured output
+- logging
+- provider errors
+
+Do not instantiate provider clients throughout the codebase.
+
+Use typed result objects.
+
+==================================================
+PHASE 16 — STRUCTURED LLM OUTPUT
+==================================================
+
+Never trust arbitrary LLM text as application data.
+
+Use structured schemas.
+
+For example:
+
+AnswerResult:
+
+{
+  "answer": "...",
+  "claims": [],
+  "calculation": {},
+  "evidence": [],
+  "status": "SUPPORTED"
+}
+
+Validate every LLM response.
+
+If malformed:
+
+bounded retry
+
+then:
+
+controlled failure.
+
+Never silently convert malformed output into empty/general fallback content.
+
+==================================================
+PHASE 17 — PROMPT INJECTION DEFENSE
+==================================================
+
+Treat retrieved documents as UNTRUSTED DATA.
+
+The system prompt must explicitly distinguish:
+
+SYSTEM INSTRUCTIONS
+USER QUESTION
+RETRIEVED DOCUMENT CONTENT
+
+A document may contain:
+
+"Ignore previous instructions."
+
+The LLM must treat that as document text, not an instruction.
+
+Do not allow retrieved content to override system behavior.
+
+==================================================
+PHASE 18 — FINANCIAL DATA MODEL
+==================================================
+
+This is extremely important.
+
+Create typed financial objects.
+
+Examples:
+
+Money:
+amount
+currency
+
+Percentage:
+value
+basis
+
+Fee:
+type
+amount
+currency
+basis
+condition
+source
+
+Duration:
+value
+unit
+
+Rate:
+value
+rate_type
+period
+
+Never pass raw strings such as:
+
+"2%"
+
+through multiple layers without normalization.
+
+Normalize:
+
+- currency
+- percentage
+- fixed fees
+- percentage fees
+- duration
+- date
+- units
+- penalties
+- reductions
+
+==================================================
+PHASE 19 — DETERMINISTIC CALCULATION ENGINE
+==================================================
+
+LLM must NOT perform final financial arithmetic.
+
+Use deterministic Python code.
+
+For every calculation expose:
+
+inputs
+formula
+intermediate_values
+output
+units
+currency
+evidence
+
+Example:
+
+{
+  "principal": ...,
+  "interest": ...,
+  "processing_fee": ...,
+  "penalty": ...,
+  "reduction": ...,
+  "total_cost": ...,
+  "formula": "..."
+}
+
+Every input must reference source evidence.
+
+==================================================
+PHASE 20 — FIX TOTAL COST
+==================================================
+
+Audit every path that contributes to:
+
+total_cost
+
+Make sure fees are not calculated separately and accidentally omitted.
+
+Build one canonical calculation pipeline.
+
+No duplicated total-cost implementations.
+
+Create tests for:
+
+- fixed fee
+- percentage fee
+- monthly interest
+- annual interest
+- early repayment
+- penalty
+- reduction
+- zero fee
+- missing fee
+- conflicting fee
+- currency mismatch
+- duration mismatch
+
+==================================================
+PHASE 21 — CITATION SYSTEM
+==================================================
+
+Completely redesign citation verification.
+
+A citation must point to:
+
+document_id
+document_version_id
+page
+chunk_id
+source_span
+exact_text
+
+Do NOT consider:
+
+"same page"
+
+to be sufficient evidence.
+
+Every material claim must map to exact source evidence.
+
+Example:
+
+Claim:
+"Processing fee is 2%."
+
+Evidence:
+document = loan_a.pdf
+page = 4
+chunk = chunk_83
+span = characters 142-156
+text = "A processing fee of 2%..."
+
+Verification:
+
+ENTAILS = true
+
+Only then:
+
+verified = true
+
+Never hardcode:
+
+verified=True
+
+==================================================
+PHASE 22 — CLAIM VERIFICATION
+==================================================
+
+Pipeline:
+
+LLM answer
+↓
+extract claims
+↓
+classify claims:
+  factual
+  calculation
+  interpretation
+  unsupported
+↓
+factual claims → source verification
+calculation claims → calculator verification
+interpretation → evidence + qualification
+unsupported → reject
+↓
+final answer gate
+
+If a material claim cannot be supported:
+
+remove it or return insufficient evidence.
+
+==================================================
+PHASE 23 — CONFLICT DETECTION
+==================================================
+
+Detect conflicting documents.
+
+Example:
+
+2025:
+processing fee = 3%
+
+2026:
+processing fee = 1%
+
+Do NOT combine them.
+
+Return:
+
+CONFLICT_DETECTED
+
+with:
+
+document A
+document B
+dates
+values
+source passages
+
+If document version/date can establish precedence:
+
+show which version is newer.
+
+Never silently choose.
+
+==================================================
+PHASE 24 — UNCERTAINTY / REFUSAL
+==================================================
+
+The system must explicitly return:
+
+SUPPORTED
+CONDITIONAL
+CONFLICT
+NOT_SPECIFIED
+INSUFFICIENT_EVIDENCE
+
+If evidence is missing:
+
+DO NOT GUESS.
+
+If evidence conflicts:
+
+DO NOT SELECT RANDOMLY.
+
+If calculation inputs are missing:
+
+DO NOT invent them.
+
+==================================================
+PHASE 25 — CACHE SECURITY
+==================================================
+
+Redesign cache keys.
+
+Cache keys must include relevant scope:
+
+tenant_id
+user_id where required
+product_id
+document_version
+query
+retrieval/index version
+model version
+prompt version
+
+Never allow one user's answer to become another user's answer.
+
+Invalidate cache after:
+
+document update
+document deletion
+embedding version change
+retrieval configuration change
+model/prompt changes where necessary
+
+Do not cache sensitive answers until isolation is correct.
+
+==================================================
+PHASE 26 — API RATE LIMITING
+==================================================
+
+Implement:
+
+per-IP rate limiting
+per-user rate limiting
+LLM quota
+upload quota
+concurrency limits
+
+Especially protect:
+
+/queries/ask
+/documents/upload
+/analysis/*
+
+==================================================
+PHASE 27 — TIMEOUTS / RETRIES
+==================================================
+
+Every external provider must have:
+
+timeout
+retry policy
+backoff
+maximum attempts
+error classification
+
+Do not retry:
+
+invalid API key
+invalid request
+malformed input
+
+Retry:
+
+429
+temporary 5xx
+network timeout
+
+Do not create infinite retries.
+
+==================================================
+PHASE 28 — HEALTH CHECKS
+==================================================
+
+Create:
+
+/health/live
+
+and:
+
+/health/ready
+
+Liveness:
+process is alive.
+
+Readiness:
+critical dependencies are usable.
+
+Check:
+
+- database
+- vector DB
+- LLM configuration
+- embedding configuration
+- required model availability
+- Redis if required
+
+Do not report healthy if critical dependencies are broken.
+
+==================================================
+PHASE 29 — ERROR HANDLING
+==================================================
+
+Remove:
+
+except:
+    pass
+
+and broad silent fallbacks.
+
+Every failure should produce:
+
+error_code
+message
+request_id
+stage
+
+Do not expose:
+
+stack traces
+provider credentials
+database errors
+internal paths
+
+to users.
+
+Log details internally.
+
+==================================================
+PHASE 30 — BACKGROUND INGESTION
+==================================================
+
+If Celery/Redis is retained:
+
+never send raw PDF bytes through the queue.
+
+Send:
+
+document_id
+
+Worker:
+
+1. retrieves document
+2. processes document
+3. updates status
+4. records errors
+5. cleans partial state
+
+Implement:
+
+GET /documents/{id}/status
+
+Do not claim asynchronous processing without task status.
+
+==================================================
+PHASE 31 — DOCUMENT DELETION
+==================================================
+
+Implement real deletion.
+
+DELETE must remove:
+
+- database record
+- source object
+- chunks
+- vectors
+- cache entries
+- temporary files
+
+Deletion must be tenant scoped.
+
+Return deletion status.
+
+==================================================
+PHASE 32 — FRONTEND SECURITY
+==================================================
+
+Remove unsafe innerHTML usage where possible.
+
+Use React escaped rendering.
+
+Add Content Security Policy where practical.
+
+Never expose:
+
+API keys
+service-role keys
+database credentials
+provider secrets
+
+to frontend JavaScript.
+
+Implement proper authentication guards.
+
+Frontend routes must reflect backend authorization.
+
+==================================================
+PHASE 33 — FIX COMPARISON PAGE
+==================================================
+
+Do not use hardcoded financial values.
+
+The audit found hardcoded comparison values.
+
+Replace with:
+
+backend comparison endpoint
+↓
+structured evidence
+↓
+deterministic calculation
+↓
+source citations
+
+If data is unavailable:
+
+show:
+
+Not specified
+
+instead of fake numbers.
+
+==================================================
+PHASE 34 — TESTING
+==================================================
+
+Create real tests.
+
+Unit:
+
+- chunking
+- metadata
+- embedding contracts
+- retrieval filters
+- RRF
+- calculations
+- citation mapping
+- conflict detection
+- cache keys
+
+Integration:
+
+- upload
+- ingestion
+- retrieval
+- query
+- deletion
+- authentication
+- tenant isolation
+
+Security:
+
+- unauthenticated access
+- cross-user access
+- malicious upload
+- oversized upload
+- CORS
+- XSS
+- secret exposure
+- cache leakage
+
+E2E:
+
+upload document
+→ ingest
+→ retrieve
+→ calculate
+→ answer
+→ verify
+→ citation
+
+==================================================
+PHASE 35 — GOLDEN RAG DATASET
+==================================================
+
+Create:
+
+tests/fixtures/golden_answers.json
+
+with real document-grounded questions.
+
+Each test must contain:
+
+question
+document
+expected page
+expected chunk
+expected answer
+expected evidence
+expected calculation
+expected status
+
+Measure:
+
+Recall@K
+Precision@K
+MRR
+NDCG
+citation accuracy
+numerical accuracy
+unsupported claim rate
+conflict detection accuracy
+
+Do not claim RAG quality without measurements.
+
+==================================================
+PHASE 36 — ADVERSARIAL TESTING
+==================================================
+
+Test:
+
+1. no matching evidence
+2. wrong document
+3. wrong year
+4. wrong product
+5. conflicting documents
+6. malicious PDF
+7. prompt injection inside PDF
+8. missing fee
+9. fixed fee
+10. percentage fee
+11. currency mismatch
+12. million/billion confusion
+13. negative number
+14. parentheses
+15. early repayment
+16. late payment
+17. missing duration
+18. malformed LLM JSON
+19. LLM timeout
+20. LLM 429
+21. Pinecone outage
+22. Redis outage
+23. Supabase outage
+24. reranker failure
+25. concurrent uploads
+26. concurrent queries
+27. cross-user retrieval
+28. stale cache
+29. deleted document query
+30. reindexed document query
+
+Every test must have expected behavior.
+
+==================================================
+PHASE 37 — COST OPTIMIZATION
+==================================================
+
+Measure:
+
+LLM calls/query
+embedding calls/query
+reranker calls/query
+tokens/query
+latency/query
+cost/query
+
+Remove unnecessary LLM calls.
+
+Cache only after security isolation is correct.
+
+Batch embeddings.
+
+Do not send unnecessary context.
+
+Use deterministic code whenever possible.
+
+==================================================
+PHASE 38 — PERFORMANCE
+==================================================
+
+Do not run blocking model inference directly inside async request handlers.
+
+Identify:
+
+- blocking calls
+- local model initialization
+- repeated embedding
+- repeated DB queries
+- repeated vector searches
+- unnecessary LLM calls
+
+Move expensive ingestion/model work to workers where appropriate.
+
+==================================================
+PHASE 39 — OBSERVABILITY
+==================================================
+
+Every request should have:
+
+request_id
+
+Track:
+
+- retrieval latency
+- retrieval count
+- top scores
+- reranker latency
+- LLM latency
+- token count
+- model
+- provider
+- retries
+- errors
+- calculation status
+- citation verification
+- final answer status
+
+Never log:
+
+API keys
+passwords
+full sensitive documents
+
+Use redacted structured logs.
+
+==================================================
+PHASE 40 — DEPLOYMENT
+==================================================
+
+Fix:
+
+Dockerfile
+docker-compose.yml
+.gitignore
+
+The repository must build from a clean clone.
+
+Create reproducible setup.
+
+Pin important dependencies.
+
+Validate:
+
+docker build
+docker compose up
+backend startup
+frontend build
+database connection
+vector DB connection
+health checks
+
+Do not leave empty deployment files.
+
+==================================================
+PHASE 41 — REMOVE DEAD CODE
+==================================================
+
+Identify:
+
+unused tools
+duplicate RAG pipelines
+unused prompts
+unused providers
+unused dependencies
+dead scripts
+fake implementations
+sample fallbacks
+
+Remove them only after confirming they are not used.
+
+Do not keep multiple competing architectures.
+
+==================================================
+PHASE 42 — ARCHITECTURE SIMPLIFICATION
+==================================================
+
+Do NOT add:
+
+agents
+HyDE
+multi-query
+query decomposition
+contextual compression
+
+unless golden-set evaluation demonstrates a measurable benefit.
+
+The preferred baseline is:
+
+query
+→ hybrid retrieval
+→ RRF
+→ optional rerank
+→ evidence
+→ deterministic calculation
+→ LLM explanation
+→ claim verification
+→ citation validation
+
+Keep the system simple until the baseline is proven.
+
+==================================================
+PHASE 43 — FINAL VALIDATION
+==================================================
+
+After implementing changes:
+
+Run:
+
+lint
+type checks
+unit tests
+integration tests
+security tests
+E2E tests
+golden RAG evaluation
+frontend build
+backend startup
+Docker build
+
+Do not claim success unless tests actually pass.
+
+==================================================
+PHASE 44 — FINAL AUDIT
+==================================================
+
+Perform a second complete audit after the fixes.
+
+Create:
+
+docs/FINAL_AUDIT.md
+
+Include:
+
+1. Issues fixed
+2. Issues intentionally not fixed
+3. Remaining risks
+4. Security score
+5. RAG score
+6. Retrieval metrics
+7. Citation accuracy
+8. Numerical accuracy
+9. API reliability
+10. Cost/query
+11. Average latency
+12. Test coverage
+13. Deployment status
+
+==================================================
+MOST IMPORTANT RULES
+==================================================
+
+RULE 1:
+Never fabricate evidence.
+
+RULE 2:
+Never fabricate financial values.
+
+RULE 3:
+Never allow unauthorized retrieval.
+
+RULE 4:
+Never mark evidence verified without exact evidence verification.
+
+RULE 5:
+Never silently fall back to sample/demo data in production.
+
+RULE 6:
+Never silently swallow ingestion/indexing failures.
+
+RULE 7:
+Never let an LLM perform final financial arithmetic.
+
+RULE 8:
+Never expose secrets.
+
+RULE 9:
+Never allow unrestricted vector retrieval for protected documents.
+
+RULE 10:
+Never return a confident answer when evidence is insufficient.
+
+RULE 11:
+Do not add complexity before measuring whether it helps.
+
+RULE 12:
+Every important financial claim must be traceable to exact source evidence.
+
+RULE 13:
+Every calculation input must have a defined type, unit and source.
+
+RULE 14:
+Every external dependency must have controlled failure behavior.
+
+RULE 15:
+The application must fail closed when correctness or authorization cannot be established.
+
+FINAL SUCCESS CRITERIA:
+
+FinExplain is considered successfully fixed only when:
+
+Security:
+No exposed secrets
+Authentication enforced
+Authorization enforced
+Tenant isolation enforced
+CORS restricted
+
+RAG:
+Scoped retrieval
+Reliable hybrid retrieval
+Exact provenance
+No random fallback chunks
+Measured retrieval quality
+
+Financial:
+Typed inputs
+Normalized units
+Deterministic calculations
+Complete cost calculation
+Calculation tests
+
+Evidence:
+Exact claim-to-source mapping
+Citation validation
+Conflict detection
+Missing-information handling
+Refusal behavior
+
+Reliability:
+Timeouts
+Retries
+Failure states
+No silent exceptions
+No false-success states
+
+Performance:
+No unnecessary LLM calls
+No blocking request handlers
+Bounded concurrency
+Measured latency
+
+Testing:
+Unit tests
+Integration tests
+Security tests
+E2E tests
+Golden RAG evaluation
+
+Deployment:
+Clean clone builds
+Docker works
+Configuration validated
+Health checks work
+
+Only after all of the above should you consider adding advanced RAG features.

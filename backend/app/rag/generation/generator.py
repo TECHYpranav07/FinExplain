@@ -1,13 +1,14 @@
 """
 LLM generation layer for FinExplain.
 
-Uses Groq API with centralized prompt templates.
+Uses unified LLM API (LangChain Gemini / Groq) with centralized prompt templates.
 Supports both the legacy ``(query, context)`` signature and the new
 enriched signature with structured facts, calculations, conflicts, etc.
 """
 
-from app.external.llm_client import llm, get_groq_client
-from app.core.constants import DEFAULT_GROQ_MODEL
+import json
+from app.external.llm_client import llm, client
+from app.core.constants import DEFAULT_LLM_MODEL
 from app.rag.generation.prompt_templates import (
     SYSTEM_PROMPT_FINANCIAL_EXPERT,
     QA_USER_PROMPT_TEMPLATE,
@@ -15,13 +16,6 @@ from app.rag.generation.prompt_templates import (
     BEFORE_CONFIRMATION_PROMPT,
 )
 from typing import Dict, Any, List, Optional
-
-# Backward-compatibility proxy for modules importing `client` directly
-class _LazyGroqClient:
-    def __getattr__(self, name):
-        return getattr(get_groq_client(), name)
-
-client = _LazyGroqClient()
 
 
 def _format_for_prompt(data: Any) -> str:

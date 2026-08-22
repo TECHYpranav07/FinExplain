@@ -29,7 +29,10 @@ class DocumentStatus(str, Enum):
 DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 DEFAULT_EMBEDDING_DIM = 384
 DEFAULT_RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
+DEFAULT_LLM_PROVIDER = "gemini"
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_LLM_MODEL = DEFAULT_GEMINI_MODEL
 DEFAULT_DEMO_USER_ID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
 
 DEFAULT_CHUNK_SIZE = 512

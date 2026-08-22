@@ -3,7 +3,7 @@ import json
 import logging
 from typing import List, Dict, Any, Optional
 from app.cache.redis_client import redis_client
-from app.core.constants import DEFAULT_GROQ_MODEL
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -11,9 +11,10 @@ CACHE_TTL = 3600  # FIN-032: 1 hour in seconds (reduced from 24h)
 PIPELINE_VERSION = "v2"
 
 def get_cache_key(query: str, product_ids: List[str]) -> str:
-    """Generate a deterministic versioned cache key based on query, product IDs, and model."""
+    """Generate a deterministic versioned cache key based on query, product IDs, and model from .env."""
     product_str = "_".join(sorted(str(p) for p in product_ids))
-    unique_string = f"{PIPELINE_VERSION}:{DEFAULT_GROQ_MODEL}:{query.strip().lower()}:{product_str}"
+    model_name = settings.active_llm_model
+    unique_string = f"{PIPELINE_VERSION}:{settings.LLM_PROVIDER}:{model_name}:{query.strip().lower()}:{product_str}"
     return f"query:{hashlib.sha256(unique_string.encode()).hexdigest()}"
 
 def get_cached_response(query: str, product_ids: List[str]) -> Optional[Dict[str, Any]]:

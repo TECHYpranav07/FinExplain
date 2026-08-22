@@ -23,8 +23,10 @@ supabase==2.11.0
 pinecone-client==5.0.1
 
 # ==============================================
-# LLM ENGINE (Groq)
+# LLM ENGINES (Google Gemini via LangChain / Groq)
 # ==============================================
+langchain-google-genai>=2.0.0
+google-generativeai>=0.8.0
 groq>=0.11.0
 
 # ==============================================
