@@ -25,7 +25,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 CACHE_TTL = 3600  # 1 hour in seconds
-PIPELINE_VERSION = "v2.1"
+PIPELINE_VERSION = "v2.2-completeness-gate"
 
 # L1 In-Memory LRU Cache (<0.5ms lookup)
 _L1_MEMORY_CACHE: OrderedDict[str, tuple[float, Dict[str, Any]]] = OrderedDict()

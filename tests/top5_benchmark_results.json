@@ -10,31 +10,37 @@
   "causal_scorecard": {
     "evidence_availability_rate_ear_pct": 88.0,
     "evidence_sufficiency_rate_esr_pct": 96.0,
-    "conditional_answer_correctness_pct": 95.5,
-    "raw_correct_count": 21,
+    "conditional_answer_correctness_pct": 61.9,
+    "strict_answerable_completeness_pct": 59.1,
+    "raw_correct_count": 13,
     "document_limitations_count": 3,
-    "retrieval_failures_count": 0,
+    "retrieval_failures_count": 1,
     "generation_or_routing_failures_count": 0,
+    "incomplete_answer_count": 8,
+    "false_abstention_count": 0,
     "faithfulness_pct": 100.0,
-    "claim_support_rate_pct": 96.0,
-    "citation_accuracy_pct": 100.0,
-    "condition_recall_cpr_pct": 47.7,
-    "condition_precision_cp_pct": 76.4,
+    "claim_citation_coverage_pct": 52.6,
+    "citation_verification_rate_pct": 87.5,
+    "citation_completeness_proxy_pct": 50.3,
+    "citation_metadata_presence_pct": 96.0,
+    "required_element_recall_pct": 84.4,
+    "legacy_condition_recall_pct": 43.4,
+    "condition_precision_cp_pct": 62.6,
     "condition_taxonomy_recalls_pct": {
-      "benchmark": 70.0,
-      "calculation_basis": 0.0,
+      "benchmark": 50.0,
+      "calculation_basis": 33.3,
       "tax": 53.3,
-      "prerequisite": 33.3,
+      "prerequisite": 22.2,
       "threshold": 47.8,
-      "temporal": 37.5,
-      "frequency": 50.0,
-      "exception": 28.6,
+      "temporal": 31.2,
+      "frequency": 0.0,
+      "exception": 0.0,
       "eligibility": 20.0,
       "jurisdiction": 66.7
     },
-    "p50_latency_ms": 10644.9,
-    "p95_latency_ms": 23930.8,
-    "average_latency_ms": 9985.0
+    "p50_latency_ms": 5569.1,
+    "p95_latency_ms": 10818.1,
+    "average_latency_ms": 5467.1
   },
   "results": [
     {
@@ -46,20 +52,22 @@
       "product_name": "Axis Finance Loan Against Property",
       "information_present": true,
       "classification": "CORRECT",
-      "processing_tier": "fast_factual",
-      "answer": "The interest rate is 10.50 percent [Page 1, Section: 1. Borrower & Loan Information]. Applicable Conditions: fixed.",
-      "latency_ms": 4.405699999551871,
-      "retrieval_ms": 19397.331699999995,
-      "evidence_score": 98,
+      "processing_tier": "standard_rag",
+      "answer": "- **Headline Term / Rate:** 10.50% per annum\n- **Applicable Conditions / Exceptions:** Fixed interest rate type.\n- **Source Citation:** [Axis Finance LRD Facility 1334, Page 1, Section 1. Borrower & Loan Information]",
+      "latency_ms": 2294.6639000001596,
+      "retrieval_ms": 4448.277300001791,
+      "evidence_score": 61,
       "retrieved_chunks": 10,
-      "input_tokens": 0,
-      "output_tokens": 0,
+      "input_tokens": 430,
+      "output_tokens": 54,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.0,
-      "condition_precision": 0.0,
+      "claim_support": 0.25,
+      "claim_citation_coverage": 0.25,
+      "condition_recall": 1.0,
+      "legacy_condition_recall": 0.2,
+      "condition_precision": 1.0,
       "condition_by_type": {
         "benchmark": {
           "matched": 0,
@@ -67,19 +75,32 @@
           "recall": 0.0
         },
         "calculation_basis": {
-          "matched": 0,
+          "matched": 1,
           "total": 2,
-          "recall": 0.0
+          "recall": 0.5
         }
       },
+      "required_elements": {
+        "matched": 2,
+        "total": 2,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [
+          "interest rate",
+          "fixed rate type"
+        ],
+        "missing_elements": []
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.3333333333333333,
+      "citation_completeness": 0.25,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
         {
-          "document": "Axis Finance LRD Facility 1334",
           "page": 1,
+          "document": "Axis Finance LRD Facility 1334",
           "section": "1. Borrower & Loan Information",
           "verified": true
         }
@@ -94,21 +115,23 @@
       "product_id": "7e4fe332-bebf-4fcc-808e-9e6402738324",
       "product_name": "Axis Finance Loan Against Property",
       "information_present": true,
-      "classification": "CORRECT",
-      "processing_tier": "fast_factual",
-      "answer": "The processing fee is 8,000 [Page 2, Section: 4. Fees & Charges]. Applicable Conditions: One-time sample charge.",
-      "latency_ms": 0.28170000041427556,
-      "retrieval_ms": 5644.941999998991,
-      "evidence_score": 98,
+      "classification": "INCOMPLETE_ANSWER",
+      "processing_tier": "standard_rag",
+      "answer": "Under the loan agreement, the following processing fee and other charges are applicable:\n\n* **Processing Fee:** **INR 8,000** (one-time sample charge), exclusive of applicable GST.\n* **Documentation Fee:** **INR 1,500** (one-time sample charge), exclusive of applicable GST.\n* **Late Payment Fee:** **INR 500** (illustrative only; subject to lender policy), exclusive of applicable GST.\n* **Prepayment Charge:** **2%** of the outstanding principal (illustrative only; subject to lender policy), exclusive of applicable GST.\n\n**Applicable Conditions & Qualifiers:**\n* All amounts stated are exclusive of **GST**, which shall be payable by the customer in addition to the applicable fees and charges (except insurance premiums, which are inclusive of GST).\n* Penal charges of **6% p.a.** apply in case of delayed payment.\n* Other penal charges of **1% per annum** apply for non-compliance with any other Material Terms and Conditions as per the sanction letter or facility agreement, levied on the outstanding principal amount for each instance of breach from the date of breach until the date of compliance.\n\n**Source Citations:** [Axis Finance LRD Facility 1334, Page 2, Section 4], [Axis Finance LRD Facility 1334, Page 3], [Axis Finance LRD Facility 1334, Page 4]",
+      "latency_ms": 2766.8962000025203,
+      "retrieval_ms": 884.7578999993857,
+      "evidence_score": 76,
       "retrieved_chunks": 10,
-      "input_tokens": 0,
-      "output_tokens": 0,
-      "correctness": 1.0,
+      "input_tokens": 673,
+      "output_tokens": 316,
+      "correctness": 0.0,
       "faithfulness": 1.0,
-      "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.25,
-      "condition_precision": 1.0,
+      "relevancy": 0.0,
+      "claim_support": 0.1,
+      "claim_citation_coverage": 0.1,
+      "condition_recall": 0.667,
+      "legacy_condition_recall": 0.25,
+      "condition_precision": 0.25,
       "condition_by_type": {
         "tax": {
           "matched": 0,
@@ -121,15 +144,40 @@
           "recall": 0.5
         }
       },
-      "citation_accuracy": 1.0,
-      "citation_completeness": 0.5,
+      "required_elements": {
+        "matched": 2,
+        "total": 3,
+        "recall": 0.667,
+        "complete": false,
+        "matched_elements": [
+          "processing fee amount",
+          "tax/GST applicability"
+        ],
+        "missing_elements": [
+          "other statutory charges"
+        ]
+      },
+      "citation_accuracy": 0.6666666666666666,
+      "citation_completeness": 0.2,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 0.6666666666666666,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
         {
-          "document": "Axis Finance LRD Facility 1334",
           "page": 2,
-          "section": "4. Fees & Charges",
+          "document": "Axis Finance LRD Facility 1334",
+          "section": "4",
+          "verified": false
+        },
+        {
+          "page": 3,
+          "document": "Axis Finance LRD Facility 1334",
+          "verified": true
+        },
+        {
+          "page": 4,
+          "document": "Axis Finance LRD Facility 1334",
           "verified": true
         }
       ],
@@ -143,21 +191,23 @@
       "product_id": "7e4fe332-bebf-4fcc-808e-9e6402738324",
       "product_name": "Axis Finance Loan Against Property",
       "information_present": true,
-      "classification": "CORRECT",
-      "processing_tier": "fast_factual",
-      "answer": "The prepayment charge is 2 percent [Page 2, Section: 4. Fees & Charges]. Applicable Conditions: of outstanding principal; Illustrative only.",
-      "latency_ms": 0.48319999950763304,
-      "retrieval_ms": 2686.9862000003195,
-      "evidence_score": 98,
+      "classification": "INCOMPLETE_ANSWER",
+      "processing_tier": "standard_rag",
+      "answer": "### Conditions for Part-Prepayment or Foreclosure\n\n* **Headline Term / Rate:** \n  * **Loan Against Property & Micro LAP (Business End-Use):** **3%** plus applicable taxes.\n  * **Home Loan & Affordable HL (Business End-Use):** **2%** plus applicable taxes.\n  * **Loans under Fixed Interest Rate:** **4%** plus applicable taxes (applies to Home Loan, LAP, Affordable HL, and Micro LAP).\n  * **Individual Borrowers with Non-Business End-Use under Floating ROI:** Pre-payment and foreclosure charges and conditions **will not be applicable** [Page 6-7, Unspecified Section].\n\n* **Applicable Conditions / Exceptions:**\n  * **Lock-in & Timing Prerequisites:** Part-prepayment or foreclosure shall be permitted **only after the clearance of 12 EMIs** [Page 6, Unspecified Section].\n  * **Frequency & Limit Conditions:** Part-prepayment will only be allowed **twice in a financial year** and up to **25% of the Principal Outstanding at the beginning of the financial year** [Page 6, Unspecified Section].\n  * **Adjustment Order:** Any amounts received as part-prepayment or foreclosure will be adjusted first against **overdue interest (if any)**, and then against the **principal outstanding** [Page 6, Unspecified Section].\n  * **Effect on Tenor/EMI:** For part-prepayments, the tenor would decrease while the EMI amount remains the same [Page 7, Unspecified Section].\n  * **Tax Qualifier:** All charges are subject to **applicable taxes** [Page 6, Unspecified Section].\n\n* **Source Citation:** [Page 6, Unspecified Section] and [Page 7, Unspecified Section]",
+      "latency_ms": 3387.093699999241,
+      "retrieval_ms": 882.2991999986698,
+      "evidence_score": 61,
       "retrieved_chunks": 10,
-      "input_tokens": 0,
-      "output_tokens": 0,
-      "correctness": 1.0,
+      "input_tokens": 511,
+      "output_tokens": 388,
+      "correctness": 0.0,
       "faithfulness": 1.0,
-      "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.25,
-      "condition_precision": 1.0,
+      "relevancy": 0.0,
+      "claim_support": 0.5384615384615384,
+      "claim_citation_coverage": 0.5384615384615384,
+      "condition_recall": 0.75,
+      "legacy_condition_recall": 0.5,
+      "condition_precision": 0.286,
       "condition_by_type": {
         "prerequisite": {
           "matched": 0,
@@ -165,20 +215,62 @@
           "recall": 0.0
         },
         "tax": {
-          "matched": 1,
+          "matched": 2,
           "total": 2,
-          "recall": 0.5
+          "recall": 1.0
         }
       },
+      "required_elements": {
+        "matched": 3,
+        "total": 4,
+        "recall": 0.75,
+        "complete": false,
+        "matched_elements": [
+          "prepayment charge",
+          "outstanding principal basis",
+          "taxes/charges"
+        ],
+        "missing_elements": [
+          "written notice/request"
+        ]
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.5,
+      "citation_completeness": 0.6153846153846154,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
         {
-          "document": "Axis Finance LRD Facility 1334",
-          "page": 2,
-          "section": "4. Fees & Charges",
+          "page": 6,
+          "verified": true
+        },
+        {
+          "page": 6,
+          "verified": true
+        },
+        {
+          "page": 6,
+          "verified": true
+        },
+        {
+          "page": 6,
+          "verified": true
+        },
+        {
+          "page": 7,
+          "verified": true
+        },
+        {
+          "page": 6,
+          "verified": true
+        },
+        {
+          "page": 6,
+          "verified": true
+        },
+        {
+          "page": 7,
           "verified": true
         }
       ],
@@ -194,18 +286,20 @@
       "information_present": true,
       "classification": "CORRECT",
       "processing_tier": "standard_rag",
-      "answer": "Based on the provided evidence, the penal charges that apply in case of delayed payment or default are:\n\n* **Penal charges in case of delayed payment:** 6% per annum [Page 4].\n* **Other penal charges:** 1% per annum for the non-compliance of any other Material Terms and Conditions as per the sanction letter / facility agreement [Page 4].\n  * **Conditions:** The penal charge for non-compliance will be levied on the outstanding principal amount of the facility for each instance of non-compliance, calculated from the date of the breach until the date the penal charges related to non-submission of documents are resolved [Page 4].",
-      "latency_ms": 4870.248999999603,
-      "retrieval_ms": 3246.7827000000398,
+      "answer": "Based on the provided documents, the following penal charges apply:\n\n* **In case of delayed payment:** Penal charges of **6% p.a.** apply [[Page 4]].\n* **For non-compliance of other material terms and conditions:** Other penal charges of **1% per annum** apply, which will be levied on the outstanding principal amount of the facility for each instance of non-compliance, calculated from the date of the breach until the date resolved [[Page 4]].",
+      "latency_ms": 3039.3433999997796,
+      "retrieval_ms": 1814.7773999990022,
       "evidence_score": 61,
       "retrieved_chunks": 10,
       "input_tokens": 512,
-      "output_tokens": 158,
+      "output_tokens": 111,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.5,
+      "claim_support": 0.6666666666666666,
+      "claim_citation_coverage": 0.6666666666666666,
+      "condition_recall": 1.0,
+      "legacy_condition_recall": 0.5,
       "condition_precision": 1.0,
       "condition_by_type": {
         "threshold": {
@@ -219,15 +313,25 @@
           "recall": 0.5
         }
       },
+      "required_elements": {
+        "matched": 3,
+        "total": 3,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [
+          "delayed-payment penalty",
+          "other non-compliance penalty",
+          "penalty basis/timing"
+        ],
+        "missing_elements": []
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.75,
+      "citation_completeness": 0.6666666666666666,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
-        {
-          "page": 4,
-          "verified": true
-        },
         {
           "page": 4,
           "verified": true
@@ -248,25 +352,37 @@
       "product_name": "Axis Finance Loan Against Property",
       "information_present": false,
       "classification": "DOCUMENT_INSUFFICIENT",
-      "processing_tier": "fast_factual",
-      "answer": "Not specified in the provided documents.",
-      "latency_ms": 10644.874600000549,
-      "retrieval_ms": 3295.1245000003837,
-      "evidence_score": 76,
+      "processing_tier": "standard_rag",
+      "answer": "- **Security / Mortgage Schedule:** Not specified in the provided documents.\n- **Source Citation:** [Axis Finance LRD Facility 1334]",
+      "latency_ms": 9769.219699999667,
+      "retrieval_ms": 869.2491999972844,
+      "evidence_score": 61,
       "retrieved_chunks": 10,
-      "input_tokens": 1668,
-      "output_tokens": 10,
+      "input_tokens": 364,
+      "output_tokens": 33,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
-      "claim_support": 1.0,
+      "claim_support": 0.0,
+      "claim_citation_coverage": 0.0,
       "condition_recall": 1.0,
+      "legacy_condition_recall": 1.0,
       "condition_precision": 1.0,
       "condition_by_type": {},
+      "required_elements": {
+        "matched": 0,
+        "total": 0,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [],
+        "missing_elements": []
+      },
       "citation_accuracy": 1.0,
       "citation_completeness": 0.0,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
-      "abstained": true,
+      "abstained": false,
       "citations": [],
       "error": null
     },
@@ -278,31 +394,33 @@
       "product_id": "d4f0b64f-582c-4c06-951b-ab4509e5e7f2",
       "product_name": "Axis Finance Personal Loan Agreement",
       "information_present": true,
-      "classification": "CORRECT",
+      "classification": "INCOMPLETE_ANSWER",
       "processing_tier": "calculation",
-      "answer": "Based on the provided documents, interest on the facility is calculated and applied under the following terms and conditions:\n\n### Calculation of Interest\n* **Accrual Basis:** All interest accruing on amounts outstanding under the Facility shall accrue from day to day [Page 7, Section vii].\n* **Day-Count Convention:** Interest is calculated on the basis of the actual number of days elapsed in a year of three hundred and sixty-five (365) days, or such other days in a year that is customary for any other year [Page 7, Section vii].\n* **Overdraft (OD) Facility Calculation:** Interest with respect to the OD facility is calculated on a daily basis as per the utilized amounts from the OD Facility available in the Borrower’s Account at the end-of-day [Page 4, Section 2]. \n* **OD Calculation Period:** Interest for the OD facility is calculated for a period beginning from the 1st day of every month to the end of every month (i.e., 28th, 29th, 30th, or 31st day, as applicable) during the tenure of the Facility [Page 4, Section 2].\n* **Payment Schedule:** Interest on the Limit shall be payable by the Borrower every month separately [Page 7, Section viii]. For OD facilities, interest is payable by the 5th of the subsequent calendar month [Page 4, Section 2].\n\n### Fixed vs. Variable Interest Rate\n* **Fixed Rate Application:** Interest on the amount of the Facility is to be applied at the fixed rate of interest stipulated in Schedule \"B\" to the Agreement, and the rate of interest will be fixed for the entire tenure of the Facility [Page 7, Section vii].\n* **Fixed Rate Disbursal Condition:** In the case of a fixed rate of interest, the rate mentioned in the table is for indicative purposes only, and the applicable interest rate shall be the rate prevailing on the date of disbursement [Page 34, Structured Table - Page 34, Clause 9].\n* **Floating/Variable Rate Conditions:** \n  * If applicable, the AFL’s Reference Rate shall be reset by the Lender at such intervals as may be permissible under applicable guidelines and regulations from time to time [Page 34, Structured Table - Page 34, Clause 8].\n  * The applicable interest rate changes in accordance with",
-      "latency_ms": 13061.242699999639,
-      "retrieval_ms": 4949.551799998517,
-      "evidence_score": 96,
+      "answer": "* **Headline Term / Rate:** The exact numeric interest rate is **not specified** in the provided documents, though the text notes that for fixed rates, the rate mentioned in the table is indicative only and the applicable rate shall be the rate prevailing on the date of disbursement [Page 34, Sanction Letter Clause 9].\n* **Rate Type:** The interest rate can be **fixed** or **floating** (floating rates are subject to AFL's Reference Rate and periodic resets) [Page 7, Section vii; Page 34, Clauses 8 & 9].\n* **Calculation Basis & Formula:** Interest accrues from day to day and is calculated on the basis of the actual number of days elapsed in a year of 365 days (or such other days customary for a year) [Page 7, Section vii]. For Overdraft (OD) facilities, interest is calculated on a d [⚠ This claim could not be verified against the documents]aily basis using the utilized amounts from the OD Facility available in the borrower's account at the end of the day [Page 4, Section 2].\n  * **Calculation Formula:** \n    `Daily Interest = (Utilized Facility Amount * Annual Interest Rate) / 365`\n* **Applicable Conditions:** \n  * For fixed rate facilities, the rate is fixed for the entire tenure of the Facility and applies as stipulated in Schedule B or the Sanction Letter [Page 7, Section vii; Page 2].\n  * For floating rate facilities, the AFL's Reference Rate is subject to periodic resets and changes by the Lender in accordance with money market conditions and applicable regulations [Page 34, Clause 8].\n  * Monthly interest on the limit must be paid by the Borrower separately [Page 7, Section viii]. For OD facilities, interest accumulated from the 1st to the end of the month is payable by the 5th of the subsequent calendar month [Page 4, Section 2].\n* **Source Citation:** [Page 4, Section 2; Page 7, Section vii-viii; Page 34, Clauses 8-9]",
+      "latency_ms": 10900.383000000147,
+      "retrieval_ms": 2072.1556000025885,
+      "evidence_score": 54,
       "retrieved_chunks": 10,
       "input_tokens": 2598,
-      "output_tokens": 543,
-      "correctness": 1.0,
+      "output_tokens": 464,
+      "correctness": 0.0,
       "faithfulness": 1.0,
-      "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.5,
-      "condition_precision": 1.0,
+      "relevancy": 0.0,
+      "claim_support": 0.75,
+      "claim_citation_coverage": 0.75,
+      "condition_recall": 0.8,
+      "legacy_condition_recall": 0.5,
+      "condition_precision": 0.75,
       "condition_by_type": {
         "calculation_basis": {
-          "matched": 0,
-          "total": 2,
-          "recall": 0.0
-        },
-        "frequency": {
           "matched": 1,
           "total": 2,
           "recall": 0.5
+        },
+        "frequency": {
+          "matched": 0,
+          "total": 2,
+          "recall": 0.0
         },
         "benchmark": {
           "matched": 2,
@@ -310,14 +428,35 @@
           "recall": 1.0
         }
       },
+      "required_elements": {
+        "matched": 4,
+        "total": 5,
+        "recall": 0.8,
+        "complete": false,
+        "matched_elements": [
+          "actual-days calculation",
+          "365-day basis",
+          "monthly payment/frequency",
+          "rate type/benchmark"
+        ],
+        "missing_elements": [
+          "daily OD calculation"
+        ]
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.7857142857142857,
+      "citation_completeness": 0.75,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
         {
+          "page": 34,
+          "verified": true
+        },
+        {
           "page": 7,
-          "section": "vii",
+          "section": "vii; Page 34, Clauses 8 & 9",
           "verified": true
         },
         {
@@ -331,8 +470,12 @@
           "verified": true
         },
         {
-          "page": 4,
-          "section": "2",
+          "page": 7,
+          "section": "vii; Page 2",
+          "verified": true
+        },
+        {
+          "page": 34,
           "verified": true
         },
         {
@@ -346,24 +489,8 @@
           "verified": true
         },
         {
-          "page": 7,
-          "section": "vii",
-          "verified": true
-        },
-        {
-          "page": 34,
-          "verified": true
-        },
-        {
-          "page": 34,
-          "verified": true
-        },
-        {
-          "page": 34,
-          "verified": true
-        },
-        {
-          "page": 34,
+          "page": 4,
+          "section": "2; Page 7, Section vii-viii; Page 34, Clauses 8-9",
           "verified": true
         }
       ],
@@ -379,18 +506,20 @@
       "information_present": true,
       "classification": "CORRECT",
       "processing_tier": "standard_rag",
-      "answer": "If the borrower prepays or prematurely closes the loan, the following terms, conditions, and charges apply:\n\n* **General Agreement:** In the event of prepayment, the borrower agrees that prepayment charges are paid as per the terms of the agreement, out of free will and consent, and without any coercion [pl-loan-agreement-english-v290325.pdf, Page 9].\n* **Part Pre-Payment Charges:** 3% plus applicable taxes [pl-loan-agreement-english-v290325.pdf, Page 23, Section Schedule of Charges / Terms Table].\n* **Foreclosure (Full Pre-Payment) Charges:** 3% plus applicable taxes on the total loan outstanding amount / current limit (Available limit + Utilized limit in case of overdraft) [pl-loan-agreement-english-v290325.pdf, Page 23, Section Schedule of Charges / Terms Table].\n* **Conditions for Part Pre-Payment and Foreclosure:**\n  * Part Pre-Payment or Foreclosure shall be permitted **only after clearance of 12 EMIs** [pl-loan-agreement-english-v290325.pdf, Page 23, Section Schedule of Charges / Terms Table].\n  * Part-pre-payment will only be allowed **twice in a financial year** [pl-loan-agreement-english-v290325.pdf, Page 23, Section Schedule of Charges / Terms Table].\n  * Pre-payment of **up to 25% of POS** can only be accepted in a financial year [pl-loan-agreement-english-v290325.pdf, Page 23, Section Schedule of Charges / Terms Table].",
-      "latency_ms": 18020.84830000058,
-      "retrieval_ms": 7848.9494000004925,
+      "answer": "If the borrower prepays or prematurely closes the loan, the following conditions, charges, and rules apply:\n\n* **Part Pre-Payment / Foreclosure Timing:** Part Pre-Payment or Foreclosure shall be permitted only after the clearance of 12 EMIs [pl-loan-agreement-english-v290325.pdf, Page 23, Section Schedule of Charges / Terms Table].\n* **Part Pre-Payment Limits:** Part pre-payment will only be allowed twice in a financial year, and pre-payment of up to 25% of the Principal Outstanding (POS) can only be accepted in a financial year [pl-loan-agreement-english-v290325.pdf, Page 23, Section Schedule of Charges / Terms Table].\n* **Part Pre-Payment Charges:** 3% plus applicable taxes [pl-loan-agreement-english-v290325.pdf, Page 23, Section Schedule of Charges / Terms Table].\n* **Foreclosure (Full Pre-Payment) Charges:** 3% plus applicable taxes on the total loan outstanding amount / current limit (Available limit + Utilized limit in case of overdraft) [pl-loan-agreement-english-v290325.pdf, Page 23, Section Schedule of Charges / Terms Table].\n* **Consent:** Prepayment charges are paid by the borrower as per the terms of the agreement and out of the free will and consent of the borrower without any coercion [Page 9].",
+      "latency_ms": 6113.31920000157,
+      "retrieval_ms": 1491.0435999991023,
       "evidence_score": 76,
       "retrieved_chunks": 10,
       "input_tokens": 700,
-      "output_tokens": 338,
+      "output_tokens": 306,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.8,
+      "claim_support": 0.8333333333333334,
+      "claim_citation_coverage": 0.8333333333333334,
+      "condition_recall": 1.0,
+      "legacy_condition_recall": 0.6,
       "condition_precision": 1.0,
       "condition_by_type": {
         "temporal": {
@@ -399,9 +528,9 @@
           "recall": 0.5
         },
         "threshold": {
-          "matched": 2,
+          "matched": 1,
           "total": 2,
-          "recall": 1.0
+          "recall": 0.5
         },
         "tax": {
           "matched": 1,
@@ -409,45 +538,55 @@
           "recall": 1.0
         }
       },
-      "citation_accuracy": 1.0,
-      "citation_completeness": 0.75,
+      "required_elements": {
+        "matched": 6,
+        "total": 6,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [
+          "prepayment charge",
+          "applicable taxes",
+          "12 EMI condition",
+          "twice per financial year",
+          "25 percent POS limit",
+          "foreclosure terms"
+        ],
+        "missing_elements": []
+      },
+      "citation_accuracy": 0.2,
+      "citation_completeness": 0.16666666666666666,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 0.2,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
         {
+          "page": 23,
+          "document": "pl-loan-agreement-english-v290325.pdf",
+          "section": "Schedule of Charges / Terms Table",
+          "verified": false
+        },
+        {
+          "page": 23,
+          "document": "pl-loan-agreement-english-v290325.pdf",
+          "section": "Schedule of Charges / Terms Table",
+          "verified": false
+        },
+        {
+          "page": 23,
+          "document": "pl-loan-agreement-english-v290325.pdf",
+          "section": "Schedule of Charges / Terms Table",
+          "verified": false
+        },
+        {
+          "page": 23,
+          "document": "pl-loan-agreement-english-v290325.pdf",
+          "section": "Schedule of Charges / Terms Table",
+          "verified": false
+        },
+        {
           "page": 9,
-          "document": "pl-loan-agreement-english-v290325.pdf",
           "verified": true
-        },
-        {
-          "page": 23,
-          "document": "pl-loan-agreement-english-v290325.pdf",
-          "section": "Schedule of Charges / Terms Table",
-          "verified": false
-        },
-        {
-          "page": 23,
-          "document": "pl-loan-agreement-english-v290325.pdf",
-          "section": "Schedule of Charges / Terms Table",
-          "verified": false
-        },
-        {
-          "page": 23,
-          "document": "pl-loan-agreement-english-v290325.pdf",
-          "section": "Schedule of Charges / Terms Table",
-          "verified": false
-        },
-        {
-          "page": 23,
-          "document": "pl-loan-agreement-english-v290325.pdf",
-          "section": "Schedule of Charges / Terms Table",
-          "verified": false
-        },
-        {
-          "page": 23,
-          "document": "pl-loan-agreement-english-v290325.pdf",
-          "section": "Schedule of Charges / Terms Table",
-          "verified": false
         }
       ],
       "error": null
@@ -462,18 +601,20 @@
       "information_present": true,
       "classification": "CORRECT",
       "processing_tier": "standard_rag",
-      "answer": "When an EMI is delayed or remains unpaid, the following penal charges and rules apply:\n\n* **Penal Charges Rate:** 6% p.a. plus GST on the overdue amount (Principal overdue / Interest overdue / EMI undue), applicable for the period the said amount remains overdue [pl-loan-agreement-english-v290325.pdf, Page 23, Section Schedule of Charges / Terms Table].\n* **Interest on Penal Charges:** No interest will be charged on the outstanding amount of Penal Charges if such charges remain unpaid [pl-loan-agreement-english-v290325.pdf, Page 7].\n* **Consequences of Default:** Any delay or default in payment of any EMI makes the Borrower liable to pay Penal Charges as mentioned in Schedule \"B\", and constitutes a default which makes all sums under the Agreement due and payable to the Lender forthwith [pl-loan-agreement-english-v290325.pdf, Page 7].",
-      "latency_ms": 5526.975400000083,
-      "retrieval_ms": 4952.111699998568,
-      "evidence_score": 76,
+      "answer": "* **Headline Term / Rate:** 6% per annum plus applicable GST on the overdue amount (Principal overdue, Interest overdue, or EMI undue).\n* **Applicable Conditions / Exceptions:** \n  - Applicable for the period the said amount remains overdue [Page 23, Schedule of Charges / Terms Table].\n  - Any delay or default in payment of any EMI constitutes a default, making all sums under the agreement due and payable to the lender forthwith [Page 7].\n  - No interest will be charged on the outstanding amount of Penal Charges if such charges remain unpaid [Page 7].\n* **Source Citation:** [pl-loan-agreement-english-v290325.pdf, Page 7 & Page 23, Schedule of Charges / Terms Table]",
+      "latency_ms": 6714.846299997589,
+      "retrieval_ms": 1268.2257999986177,
+      "evidence_score": 61,
       "retrieved_chunks": 10,
       "input_tokens": 460,
-      "output_tokens": 211,
+      "output_tokens": 168,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.25,
+      "claim_support": 0.6666666666666666,
+      "claim_citation_coverage": 0.6666666666666666,
+      "condition_recall": 1.0,
+      "legacy_condition_recall": 0.25,
       "condition_precision": 0.5,
       "condition_by_type": {
         "temporal": {
@@ -487,26 +628,46 @@
           "recall": 0.5
         }
       },
-      "citation_accuracy": 1.0,
-      "citation_completeness": 0.6,
+      "required_elements": {
+        "matched": 5,
+        "total": 5,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [
+          "penal charge rate",
+          "GST",
+          "overdue basis",
+          "period of applicability",
+          "default consequence"
+        ],
+        "missing_elements": []
+      },
+      "citation_accuracy": 0.6,
+      "citation_completeness": 0.5,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 0.6,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
         {
           "page": 23,
-          "document": "pl-loan-agreement-english-v290325.pdf",
-          "section": "Schedule of Charges / Terms Table",
+          "verified": false
+        },
+        {
+          "page": 7,
           "verified": true
         },
         {
           "page": 7,
-          "document": "pl-loan-agreement-english-v290325.pdf",
           "verified": true
         },
         {
           "page": 7,
-          "document": "pl-loan-agreement-english-v290325.pdf",
           "verified": true
+        },
+        {
+          "page": 23,
+          "verified": false
         }
       ],
       "error": null
@@ -519,48 +680,76 @@
       "product_id": "d4f0b64f-582c-4c06-951b-ab4509e5e7f2",
       "product_name": "Axis Finance Personal Loan Agreement",
       "information_present": true,
-      "classification": "FALSE_ABSTENTION",
-      "processing_tier": "fast_factual",
-      "answer": "Based on the provided documents, when the interest rate is revised or the repayment terms/amount of EMI are revised/rescheduled by the Lender:\n\n* The Borrower must make all future repayments to the Lender according to the revised schedule upon being notified of such revision or reschedulement [Page 10].\n* The revised interest rates become effective prospectively after the Lender notifies the Borrower about the revised rates [Page 6].\n* Any change in the rate of interest (including changes made by the Reserve Bank of India) will be intimated to the Borrower(s) and shall be binding upon the Borrower(s) [Page 9].\n\nNot specified in the provided documents: Any option for the borrower to reject the revision, prepay without penalty upon revision, or exit the agreement without charges due to an interest rate revision.",
-      "latency_ms": 13885.731399999713,
-      "retrieval_ms": 4688.179199998558,
-      "evidence_score": 76,
+      "classification": "INCOMPLETE_ANSWER",
+      "processing_tier": "standard_rag",
+      "answer": "Based on the provided documents, **no options or recourses are granted to the borrower** when the interest rate is revised. \n\n- **Lender's Unilateral Right:** The lender maintains the sole right to amend the interest rate, APR, and other terms at its discretion—including changes made by the Reserve Bank of India—without assigning any reason or notifying the borrower beforehand. \n- **Effective Date:** Any such revision becomes applicable immediately from the date of the revision in the lender's records, and the revised rates are binding upon the borrower. \n- **Notification:** The lender will notify the borrower about the revised rates upon any such adjustment.\n\n**Source Citations:** \n- [Page 2, Section: Interest Rate Definition]\n- [Page 6, Section: Rate Adjustments]\n- [Page 9, Section: Discretionary Interest Changes]\n- [Page 10, Section: Amendment of Terms]",
+      "latency_ms": 2969.499700000597,
+      "retrieval_ms": 982.9199999985576,
+      "evidence_score": 61,
       "retrieved_chunks": 10,
-      "input_tokens": 1044,
-      "output_tokens": 205,
+      "input_tokens": 555,
+      "output_tokens": 217,
       "correctness": 0.0,
       "faithfulness": 1.0,
       "relevancy": 0.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.4,
-      "condition_precision": 1.0,
+      "claim_support": 0.4444444444444444,
+      "claim_citation_coverage": 0.4444444444444444,
+      "condition_recall": 0.333,
+      "legacy_condition_recall": 0.0,
+      "condition_precision": 0.0,
       "condition_by_type": {
         "temporal": {
-          "matched": 1,
+          "matched": 0,
           "total": 2,
-          "recall": 0.5
+          "recall": 0.0
         },
         "exception": {
-          "matched": 1,
+          "matched": 0,
           "total": 3,
-          "recall": 0.333
+          "recall": 0.0
         }
       },
+      "required_elements": {
+        "matched": 2,
+        "total": 6,
+        "recall": 0.333,
+        "complete": false,
+        "matched_elements": [
+          "rate revision",
+          "notification"
+        ],
+        "missing_elements": [
+          "prospective effect",
+          "increase EMI option",
+          "increase tenor option",
+          "prepayment option"
+        ]
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.6,
+      "citation_completeness": 0.4444444444444444,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
-      "abstained": true,
+      "abstained": false,
       "citations": [
         {
-          "page": 10,
+          "page": 2,
+          "section": "Interest Rate Definition",
           "verified": true
         },
         {
           "page": 6,
+          "section": "Rate Adjustments",
           "verified": true
         },
         {
           "page": 9,
+          "section": "Discretionary Interest Changes",
+          "verified": true
+        },
+        {
+          "page": 10,
+          "section": "Amendment of Terms",
           "verified": true
         }
       ],
@@ -575,19 +764,21 @@
       "product_name": "Axis Finance Personal Loan Agreement",
       "information_present": true,
       "classification": "CORRECT",
-      "processing_tier": "fast_factual",
-      "answer": "Based on the provided documents, the responsibility for GST, interest tax, stamp duty, and other applicable levies is allocated as follows:\n\n* **Interest Tax and Other Levies:** Interest tax and other levies as may be applicable from time to time on the Facility shall be solely borne by the Borrower [Page 6, Section (ii)].\n* **Goods and Services Tax (GST):** \n  * Will be charged extra as per the applicable rates on all the charges and fees (wherever GST is applicable) [Page 4, Section (iii) and Page 24.0, Section: Penal Charges].\n  * Includes any kind of variation, changes, or imposition of new/further taxes during the Term of the Agreement, but excludes tax on the income of any Party hereto [Page 3].\n* **Stamp Duty and Statutory Charges:** \n  * The Borrower shall pay all costs, fees, charges, taxes, expenses, advances, duties, stamp duty, and penalties, if any [Page 11, Section xvi].\n  * Stamp duty and other statutory charges are payable as per applicable laws of the state [Page 24.0, Section: Penal Charges].\n  * The Lender is entitled to recover from the Borrower any charges or costs incurred or claims suffered in connection with the Limit, including on account of execution and stamping of the Agreement and any other documentation or security creation pursuant to the Agreement [Page 4, Section (ii)].",
-      "latency_ms": 23930.840799999714,
-      "retrieval_ms": 6226.777500000026,
+      "processing_tier": "standard_rag",
+      "answer": "**Responsible Party:**\n- **Interest Tax and Other Levies:** Shall be solely borne by the Borrower as applicable from time to time on the Facility [pl-loan-agreement-english-v290325.pdf, Page 6].\n- **Stamp Duty and Statutory Charges:** As per applicable laws of the state [pl-loan-agreement-english-v290325.pdf, Page 24.0, Section: Penal Charges].\n- **Goods and Services Tax (GST):** Will be charged extra as per applicable rates on all charges and fees wherever GST is applicable [pl-loan-agreement-english-v290325.pdf, Page 4, Page 24.0].\n\n**Applicable Conditions & Procedures:**\n- The Lender is entitled to debit all amounts due and payable (including interest tax, fees, stamp duty, costs, service/prepayment and other charges, claims, and expenses) directly to the Borrower's loan account, unless separately reimbursed to the Lender by the Borrower [pl-loan-agreement-english-v290325.pdf, Page 6].",
+      "latency_ms": 6036.6558999994595,
+      "retrieval_ms": 1065.931000001001,
       "evidence_score": 61,
       "retrieved_chunks": 10,
-      "input_tokens": 1050,
-      "output_tokens": 330,
+      "input_tokens": 579,
+      "output_tokens": 225,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.6,
+      "claim_support": 0.6666666666666666,
+      "claim_citation_coverage": 0.6666666666666666,
+      "condition_recall": 1.0,
+      "legacy_condition_recall": 0.6,
       "condition_precision": 1.0,
       "condition_by_type": {
         "tax": {
@@ -601,38 +792,48 @@
           "recall": 0.0
         }
       },
+      "required_elements": {
+        "matched": 4,
+        "total": 4,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [
+          "GST",
+          "interest tax/other levies",
+          "stamp duty",
+          "borrower responsibility"
+        ],
+        "missing_elements": []
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.6666666666666666,
+      "citation_completeness": 0.8333333333333334,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
         {
           "page": 6,
-          "section": "(ii)",
-          "verified": true
-        },
-        {
-          "page": 4,
-          "section": "(iii) and Page 24.0, Section: Penal Charges",
-          "verified": true
-        },
-        {
-          "page": 3,
-          "verified": true
-        },
-        {
-          "page": 11,
-          "section": "xvi",
+          "document": "pl-loan-agreement-english-v290325.pdf",
           "verified": true
         },
         {
           "page": 24,
+          "document": "pl-loan-agreement-english-v290325.pdf",
           "section": "Penal Charges",
           "verified": true
         },
         {
           "page": 4,
-          "section": "(ii)",
+          "verified": true
+        },
+        {
+          "page": 24,
+          "verified": true
+        },
+        {
+          "page": 6,
+          "document": "pl-loan-agreement-english-v290325.pdf",
           "verified": true
         }
       ],
@@ -646,21 +847,23 @@
       "product_id": "6d246154-fb30-4dcd-8a6a-c22e276926c3",
       "product_name": "South Indian Bank OneScore Personal Loan",
       "information_present": true,
-      "classification": "CORRECT",
-      "processing_tier": "fast_factual",
-      "answer": "The interest rate is 10.50 percent [Page 1, Section: 1. Borrower & Loan Information]. Applicable Conditions: fixed.",
-      "latency_ms": 0.3833999999187654,
-      "retrieval_ms": 5482.166699999652,
-      "evidence_score": 98,
+      "classification": "RETRIEVAL_FAILURE",
+      "processing_tier": "standard_rag",
+      "answer": "Unable to provide a verified answer. The retrieved evidence is insufficient to support a reliable response for this query. Please try rephrasing your question or consult the source documents directly.",
+      "latency_ms": 3652.8564000000188,
+      "retrieval_ms": 2261.1667000019224,
+      "evidence_score": 21,
       "retrieved_chunks": 10,
-      "input_tokens": 0,
-      "output_tokens": 0,
-      "correctness": 1.0,
+      "input_tokens": 932,
+      "output_tokens": 50,
+      "correctness": 0.0,
       "faithfulness": 1.0,
-      "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.5,
-      "condition_precision": 1.0,
+      "relevancy": 0.0,
+      "claim_support": 0.0,
+      "claim_citation_coverage": 0.0,
+      "condition_recall": 0.0,
+      "legacy_condition_recall": 0.0,
+      "condition_precision": 0.0,
       "condition_by_type": {
         "calculation_basis": {
           "matched": 0,
@@ -668,23 +871,31 @@
           "recall": 0.0
         },
         "benchmark": {
-          "matched": 2,
+          "matched": 0,
           "total": 2,
-          "recall": 1.0
+          "recall": 0.0
         }
       },
-      "citation_accuracy": 1.0,
-      "citation_completeness": 0.3333333333333333,
-      "evidence_sufficient": true,
-      "abstained": false,
-      "citations": [
-        {
-          "document": "South Indian Bank OneScore PL 1334",
-          "page": 1,
-          "section": "1. Borrower & Loan Information",
-          "verified": true
-        }
-      ],
+      "required_elements": {
+        "matched": 0,
+        "total": 4,
+        "recall": 0.0,
+        "complete": false,
+        "matched_elements": [],
+        "missing_elements": [
+          "interest rate",
+          "fixed rate type",
+          "EPI calculation",
+          "repayment terms"
+        ]
+      },
+      "citation_accuracy": 0.0,
+      "citation_completeness": 0.0,
+      "citation_metadata_presence": 0.0,
+      "verified_citation_rate": 0.0,
+      "evidence_sufficient": false,
+      "abstained": true,
+      "citations": [],
       "error": null
     },
     {
@@ -695,20 +906,22 @@
       "product_id": "6d246154-fb30-4dcd-8a6a-c22e276926c3",
       "product_name": "South Indian Bank OneScore Personal Loan",
       "information_present": true,
-      "classification": "CORRECT",
-      "processing_tier": "fast_factual",
-      "answer": "The processing fee is 8,000 [Page 2, Section: 4. Fees & Charges]. Applicable Conditions: One-time sample charge.",
-      "latency_ms": 0.343700001394609,
-      "retrieval_ms": 3262.872999999672,
-      "evidence_score": 98,
+      "classification": "INCOMPLETE_ANSWER",
+      "processing_tier": "standard_rag",
+      "answer": "* **Headline Term / Processing Fee:** INR 8,000 (One-time sample charge) [South Indian Bank OneScore PL 1334, Page 2, Section 4. Fees & Charges].\n* **Applicable Conditions / Exceptions:** Tax as per applicable government laws would be charged on all fees and charges [Page 2].",
+      "latency_ms": 2105.895299999247,
+      "retrieval_ms": 1095.642600001156,
+      "evidence_score": 61,
       "retrieved_chunks": 10,
-      "input_tokens": 0,
-      "output_tokens": 0,
-      "correctness": 1.0,
+      "input_tokens": 930,
+      "output_tokens": 69,
+      "correctness": 0.0,
       "faithfulness": 1.0,
-      "relevancy": 1.0,
+      "relevancy": 0.0,
       "claim_support": 1.0,
-      "condition_recall": 0.333,
+      "claim_citation_coverage": 1.0,
+      "condition_recall": 0.5,
+      "legacy_condition_recall": 0.333,
       "condition_precision": 1.0,
       "condition_by_type": {
         "tax": {
@@ -722,15 +935,33 @@
           "recall": 1.0
         }
       },
+      "required_elements": {
+        "matched": 1,
+        "total": 2,
+        "recall": 0.5,
+        "complete": false,
+        "matched_elements": [
+          "processing fee amount"
+        ],
+        "missing_elements": [
+          "GST applicability"
+        ]
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.5,
+      "citation_completeness": 1.0,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
         {
-          "document": "South Indian Bank OneScore PL 1334",
           "page": 2,
+          "document": "South Indian Bank OneScore PL 1334",
           "section": "4. Fees & Charges",
+          "verified": true
+        },
+        {
+          "page": 2,
           "verified": true
         }
       ],
@@ -745,20 +976,22 @@
       "product_name": "South Indian Bank OneScore Personal Loan",
       "information_present": true,
       "classification": "CORRECT",
-      "processing_tier": "fast_factual",
-      "answer": "Based on the provided documents, the following penal and bounce charges apply for payment default:\n\n* **Penal Charges:** 4% for the defaulted amount for the defaulted period [Page 2]. Additionally, in case of any default, the Borrower shall pay additional / default interest at the rate mentioned in the Schedule/Application or as prescribed by the Bank, over and above the then applicable rate of interest till full payment is made or the default is cured [Page 1].\n* **EMI / Cheque Bounce Charges:** 750 + GST [Page 2].",
-      "latency_ms": 3035.6578000009904,
-      "retrieval_ms": 1400.5080000006274,
+      "processing_tier": "standard_rag",
+      "answer": "- **Headline Term / Rate:** \n  - **Penal Charges:** 4% for the defaulted amount for the defaulted period [Page 2, Section Contingent Charges]. Additionally, the borrower shall pay additional/default interest over and above the then applicable rate of interest till full payment is made or the default is cured [Page 1].\n  - **EMI / Cheque Bounce Charges:** 750 [Page 2, Section Contingent Charges].\n\n- **Applicable Conditions / Exceptions:** \n  - Penal and bounce charges are subject to plus applicable GST/taxes [Page 2].\n  - Default interest applies over and above the applicable rate of interest until full payment is made or the default is cured [Page 1].\n\n- **Source Citation:** [Page 1, Page 2]",
+      "latency_ms": 2554.528999997274,
+      "retrieval_ms": 1009.9574999985634,
       "evidence_score": 46,
       "retrieved_chunks": 10,
-      "input_tokens": 1091,
-      "output_tokens": 130,
+      "input_tokens": 939,
+      "output_tokens": 175,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.25,
-      "condition_precision": 0.5,
+      "claim_support": 0.75,
+      "claim_citation_coverage": 0.75,
+      "condition_recall": 1.0,
+      "legacy_condition_recall": 0.25,
+      "condition_precision": 0.143,
       "condition_by_type": {
         "threshold": {
           "matched": 0,
@@ -771,11 +1004,41 @@
           "recall": 0.5
         }
       },
+      "required_elements": {
+        "matched": 5,
+        "total": 5,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [
+          "default penalty",
+          "defaulted amount/period",
+          "bounce charge",
+          "bounce GST",
+          "until cured"
+        ],
+        "missing_elements": []
+      },
       "citation_accuracy": 1.0,
       "citation_completeness": 0.75,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
+        {
+          "page": 2,
+          "section": "Contingent Charges",
+          "verified": true
+        },
+        {
+          "page": 1,
+          "verified": true
+        },
+        {
+          "page": 2,
+          "section": "Contingent Charges",
+          "verified": true
+        },
         {
           "page": 2,
           "verified": true
@@ -786,6 +1049,7 @@
         },
         {
           "page": 2,
+          "document": "Page 1",
           "verified": true
         }
       ],
@@ -799,21 +1063,23 @@
       "product_id": "6d246154-fb30-4dcd-8a6a-c22e276926c3",
       "product_name": "South Indian Bank OneScore Personal Loan",
       "information_present": true,
-      "classification": "CORRECT",
-      "processing_tier": "fast_factual",
-      "answer": "The prepayment charge is 2 percent [Page 2, Section: 4. Fees & Charges]. Applicable Conditions: of outstanding principal; Illustrative only.",
-      "latency_ms": 0.3130000004603062,
-      "retrieval_ms": 4274.053099999946,
-      "evidence_score": 98,
+      "classification": "INCOMPLETE_ANSWER",
+      "processing_tier": "standard_rag",
+      "answer": "### Prepayment, Lock-In, and Foreclosure Conditions\n\n* **Pre-payment / Pre-Closure Charges within 12 months:** \n  * **Headline Term / Rate:** 4% plus applicable GST [Page 2, Parameter (xiv)].\n  * **Applicable Conditions:** Applies to prepayments or foreclosures made within the first 12 months from the loan account opening date.\n\n* **Pre-payment / Pre-Closure Charges after 12 months:** \n  * **Headline Term / Rate:** 2% plus applicable GST [Page 2, Parameter (xiv)].\n  * **Applicable Conditions:** Applies to prepayments or foreclosures made after 12 months from the loan account opening date.\n\n* **Cooling-Off / Look-up Period:** \n  * **Headline Term / Rate:** 0% prepayment penalty (No penalty charged) [Page 2, Parameter (xvi)].\n  * **Applicable Conditions:** Valid strictly within the statutory look-up window of **3 days from the account opened date** [Page 2, Parameter (xvi)].",
+      "latency_ms": 2552.02780000036,
+      "retrieval_ms": 1006.8324000021676,
+      "evidence_score": 61,
       "retrieved_chunks": 10,
-      "input_tokens": 0,
-      "output_tokens": 0,
-      "correctness": 1.0,
+      "input_tokens": 865,
+      "output_tokens": 221,
+      "correctness": 0.0,
       "faithfulness": 1.0,
-      "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.0,
-      "condition_precision": 0.0,
+      "relevancy": 0.0,
+      "claim_support": 0.4,
+      "claim_citation_coverage": 0.4,
+      "condition_recall": 0.75,
+      "legacy_condition_recall": 0.25,
+      "condition_precision": 0.167,
       "condition_by_type": {
         "temporal": {
           "matched": 0,
@@ -821,20 +1087,46 @@
           "recall": 0.0
         },
         "threshold": {
-          "matched": 0,
+          "matched": 1,
           "total": 2,
-          "recall": 0.0
+          "recall": 0.5
         }
       },
+      "required_elements": {
+        "matched": 3,
+        "total": 4,
+        "recall": 0.75,
+        "complete": false,
+        "matched_elements": [
+          "prepayment charge",
+          "lock-in period",
+          "foreclosure conditions"
+        ],
+        "missing_elements": [
+          "12 EMI timing"
+        ]
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.5,
+      "citation_completeness": 0.4,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
         {
-          "document": "South Indian Bank OneScore PL 1334",
           "page": 2,
-          "section": "4. Fees & Charges",
+          "verified": true
+        },
+        {
+          "page": 2,
+          "verified": true
+        },
+        {
+          "page": 2,
+          "verified": true
+        },
+        {
+          "page": 2,
           "verified": true
         }
       ],
@@ -850,18 +1142,20 @@
       "information_present": true,
       "classification": "CORRECT",
       "processing_tier": "standard_rag",
-      "answer": "Based on the provided evidence, the cooling-off or look-up period provided to exit the loan without penalty is:\n\n* **Cooling off/look-up period:** 3 days from the account opened date, during which the borrower shall not be charged any penalty on prepayment of the loan.\n\n[Page 2]",
-      "latency_ms": 7322.368900000583,
-      "retrieval_ms": 3664.8298999989493,
+      "answer": "Based on the provided documents, the cooling-off or look-up period is:\n\n* **Duration:** 3 days from the account opened date [Page 2].\n* **Condition:** During this cooling-off/look-up period, the borrower shall not be charged any penalty on prepayment of the loan [Page 2].",
+      "latency_ms": 2284.836999999243,
+      "retrieval_ms": 999.9677999985579,
       "evidence_score": 61,
       "retrieved_chunks": 10,
       "input_tokens": 770,
-      "output_tokens": 69,
+      "output_tokens": 68,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.75,
+      "claim_support": 0.6666666666666666,
+      "claim_citation_coverage": 0.6666666666666666,
+      "condition_recall": 1.0,
+      "legacy_condition_recall": 0.5,
       "condition_precision": 1.0,
       "condition_by_type": {
         "temporal": {
@@ -870,16 +1164,34 @@
           "recall": 1.0
         },
         "exception": {
-          "matched": 1,
+          "matched": 0,
           "total": 2,
-          "recall": 0.5
+          "recall": 0.0
         }
       },
+      "required_elements": {
+        "matched": 3,
+        "total": 3,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [
+          "three-day period",
+          "account-opened timing",
+          "no penalty exception"
+        ],
+        "missing_elements": []
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.5,
+      "citation_completeness": 0.6666666666666666,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
+        {
+          "page": 2,
+          "verified": true
+        },
         {
           "page": 2,
           "verified": true
@@ -896,19 +1208,21 @@
       "product_name": "HDFC Bank Home Loan Agreement",
       "information_present": true,
       "classification": "CORRECT",
-      "processing_tier": "fast_factual",
-      "answer": "Based on the provided documents, the interest rate structures and conversion options under HDFC Home Loan include the following:\n\n### **1. Interest Rate Structure**\n* **Adjustable Rate Home Loan (ARHL) / Floating Rate:** Defined as a floating rate of interest expressed as a percentage per annum. It is calculated as the sum total of the **Reference Rate applicable for the Loan plus the applicable Spread** [Page 3].\n* **Reset Conditions:** Subject to change or reset by the Bank from time to time whenever the Reference Rate is changed or reset by the Bank in accordance with the guidelines or regulations of the Reserve Bank of India (RBI). The changed or reset rate of interest applies from the time of such change or reset till the next change or reset [Page 3].\n* **Reference Rate:** Defined as an internal or external benchmark/reference rate prescribed by the Bank, used to determine the total interest rate by adding a spread or similar margin [Page 5].\n\n### **2. Conversion Options and Associated Fees** [⚠ This claim could not be verified against the documents]\nThe provided documents outline specific fees and charges applicable when switching or converting rates:\n* **Standard Conversion Fee:** **1.75%** of the Principal Outstanding and Undisbursed amount (if any) **plus applicable taxes / statutory levies** at the time of conversion [Page 53].\n* **Switch to Lower Rate (Plot Loans - Variable Rate):** **0.5%** of the principal outstanding and undisbursed amount (if any) **plus applicable taxes/statutory levies** at the time of conversion [Page 53].\n* **Switch to Lower Rate (Loans under HDFC Reach - Variable Rate):** **Upto 1.50%** of the principal outstanding and undisbursed amount (if any) **plus applicable taxes/statutory levies** at the time of conversion [Page 53].\n\n**Source Citations:**\n* [Page 3]\n* [Page 5]\n* [Page 53]",
-      "latency_ms": 15175.772000000507,
-      "retrieval_ms": 5981.631500000731,
-      "evidence_score": 45,
+      "processing_tier": "standard_rag",
+      "answer": "### Adjustable Rate Structure (ARHL)\n* **Headline Term / Rate:** An Adjustable Rate Home Loan (ARHL) is a floating rate of interest expressed as a percentage per annum [Page 3].\n* **Calculation Formula / Structure:** `Interest Rate = Reference Rate + Applicable Spread` [Page 3].\n* **Applicable Conditions / Exceptions:** \n  * Subject to change and reset by the bank from time to time whenever the Reference Rate is changed or reset by the bank [Page 3].\n  * Resets must be in accordance with the guidelines or regulations of the Reserve Bank of India (RBI) [Page 3].\n  * The changed or reset rate applies from the time of the change or reset until the next subsequent change or reset [Page 3].\n\n### Fixed Rate Structure (FRHL) & Combination Rate (CRHL)\n* **Headline Term / Rate:** Fixed Rate Loans (FRHL) and Combination Rate Home Loans (CRHL) apply during the period of applicability of the fixed rate of interest [Page 54].\n* **Applicable Conditions / Exceptions:** Subject to specific prepayment charges and conversion terms outlined below [Page 53, 54].\n\n### Conversion Options & Switch Fees\n* **Headline Term / Rate:** \n  * Switch to Lower Rate (Plot Loans - Variable Rate) / Loans under HDFC Reach (Variable Rate): **0.5% to 1.50%** of the principal outstanding and undisbursed amount (if any) [Page 53].\n  * General Conversion Fee: **1.75%** of the principal outstanding and undisbursed amount (if any) [Page 53].\n* **Applicable Conditions / Exceptions:** \n  * Subject to **applicable taxes and statutory levies at the time of conversion** [Page 53].\n* **Source Citation:** [Page 3, Section (b)] and [Page 53, 54]",
+      "latency_ms": 7959.976899997855,
+      "retrieval_ms": 1254.3354999979783,
+      "evidence_score": 61,
       "retrieved_chunks": 10,
-      "input_tokens": 1187,
-      "output_tokens": 462,
+      "input_tokens": 598,
+      "output_tokens": 405,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
-      "claim_support": 1.0,
+      "claim_support": 0.6470588235294118,
+      "claim_citation_coverage": 0.6470588235294118,
       "condition_recall": 1.0,
+      "legacy_condition_recall": 0.857,
       "condition_precision": 1.0,
       "condition_by_type": {
         "benchmark": {
@@ -922,13 +1236,31 @@
           "recall": 1.0
         },
         "tax": {
-          "matched": 1,
+          "matched": 0,
           "total": 1,
-          "recall": 1.0
+          "recall": 0.0
         }
       },
+      "required_elements": {
+        "matched": 7,
+        "total": 7,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [
+          "adjustable/reference rate",
+          "spread",
+          "rate reset",
+          "general conversion fee",
+          "plot-loan conversion fee",
+          "HDFC Reach conversion fee",
+          "conversion taxes"
+        ],
+        "missing_elements": []
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.6923076923076923,
+      "citation_completeness": 0.7058823529411765,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
@@ -941,7 +1273,23 @@
           "verified": true
         },
         {
-          "page": 5,
+          "page": 3,
+          "verified": true
+        },
+        {
+          "page": 3,
+          "verified": true
+        },
+        {
+          "page": 3,
+          "verified": true
+        },
+        {
+          "page": 54,
+          "verified": true
+        },
+        {
+          "page": 53,
           "verified": true
         },
         {
@@ -958,10 +1306,7 @@
         },
         {
           "page": 3,
-          "verified": true
-        },
-        {
-          "page": 5,
+          "section": "(b)",
           "verified": true
         },
         {
@@ -981,24 +1326,26 @@
       "information_present": true,
       "classification": "CORRECT",
       "processing_tier": "standard_rag",
-      "answer": "Based on the provided documents, the processing fees, administrative charges, and statutory levies payable to HDFC include:\n\n*   **Processing Fees (HDFC Reach Scheme):** Up to 2.00% of the loan amount, plus applicable taxes and statutory levies [HDFC-Bank-Home-Loan-Agreement.pdf, Page 53.0, Section: Amount in Rupees].\n*   **Minimum Retention Amount:** 50% of applicable fees or Rs. 3,000/-, whichever is higher, plus applicable taxes and statutory levies [HDFC-Bank-Home-Loan-Agreement.pdf, Page 53.0, Section: Amount in Rupees].\n*   **Re-appraisal Fee:** Rs. 2,000/- plus applicable taxes and statutory levies, applicable if the loan is re-appraised after 6 months from the date of sanction [HDFC-Bank-Home-Loan-Agreement.pdf, Page 53.0, Section: Amount in Rupees].\n*   **Conversion Fees / Switch to Lower Rate (Variable Rate):**\n    *   For Loans under HDFC Reach: Up to 1.50% of the principal outstanding and undisbursed amount (if any), plus applicable taxes and statutory levies at the time of conversion [Page 53].\n    *   General Conversion Fee: 1.75% of the principal outstanding and undisbursed amount (if any), plus applicable taxes and statutory levies at the time of conversion [Page 53].\n    *   For Plot Loans: 0.5% of the principal outstanding and undisbursed amount (if any), plus applicable taxes and statutory levies at the time of conversion [Page 53].\n*   **Cheque/ACH/SI Dishonor Charge:** Rs. 300/- per dishonor [Page 54, Section: Housing Charges].\n*   **Photocopy of Documents:** Up to Rs. 500/- plus applicable taxes and statutory levies [Page 54, Section: Housing Charges].\n*   **List of Documents:** Up to Rs. 500/- plus applicable taxes and statutory levies [Page 54, Section: Housing Charges].\n*   **PDC Swap Charges:** Up to Rs. 500/- plus applicable taxes and statutory levies [Page 54, Section: Housing Charges].",
-      "latency_ms": 20979.53460000099,
-      "retrieval_ms": 2981.099099999483,
+      "answer": "Here are the processing fees, administrative charges, and statutory levies payable to HDFC based on the provided documents:\n\n### Processing Fees\n* **HDFC Reach Scheme:** Up to **2.00% of the loan amount**, **plus applicable taxes and statutory levies** [HDFC-Bank-Home-Loan-Agreement.pdf, Page 53.0, Section: Amount in Rupees].\n* **Minimum Retention Amount:** **50% of applicable fees or Rs. 3,000/-**, whichever is higher, **plus applicable taxes and statutory levies** [HDFC-Bank-Home-Loan-Agreement.pdf, Page 53.0, Section: Amount in Rupees].\n\n### Administrative & Service Charges\n* **Re-appraisal of Loan:** **Rs. 2,000/-**, **plus applicable taxes and statutory levies**, applicable after 6 months from the date of sanction [HDFC-Bank-Home-Loan-Agreement.pdf, Page 53.0, Section: Amount in Rupees].\n* **Switch to Lower Rate (Plot Loans - Variable Rate):** **0.5% of the principal outstanding and undisbursed amount**, **plus applicable taxes and statutory levies** at the time of conversion [Page 53].\n* **Switch to Lower Rate (HDFC Reach - Variable Rate):** Up to **1.50% of the principal outstanding and undisbursed amount**, **plus applicable taxes and statutory levies** at the time of conversion [Page 53].\n* **General Conversion Fee:** **1.75% of the principal outstanding and undisbursed amount**, **plus applicable taxes and statutory levies** at the time of conversion [Page 53].\n* **Cheque/ACH/SI Dishonor Charge:** **Rs. 300/-** per dishonor [Page 54, Section: Housing Charges].\n* **Photocopy of Documents:** Up to **Rs. 500/-**, **plus applicable taxes and statutory levies** [Page 54, Section: Housing Charges].\n* **List of Documents:** Up to **Rs. 500/-**, **plus applicable taxes and statutory levies** [Page 54, Section: Housing Charges].\n* **PDC Swap:** Up to **Rs. 500/-**, **plus applicable taxes and statutory levies** [Page 54, Section: Housing Charges].\n\n### Statutory & Regulatory Levies\n* **General Statutory Levies:** All statutory, regulatory, registration, external opinion (such as legal/technical verifications), and incidental charges are payable as and when demanded by the bank, in accordance with the Statement of Charges, Offer Letter, and MITC [Page 12, Section 5.7 and Page 54].",
+      "latency_ms": 9111.723899997742,
+      "retrieval_ms": 1365.600599998288,
       "evidence_score": 61,
       "retrieved_chunks": 10,
       "input_tokens": 593,
-      "output_tokens": 461,
+      "output_tokens": 554,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.6,
-      "condition_precision": 0.6,
+      "claim_support": 0.55,
+      "claim_citation_coverage": 0.55,
+      "condition_recall": 1.0,
+      "legacy_condition_recall": 0.4,
+      "condition_precision": 0.4,
       "condition_by_type": {
         "threshold": {
-          "matched": 2,
+          "matched": 1,
           "total": 3,
-          "recall": 0.667
+          "recall": 0.333
         },
         "tax": {
           "matched": 1,
@@ -1006,8 +1353,23 @@
           "recall": 0.5
         }
       },
+      "required_elements": {
+        "matched": 4,
+        "total": 4,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [
+          "processing fee rate",
+          "minimum fee/retention",
+          "taxes/statutory levies",
+          "administrative/other charges"
+        ],
+        "missing_elements": []
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.5555555555555556,
+      "citation_completeness": 0.55,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
@@ -1059,6 +1421,11 @@
         {
           "page": 54,
           "section": "Housing Charges",
+          "verified": true
+        },
+        {
+          "page": 12,
+          "section": "5.7 and Page 54",
           "verified": true
         }
       ],
@@ -1072,26 +1439,28 @@
       "product_id": "2918b67f-fe2b-4954-a974-8c5ce2576d0e",
       "product_name": "HDFC Bank Home Loan Agreement",
       "information_present": true,
-      "classification": "CORRECT",
+      "classification": "INCOMPLETE_ANSWER",
       "processing_tier": "standard_rag",
-      "answer": "Upon default or delayed EMI payment to HDFC, the following additional interest and charges apply:\n\n* **Additional Interest / Delayed Payment Charges:** A maximum of 18% P.A. applies on overdue instalment amounts [HDFC-Bank-Home-Loan-Agreement.pdf, Page 53.0, Section: Amount in Rupees].\n* **Applicability Conditions:** \n  * Payable in addition to and over and above the regular Interest [Page 9].\n  * Applicable on the Outstanding Balance from the date of such delay or Due Date till the realization of such amount by the Bank [Page 9].\n  * Charged at the rate indicated in Schedule I or at such prevailing rate as may be applicable on the date of such delay and as announced by the Bank from time to time [Page 9].\n  * The obligation to pay these charges does not entitle the Borrower to claim a defense that no Event of Default has occurred [Page 9].",
-      "latency_ms": 15454.814800001259,
-      "retrieval_ms": 7830.32970000022,
-      "evidence_score": 66,
+      "answer": "* **Headline Term / Rate:** A maximum of 18% per annum.\n* **Applicable Conditions / Exceptions:** Applied on overdue instalment amounts from the date of the delay or Due Date until the realization of the amount by the bank, in addition to and over and above the regular interest, and regardless of whether an Event of Default has formally occurred [HDFC-Bank-Home-Loan-Agreement.pdf, Page 53.0, Section: Amount in Rupees / Page 9].\n* **Source Citation:** [HDFC-Bank-Home-Loan-Agreement.pdf, Page 53.0, Section: Amount in Rupees]",
+      "latency_ms": 10818.080899996858,
+      "retrieval_ms": 1876.0700999991968,
+      "evidence_score": 61,
       "retrieved_chunks": 10,
       "input_tokens": 558,
-      "output_tokens": 213,
-      "correctness": 1.0,
+      "output_tokens": 132,
+      "correctness": 0.0,
       "faithfulness": 1.0,
-      "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.0,
-      "condition_precision": 0.0,
+      "relevancy": 0.0,
+      "claim_support": 0.6666666666666666,
+      "claim_citation_coverage": 0.6666666666666666,
+      "condition_recall": 0.8,
+      "legacy_condition_recall": 0.25,
+      "condition_precision": 0.333,
       "condition_by_type": {
         "threshold": {
-          "matched": 0,
+          "matched": 1,
           "total": 2,
-          "recall": 0.0
+          "recall": 0.5
         },
         "temporal": {
           "matched": 0,
@@ -1104,31 +1473,38 @@
           "recall": 0.0
         }
       },
+      "required_elements": {
+        "matched": 4,
+        "total": 5,
+        "recall": 0.8,
+        "complete": false,
+        "matched_elements": [
+          "maximum default charge",
+          "overdue amount",
+          "due-date-to-realization period",
+          "additional to regular interest"
+        ],
+        "missing_elements": [
+          "GST/tax treatment"
+        ]
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.625,
+      "citation_completeness": 0.6666666666666666,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
         {
           "page": 53,
           "document": "HDFC-Bank-Home-Loan-Agreement.pdf",
+          "section": "Amount in Rupees / Page 9",
+          "verified": true
+        },
+        {
+          "page": 53,
+          "document": "HDFC-Bank-Home-Loan-Agreement.pdf",
           "section": "Amount in Rupees",
-          "verified": true
-        },
-        {
-          "page": 9,
-          "verified": true
-        },
-        {
-          "page": 9,
-          "verified": true
-        },
-        {
-          "page": 9,
-          "verified": true
-        },
-        {
-          "page": 9,
           "verified": true
         }
       ],
@@ -1143,19 +1519,21 @@
       "product_name": "HDFC Bank Home Loan Agreement",
       "information_present": true,
       "classification": "CORRECT",
-      "processing_tier": "fast_factual",
-      "answer": "Based on the provided documents, the terms, charges, and conditions for part-prepayment or early full repayment of an HDFC Home Loan are as follows:\n\n*   **Adjustable Rate Loans (ARHL) and Combination Rate Home Loan (CRHL) (during the period of applicability of the Variable Rate of interest):**\n    *   **Charges:** No prepayment charges shall be payable [HDFC-Bank-Home-Loan-Agreement.pdf, Page 54, Section: Housing Charges].\n    *   **Conditions:** Applicable for loans sanctioned to individual borrowers with or without co-applicants, for part or full prepayments made through any sources, **except** when the loan is sanctioned for business purposes [HDFC-Bank-Home-Loan-Agreement.pdf, Page 54, Section: Housing Charges].\n\n*   **Fixed Rate Loans (FRHL) and Combination Rate Home Loan (CRHL) (during the period of applicability of the Fixed Rate of interest):**\n    *   **Charges:** Prepayment charge shall be levied at the rate of 2%, plus applicable taxes/statutory levies of the amounts being so prepaid [HDFC-Bank-Home-Loan-Agreement.pdf, Page 54, Section: Housing Charges].\n    *   **Conditions:** Applicable to all loans sanctioned with or without co-applicants for part or full prepayments, **except** when part or full prepayment is being made through own sources [HDFC-Bank-Home-Loan-Agreement.pdf, Page 54, Section: Housing Charges].\n\n*   **General Prepayment Terms:**\n    *   The Borrower may be permitted to prepay the Loan, either partly or fully, as per the then prevailing rules and policies of the Bank, including as to the prepayment charges (if any), from time to time [HDFC-Bank-Home-Loan-Agreement.pdf, Page 11, Section 5.4].\n    *   If the Borrower pre-pays any part of the Loan, the Bank shall be entitled to adjust the amount pre-paid against the amount payable by the Borrower under the Agreement or any other agreement between the Borrower and the Bank in such manner as the Bank may deem fit [HDFC-Bank-Home-Loan-Agreement.pdf, Page 11, Section 5.4].\n    *   In case of Prepayment, the Bank shall be entitled to reschedule the Rep",
-      "latency_ms": 27698.330900000656,
-      "retrieval_ms": 27157.215199998973,
+      "processing_tier": "standard_rag",
+      "answer": "### Adjustable Rate Loans (ARHL) and Combination Rate Home Loans (CRHL) (During Variable Rate Period)\n* **Headline Term / Rate:** 0% prepayment charges (no charges payable).\n* **Applicable Conditions / Exceptions:** Applicable for loans sanctioned to individual borrowers with or without co-applicants, for part or full prepayments made through any sources, except when the loan is sanctioned for business purposes [Page 54, Housing Charges].\n\n### Fixed Rate Loans (FRHL) and Combination Rate Home Loans (CRHL) (During Fixed Rate Period)\n* **Headline Term / Rate:** 2% prepayment charge.\n* **Applicable Conditions / Exceptions:** Levied on the amount being prepaid (part or full) **plus applicable taxes/statutory levies**, except when part or full prepayment is being made through own sources [Page 54, Housing Charges].\n\n### General Repayment Terms\n* **Headline Term / Rate:** Ongoing repayment obligation.\n* **Applicable Conditions / Exceptions:** The Borrower shall pay EMIs and repay the principal amount, interest, commitment charges, premium, fees, and other dues until the loan along with interest and all charges is repaid in full [Page 9, Article 5.1(i); Page 11].",
+      "latency_ms": 8099.982399999135,
+      "retrieval_ms": 1114.4539999986591,
       "evidence_score": 61,
       "retrieved_chunks": 10,
-      "input_tokens": 1412,
-      "output_tokens": 515,
+      "input_tokens": 694,
+      "output_tokens": 293,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.4,
+      "claim_support": 0.3333333333333333,
+      "claim_citation_coverage": 0.3333333333333333,
+      "condition_recall": 1.0,
+      "legacy_condition_recall": 0.4,
       "condition_precision": 0.5,
       "condition_by_type": {
         "eligibility": {
@@ -1174,45 +1552,41 @@
           "recall": 1.0
         }
       },
+      "required_elements": {
+        "matched": 5,
+        "total": 5,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [
+          "adjustable-rate no-charge rule",
+          "individual/non-business eligibility",
+          "fixed-rate 2 percent charge",
+          "own-sources exception",
+          "applicable taxes"
+        ],
+        "missing_elements": []
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.5454545454545454,
+      "citation_completeness": 0.4444444444444444,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
         {
           "page": 54,
-          "document": "HDFC-Bank-Home-Loan-Agreement.pdf",
-          "section": "Housing Charges",
           "verified": true
         },
         {
           "page": 54,
-          "document": "HDFC-Bank-Home-Loan-Agreement.pdf",
-          "section": "Housing Charges",
           "verified": true
         },
         {
-          "page": 54,
-          "document": "HDFC-Bank-Home-Loan-Agreement.pdf",
-          "section": "Housing Charges",
-          "verified": true
-        },
-        {
-          "page": 54,
-          "document": "HDFC-Bank-Home-Loan-Agreement.pdf",
-          "section": "Housing Charges",
+          "page": 9,
           "verified": true
         },
         {
           "page": 11,
-          "document": "HDFC-Bank-Home-Loan-Agreement.pdf",
-          "section": "5.4",
-          "verified": true
-        },
-        {
-          "page": 11,
-          "document": "HDFC-Bank-Home-Loan-Agreement.pdf",
-          "section": "5.4",
           "verified": true
         }
       ],
@@ -1228,19 +1602,21 @@
       "information_present": true,
       "classification": "CORRECT",
       "processing_tier": "standard_rag",
-      "answer": "Based on the provided documents, the property security, mortgage creation, and insurance obligations required by HDFC under Article 4 (specifically Article 4.2) and related definitions are as follows:\n\n* **Creation of Security Interest:** \n  * The Borrower/Security Provider, to the extent applicable, must create and perfect, or undertake to create and perfect, a Security Interest over the Property or such other assets as may be required by the Bank.\n  * This must be done within such time period as may be specified by the Bank [Page 8, Section 4 (c)].\n* **Conditions Precedent to First Disbursement:** \n  * To avail of the first disbursement under the loan, each condition precedent must be complied with, or caused to be complied with, by the Borrower and the Security Providers, unless specifically waived by the Bank in writing [Page 8, Section 4.2.1].\n  * The Borrower must assure the Bank that they or the Security Provider have complied with all pre-conditions for disbursement of the loan as detailed in the agreement and the Applicable Schedules [Page 8, Section 4.2.1(a)].\n* **Definition of Security Interest & Insurance Obligation:**\n  * A \"Security Interest\" includes any mortgage, pledge, hypothecation, assignment, deposit arrangement, encumbrance, lien (statutory or other), preference, priority, interest, or other security arrangement of any kind or nature whatsoever [Page 5, Section (jj)].\n  * This encompasses conditional sales, title retention arrangements, financing statements/notices pertaining to the Property or assets, and **any designation of loss payees or beneficiaries or any similar arrangement under any contract of insurance** or any other similar security interest created in favour of the Bank [Page 5, Section (jj)].",
-      "latency_ms": 16156.569200000376,
-      "retrieval_ms": 7263.190900001064,
+      "answer": "Based on the provided documents, the requirements concerning property security, mortgage creation, and insurance are as follows:\n\n* **Property Security & Mortgage Creation:**\n  - **Headline Term / Rate:** The Borrower or Security Provider must create and perfect a Security Interest over the Property or such other assets as required by the Bank [Page 8, Section 4].\n  - **Applicable Conditions / Exceptions:** This must be completed within the specific time period designated by the Bank [Page 8, Section 4]. \n  - **Definition of Security Interest:** Under the terms, a \"Security Interest\" encompasses any mortgage, pledge, hypothecation, assignment, deposit arrangement, encumbrance, lien, preference, priority, or other security arrangement of any kind pertaining to the Property or assets [Page 5].\n\n* **Insurance Obligations:**\n  - **Headline Term / Rate:** Insurance obligations include any designation of loss payees, beneficiaries, or similar arrangements under any contract of insurance that may be created in favor of the Bank as part of its Security Interest [Page 5].\n  - **Applicable Conditions / Exceptions:** Compliance with all related provisions and conditions precedent must be maintained, as failure to comply can be treated as an Event of Default [Page 13, Section (i)].",
+      "latency_ms": 10266.226499999902,
+      "retrieval_ms": 1527.865499996551,
       "evidence_score": 51,
       "retrieved_chunks": 10,
       "input_tokens": 855,
-      "output_tokens": 439,
+      "output_tokens": 322,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.333,
-      "condition_precision": 0.5,
+      "claim_support": 0.625,
+      "claim_citation_coverage": 0.625,
+      "condition_recall": 1.0,
+      "legacy_condition_recall": 0.333,
+      "condition_precision": 1.0,
       "condition_by_type": {
         "prerequisite": {
           "matched": 1,
@@ -1248,34 +1624,47 @@
           "recall": 0.333
         }
       },
+      "required_elements": {
+        "matched": 4,
+        "total": 4,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [
+          "security interest creation",
+          "mortgage/security form",
+          "first-disbursement prerequisite",
+          "insurance obligation/disclosure"
+        ],
+        "missing_elements": []
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.5,
+      "citation_completeness": 0.625,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
         {
           "page": 8,
-          "section": "4 (c)",
+          "section": "4",
           "verified": true
         },
         {
           "page": 8,
-          "section": "4.2.1",
-          "verified": true
-        },
-        {
-          "page": 8,
-          "section": "4.2.1(a)",
+          "section": "4",
           "verified": true
         },
         {
           "page": 5,
-          "section": "(jj)",
           "verified": true
         },
         {
           "page": 5,
-          "section": "(jj)",
+          "verified": true
+        },
+        {
+          "page": 13,
+          "section": "(i)",
           "verified": true
         }
       ],
@@ -1292,8 +1681,8 @@
       "classification": "DOCUMENT_INSUFFICIENT",
       "processing_tier": "standard_rag",
       "answer": "Not specified in the provided documents [gss-term-loan-agreement-ccd-5.pdf, Page 1].",
-      "latency_ms": 6137.6949999994395,
-      "retrieval_ms": 5334.714999999051,
+      "latency_ms": 2509.760400000232,
+      "retrieval_ms": 2026.7309000009845,
       "evidence_score": 96,
       "retrieved_chunks": 10,
       "input_tokens": 1285,
@@ -1302,11 +1691,23 @@
       "faithfulness": 1.0,
       "relevancy": 1.0,
       "claim_support": 1.0,
+      "claim_citation_coverage": 1.0,
       "condition_recall": 1.0,
+      "legacy_condition_recall": 1.0,
       "condition_precision": 1.0,
       "condition_by_type": {},
+      "required_elements": {
+        "matched": 0,
+        "total": 0,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [],
+        "missing_elements": []
+      },
       "citation_accuracy": 1.0,
       "citation_completeness": 1.0,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": true,
       "citations": [
@@ -1328,23 +1729,35 @@
       "information_present": false,
       "classification": "DOCUMENT_INSUFFICIENT",
       "processing_tier": "standard_rag",
-      "answer": "Unable to provide a verified answer. The retrieved evidence is insufficient to support a reliable response for this query. Please try rephrasing your question or consult the source documents directly.",
-      "latency_ms": 3900.6737999989127,
-      "retrieval_ms": 3061.970400000064,
-      "evidence_score": 26,
+      "answer": "Not specified in the provided documents.",
+      "latency_ms": 5958.279200000106,
+      "retrieval_ms": 505.6531999980507,
+      "evidence_score": 76,
       "retrieved_chunks": 10,
       "input_tokens": 659,
-      "output_tokens": 50,
+      "output_tokens": 10,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
       "claim_support": 0.0,
+      "claim_citation_coverage": 0.0,
       "condition_recall": 1.0,
+      "legacy_condition_recall": 1.0,
       "condition_precision": 1.0,
       "condition_by_type": {},
+      "required_elements": {
+        "matched": 0,
+        "total": 0,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [],
+        "missing_elements": []
+      },
       "citation_accuracy": 1.0,
       "citation_completeness": 0.0,
-      "evidence_sufficient": false,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
+      "evidence_sufficient": true,
       "abstained": true,
       "citations": [],
       "error": null
@@ -1357,21 +1770,23 @@
       "product_id": "2f0d4df5-6bf0-449c-a8a0-7ad501ae0997",
       "product_name": "GSS Term Loan CCD Facility",
       "information_present": true,
-      "classification": "CORRECT",
-      "processing_tier": "fast_factual",
-      "answer": "Based on the provided documents, the terms and notice requirements for prepayment or voluntary cancellation are as follows:\n\n* **Prepayment/Part Payment Charges:** Nil [gss-term-loan-agreement-ccd-5.pdf, Page 35.0, Section: Term Loan & Cash Credit (TL/CC):].\n* **Bank's Right of Cancellation:** The Bank may, in its own discretion without assigning any reason and upon written notice mailed or delivered to the Borrower, cancel the loan granted and demand repayment thereof [Page 19, Section 13.8]. \n* **Effect of Bank's Cancellation:** Delivery of the notification by the Bank constitutes sufficient notice of cancellation, and thereupon the loan, all interest due and payable thereon, and all liabilities and other obligations of the Borrower to the Bank (including interest and other charges) become due and payable by the Borrower immediately [Page 19, Section 13.8].\n* **Cancellation of Undrawn Portions:** The Bank has an unconditional right to cancel the undrawn, unavailed, or unused portion of the Loan at any time during the subsistence of the Loan, without any prior notice to the borrower, for any reason whatsoever [Page 4, Term Loan Agreement Version 7: 2026]. In the event of such cancellation, all agreement provisions remain effective and valid, and the Borrower must repay outstanding dues duly and punctually [Page 4, Term Loan Agreement Version 7: 2026].",
-      "latency_ms": 13583.391400001346,
-      "retrieval_ms": 9495.38179999945,
-      "evidence_score": 96,
+      "classification": "INCOMPLETE_ANSWER",
+      "processing_tier": "standard_rag",
+      "answer": "### Prepayment and Foreclosure Terms\n- **Prepayment / Part Payment Charges:** Nil [Page 35, Section Term Loan & Cash Credit (TL/CC)].\n- **Foreclosure Charges:** Nil [Page 35, Section Term Loan & Cash Credit (TL/CC)].\n\n### Notice and Cancellation Requirements\n- **Bank Notice of Cancellation:** Delivery of a notification by the Bank constitutes sufficient notice of cancellation, upon which the loan, all interest due and payable, and all liabilities and other obligations of the Borrower become due and payable immediately to the Bank [Page 19].\n- **Borrower Voluntary Notice Requirements:** Not specified in the provided documents.",
+      "latency_ms": 2482.7296000003116,
+      "retrieval_ms": 1423.7020000000484,
+      "evidence_score": 61,
       "retrieved_chunks": 10,
-      "input_tokens": 1305,
-      "output_tokens": 343,
-      "correctness": 1.0,
+      "input_tokens": 664,
+      "output_tokens": 158,
+      "correctness": 0.0,
       "faithfulness": 1.0,
-      "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.333,
-      "condition_precision": 1.0,
+      "relevancy": 0.0,
+      "claim_support": 0.5,
+      "claim_citation_coverage": 0.5,
+      "condition_recall": 0.5,
+      "legacy_condition_recall": 0.0,
+      "condition_precision": 0.0,
       "condition_by_type": {
         "threshold": {
           "matched": 0,
@@ -1379,38 +1794,44 @@
           "recall": 0.0
         },
         "prerequisite": {
-          "matched": 1,
+          "matched": 0,
           "total": 2,
-          "recall": 0.5
+          "recall": 0.0
         }
       },
+      "required_elements": {
+        "matched": 2,
+        "total": 4,
+        "recall": 0.5,
+        "complete": false,
+        "matched_elements": [
+          "nil prepayment/foreclosure charges",
+          "bank cancellation right"
+        ],
+        "missing_elements": [
+          "written cancellation notice",
+          "immediate repayment consequence"
+        ]
+      },
       "citation_accuracy": 1.0,
-      "citation_completeness": 0.8333333333333334,
+      "citation_completeness": 0.5,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
         {
           "page": 35,
-          "document": "gss-term-loan-agreement-ccd-5.pdf",
-          "section": "Term Loan & Cash Credit (TL/CC):",
+          "section": "Term Loan & Cash Credit (TL/CC)",
+          "verified": true
+        },
+        {
+          "page": 35,
+          "section": "Term Loan & Cash Credit (TL/CC)",
           "verified": true
         },
         {
           "page": 19,
-          "section": "13.8",
-          "verified": true
-        },
-        {
-          "page": 19,
-          "section": "13.8",
-          "verified": true
-        },
-        {
-          "page": 4,
-          "verified": true
-        },
-        {
-          "page": 4,
           "verified": true
         }
       ],
@@ -1426,19 +1847,21 @@
       "information_present": true,
       "classification": "CORRECT",
       "processing_tier": "standard_rag",
-      "answer": "Based on the provided documents, an Event of Default and the corresponding lender remedies are defined as follows:\n\n### **Definition of Event of Default**\n* Events of Default mean any of the events or circumstances specified in Clause 10A of the Agreement [gss-term-loan-agreement-ccd-5.pdf, Page 2].\n\n### **Lender Remedies and Penalties**\nWithout prejudice to the Bank's other rights and remedies under the Agreement and other documents:\n* **Enhanced Interest Rates:** The Bank is entitled, at its own discretion, to charge enhanced rates of interest on the outstanding amounts in the loan accounts (or a portion thereof) for any default or irregularity on the Borrower’s part which, in the opinion of the Bank, warrants the charging of such enhanced rates for such period as the Bank may deem fit [gss-term-loan-agreement-ccd-5.pdf, Page 18, Section 13.1].\n* **Term Loan Financial Default Penal Charges:** \n  * **8% p.a.** on the overdue amount [gss-term-loan-agreement-ccd-5.pdf, Page 34, Section Schedule of Charges / Terms Table].\n  * **Conditions:** Subject to aggregate penal charges not exceeding Rs. 1,00,000 per instance, or a minimum of ₹300 (Rupees Three hundred) whichever is higher per instance [gss-term-loan-agreement-ccd-5.pdf, Page 34, Section Schedule of Charges / Terms Table].\n* **Cash Credit Overdrawn Penal Charges:** \n  * **8% p.a.** on the overdrawn amount [gss-term-loan-agreement-ccd-5.pdf, Page 34, Section Schedule of Charges / Terms Table].\n  * **Conditions:** Subject to aggregate penal charges not exceeding Rs. 1,00,000 per instance, or a minimum of ₹300 (Rupees Three hundred) whichever is higher per instance [gss-term-loan-agreement-ccd-5.pdf, Page 34, Section Schedule of Charges / Terms Table].\n* **Cash Credit Total Outstanding Penal Charges:** \n  * **8% p.a.** on the total outstanding amount [gss-term-loan-agreement-ccd-5.pdf, Page 34, Section",
-      "latency_ms": 12111.55239999971,
-      "retrieval_ms": 5964.272900000651,
-      "evidence_score": 76,
+      "answer": "Based on the provided documents, an Event of Default and the lender's remedies are defined as follows:\n\n* **Definition of Event(s) of Default:** Any of the events or circumstances specified in Clause 10A of the Agreement [gss-term-loan-agreement-ccd-5.pdf, Page 2].\n* **Lender's Remedies and Penalties:**\n  * **Enhanced Interest / Charges for Default or Irregularity:** Without prejudice to the Bank's other rights and remedies, the Bank is entitled to charge at its own discretion enhanced rates of interest on the outstanding in the loan accounts or a portion thereof, or for any default or irregularity on the Borrower’s part which in the opinion of the Bank warrants charging of such enhanced rates of interests for such period as the Bank may deem fit [gss-term-loan-agreement-ccd-5.pdf, Page 18, Section 13.1].\n  * **Financial Default Penal Charges:** 8% p.a. on the overdue amount (for Term Loans) or on the overdrawn amount / total outstanding amount (for Cash Credit), subject to aggregate penal charges not exceeding Rs. 1,00,000 per instance or a minimum of 300 (Rs. Three hundred) whichever is higher per instance [gss-term-loan-agreement-ccd-5.pdf, Page 34, Section Schedule of Charges / Terms Table].\n  * **Non-Financial Default Penal Charges:** 1% p.a. from the date of each non-financial default on the total outstanding amount for Term Loans and total limit sanctioned for Cash Credit (applicable to all non-financial defaults) [gss-term-loan-agreement-ccd-5.pdf, Page 35, Section Term Loan & Cash Credit (TL/CC)].\n  * **Waiver of Penal Charges:** Penal charges are not applicable for all SHG loans under NRLM/NULM and all other loan sanction limits up to Rs. 50,000/- [gss-term-loan-agreement-ccd-5.pdf, Page 34, Section Schedule of Charges / Terms Table].",
+      "latency_ms": 6759.812299998885,
+      "retrieval_ms": 1059.528700003284,
+      "evidence_score": 61,
       "retrieved_chunks": 10,
       "input_tokens": 414,
-      "output_tokens": 471,
+      "output_tokens": 443,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.2,
-      "condition_precision": 0.5,
+      "claim_support": 0.4166666666666667,
+      "claim_citation_coverage": 0.4166666666666667,
+      "condition_recall": 1.0,
+      "legacy_condition_recall": 0.2,
+      "condition_precision": 0.333,
       "condition_by_type": {
         "threshold": {
           "matched": 1,
@@ -1456,8 +1879,25 @@
           "recall": 0.0
         }
       },
-      "citation_accuracy": 1.0,
-      "citation_completeness": 0.4375,
+      "required_elements": {
+        "matched": 6,
+        "total": 6,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [
+          "event of default definition",
+          "enhanced interest/remedy",
+          "8 percent penalty",
+          "minimum 300 charge",
+          "maximum 100000 charge",
+          "SHG/eligibility exception"
+        ],
+        "missing_elements": []
+      },
+      "citation_accuracy": 0.4,
+      "citation_completeness": 0.16666666666666666,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 0.4,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
@@ -1479,25 +1919,15 @@
           "verified": false
         },
         {
-          "page": 34,
+          "page": 35,
           "document": "gss-term-loan-agreement-ccd-5.pdf",
-          "section": "Schedule of Charges / Terms Table",
+          "section": "Term Loan & Cash Credit (TL/CC)",
           "verified": false
         },
         {
           "page": 34,
           "document": "gss-term-loan-agreement-ccd-5.pdf",
           "section": "Schedule of Charges / Terms Table",
-          "verified": false
-        },
-        {
-          "page": 34,
-          "document": "gss-term-loan-agreement-ccd-5.pdf",
-          "section": "Schedule of Charges / Terms Table",
-          "verified": false
-        },
-        {
-          "page": 34,
           "verified": false
         }
       ],
@@ -1513,18 +1943,20 @@
       "information_present": true,
       "classification": "CORRECT",
       "processing_tier": "standard_rag",
-      "answer": "Based on the provided documents, the governing law and dispute resolution mechanisms are as follows:\n\n* **Governing Law:** The agreement shall be governed by and construed in accordance with Indian law [Page 25, Section 12.5(a)].\n* **Dispute Resolution & Jurisdiction:** The courts as specified in [] 1 shall have exclusive jurisdiction to settle any disputes arising out of or in connection with the agreement, and any suit, action, or proceedings may be brought in such courts or tribunals [Page 25, Section 12.5(b)].",
-      "latency_ms": 18122.117500000968,
-      "retrieval_ms": 5723.614499998803,
+      "answer": "Based on the provided documents, the governing law and dispute resolution mechanisms for this agreement are as follows:\n\n* **Governing Law:** The Agreement shall be governed by and construed in accordance with Indian law [Page 25, Section 12.5 Governing Law and Jurisdiction (a)].\n* **Dispute Resolution / Jurisdiction:** The Borrower agrees that the courts as specified in [] 1 shall have exclusive jurisdiction to settle any disputes which may arise out of or in connection with the Agreement, and accordingly any suit, action, or proceedings arising out of or in connection with the Agreement may be brought in such courts or tribunals [Page 25, Section 12.5 Governing Law and Jurisdiction (b)].",
+      "latency_ms": 5569.099700001971,
+      "retrieval_ms": 1328.7718999999925,
       "evidence_score": 61,
       "retrieved_chunks": 10,
       "input_tokens": 442,
-      "output_tokens": 129,
+      "output_tokens": 174,
       "correctness": 1.0,
       "faithfulness": 1.0,
       "relevancy": 1.0,
-      "claim_support": 1.0,
-      "condition_recall": 0.667,
+      "claim_support": 0.6666666666666666,
+      "claim_citation_coverage": 0.6666666666666666,
+      "condition_recall": 1.0,
+      "legacy_condition_recall": 0.667,
       "condition_precision": 1.0,
       "condition_by_type": {
         "jurisdiction": {
@@ -1533,19 +1965,33 @@
           "recall": 0.667
         }
       },
+      "required_elements": {
+        "matched": 3,
+        "total": 3,
+        "recall": 1.0,
+        "complete": true,
+        "matched_elements": [
+          "Indian governing law",
+          "exclusive jurisdiction",
+          "courts/tribunals"
+        ],
+        "missing_elements": []
+      },
       "citation_accuracy": 1.0,
       "citation_completeness": 0.6666666666666666,
+      "citation_metadata_presence": 1.0,
+      "verified_citation_rate": 1.0,
       "evidence_sufficient": true,
       "abstained": false,
       "citations": [
         {
           "page": 25,
-          "section": "12.5(a)",
+          "section": "12.5 Governing Law and Jurisdiction (a)",
           "verified": true
         },
         {
           "page": 25,
-          "section": "12.5(b)",
+          "section": "12.5 Governing Law and Jurisdiction (b)",
           "verified": true
         }
       ],

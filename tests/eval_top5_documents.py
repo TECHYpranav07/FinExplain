@@ -35,7 +35,7 @@ from typing import List, Dict, Any, Optional
 # PATH & SYSTEM INITIALIZATION
 # ---------------------------------------------------------------------
 
-PROJECT_ROOT = r"d:\Projects\fine-explain"
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BACKEND_ROOT = os.path.join(PROJECT_ROOT, "backend")
 
 sys.path.insert(0, BACKEND_ROOT)
@@ -432,8 +432,188 @@ TEST_CASES = [
 ]
 
 # ---------------------------------------------------------------------
+# QUERY-SPECIFIC COMPLETENESS REQUIREMENTS
+# ---------------------------------------------------------------------
+
+# Each entry is a required answer element. A regular-expression list contains
+# acceptable phrasings for that element. This prevents a correct headline
+# number from being scored as a complete financial answer when conditions,
+# exceptions, taxes, or timing requirements are missing.
+ANSWER_REQUIREMENTS = {
+    "TOP5_01_LAP_INTEREST": {
+        "interest rate": [r"\b10(?:\.50|\.5)?\s*(?:%|percent)"],
+        "fixed rate type": [r"\bfixed\b"],
+    },
+    "TOP5_02_LAP_PROCESSING_FEE": {
+        "processing fee amount": [r"\b8[\s,]*000\b"],
+        "tax/GST applicability": [r"\bgst\b", r"applicable tax", r"taxes"],
+        "other statutory charges": [r"statutory", r"other applicable charges"],
+    },
+    "TOP5_03_LAP_PREPAYMENT": {
+        "prepayment charge": [r"\b2\s*(?:%|percent)"],
+        "outstanding principal basis": [r"outstanding\s+principal", r"principal\s+outstanding"],
+        "written notice/request": [r"written\s+(?:notice|request)"],
+        "taxes/charges": [r"applicable tax", r"applicable charge", r"taxes"],
+    },
+    "TOP5_04_LAP_DEFAULT": {
+        "delayed-payment penalty": [r"\b6\s*(?:%|percent)"],
+        "other non-compliance penalty": [r"\b1\s*(?:%|percent)", r"non[- ]compliance", r"material terms"],
+        "penalty basis/timing": [r"outstanding principal", r"date of (?:the )?breach", r"until"],
+    },
+    "TOP5_06_PL_INTEREST": {
+        "actual-days calculation": [r"actual number of days", r"actual days elapsed"],
+        "365-day basis": [r"365\s*days", r"three hundred and sixty[- ]five"],
+        "daily OD calculation": [r"daily basis", r"calculated daily"],
+        "monthly payment/frequency": [r"payable.*month", r"every month", r"monthly"],
+        "rate type/benchmark": [r"fixed", r"floating", r"variable", r"reference rate"],
+    },
+    "TOP5_07_PL_PREPAYMENT": {
+        "prepayment charge": [r"\b3\s*(?:%|percent)"],
+        "applicable taxes": [r"applicable tax", r"taxes"],
+        "12 EMI condition": [r"12\s*emis?", r"twelve\s+emis?"],
+        "twice per financial year": [r"twice.*financial year", r"two times.*financial year"],
+        "25 percent POS limit": [r"25\s*(?:%|percent).*pos", r"pos.*25\s*(?:%|percent)"],
+        "foreclosure terms": [r"foreclosure", r"full pre[- ]?payment"],
+    },
+    "TOP5_08_PL_DEFAULT": {
+        "penal charge rate": [r"\b6\s*(?:%|percent)"],
+        "GST": [r"\bgst\b"],
+        "overdue basis": [r"overdue"],
+        "period of applicability": [r"period.*overdue", r"remains overdue", r"until.*cured"],
+        "default consequence": [r"all sums.*due", r"constitutes? a default"],
+    },
+    "TOP5_09_PL_RATE_RESET": {
+        "rate revision": [r"revised.*rate", r"revise.*interest rate", r"change.*rate"],
+        "notification": [r"notified", r"notification", r"intimated"],
+        "prospective effect": [r"prospectively", r"future repayments"],
+        "increase EMI option": [r"increase.*emi", r"emi.*increase"],
+        "increase tenor option": [r"increase.*tenor", r"tenor.*increase"],
+        "prepayment option": [r"prepay", r"pre-payment"],
+    },
+    "TOP5_10_PL_TAX": {
+        "GST": [r"\bgst\b"],
+        "interest tax/other levies": [r"interest tax", r"other levies"],
+        "stamp duty": [r"stamp duty"],
+        "borrower responsibility": [r"borrower.*(?:bear|pay|borne)", r"solely borne"],
+    },
+    "TOP5_11_SIB_INTEREST": {
+        "interest rate": [r"\b10(?:\.50|\.5)?\s*(?:%|percent)"],
+        "fixed rate type": [r"\bfixed\b"],
+        "EPI calculation": [r"\bepi\b", r"equated.*instalment", r"equated.*installment"],
+        "repayment terms": [r"repayment", r"monthly instalment", r"monthly installment", r"repayment schedule"],
+    },
+    "TOP5_12_SIB_PROCESSING": {
+        "processing fee amount": [r"\b8[\s,]*000\b"],
+        "GST applicability": [r"\bgst\b", r"applicable tax", r"18\s*(?:%|percent)"],
+    },
+    "TOP5_13_SIB_PENAL": {
+        "default penalty": [r"\b4\s*(?:%|percent)"],
+        "defaulted amount/period": [r"defaulted amount", r"defaulted period"],
+        "bounce charge": [r"\b750\b", r"bounce"],
+        "bounce GST": [r"750.*gst", r"gst.*750", r"\bgst\b"],
+        "until cured": [r"until.*cured", r"till.*cured", r"full payment"],
+    },
+    "TOP5_14_SIB_FORECLOSURE": {
+        "prepayment charge": [r"\b2\s*(?:%|percent)"],
+        "lock-in period": [r"lock[- ]in"],
+        "12 EMI timing": [r"12\s*emis?", r"after.*emis?"],
+        "foreclosure conditions": [r"foreclosure"],
+    },
+    "TOP5_15_SIB_COOLING": {
+        "three-day period": [r"3\s*days?", r"three\s+days?"],
+        "account-opened timing": [r"account opened", r"account opening"],
+        "no penalty exception": [r"without penalty", r"no penalty", r"not be charged.*penalty"],
+    },
+    "TOP5_16_HDFC_INTEREST": {
+        "adjustable/reference rate": [r"adjustable", r"reference rate"],
+        "spread": [r"\bspread\b"],
+        "rate reset": [r"reset", r"changed"],
+        "general conversion fee": [r"1\.75\s*(?:%|percent)"],
+        "plot-loan conversion fee": [r"0\.5\s*(?:%|percent)"],
+        "HDFC Reach conversion fee": [r"1\.50\s*(?:%|percent)", r"1\.5\s*(?:%|percent)"],
+        "conversion taxes": [r"applicable tax", r"statutory levies"],
+    },
+    "TOP5_17_HDFC_PROCESSING": {
+        "processing fee rate": [r"2\.00\s*(?:%|percent)", r"2\s*(?:%|percent)"],
+        "minimum fee/retention": [r"50\s*(?:%|percent)", r"minimum.*3[\s,]*000", r"3[\s,]*000"],
+        "taxes/statutory levies": [r"applicable tax", r"statutory levies"],
+        "administrative/other charges": [r"administrative", r"service charges", r"other charges"],
+    },
+    "TOP5_18_HDFC_DEFAULT": {
+        "maximum default charge": [r"18\s*(?:%|percent)"],
+        "overdue amount": [r"overdue", r"outstanding balance"],
+        "due-date-to-realization period": [r"due date.*realization", r"date of.*delay.*realization", r"until.*realization"],
+        "additional to regular interest": [r"in addition.*regular interest", r"over and above.*regular interest"],
+        "GST/tax treatment": [r"gst", r"tax"],
+    },
+    "TOP5_19_HDFC_PREPAYMENT": {
+        "adjustable-rate no-charge rule": [r"no prepayment charges", r"no.*prepayment charge"],
+        "individual/non-business eligibility": [r"individual borrowers", r"business purposes"],
+        "fixed-rate 2 percent charge": [r"2\s*(?:%|percent)"],
+        "own-sources exception": [r"own sources"],
+        "applicable taxes": [r"applicable tax", r"statutory levies"],
+    },
+    "TOP5_20_HDFC_SECURITY": {
+        "security interest creation": [r"create and perfect", r"security interest"],
+        "mortgage/security form": [r"mortgage", r"security interest"],
+        "first-disbursement prerequisite": [r"first disbursement", r"conditions precedent", r"pre-conditions"],
+        "insurance obligation/disclosure": [r"insurance", r"not detailed.*insurance", r"insurance.*not"],
+    },
+    "TOP5_23_GSS_PREPAYMENT": {
+        "nil prepayment/foreclosure charges": [r"prepayment.*nil", r"foreclosure.*nil", r"charges.*nil"],
+        "written cancellation notice": [r"written notice", r"written.*notification"],
+        "bank cancellation right": [r"bank.*cancel", r"cancel.*undrawn", r"cancellation"],
+        "immediate repayment consequence": [r"immediately.*payable", r"immediate.*repayment", r"demand repayment"],
+    },
+    "TOP5_24_GSS_DEFAULT": {
+        "event of default definition": [r"event(?:s)? of default", r"clause 10a"],
+        "enhanced interest/remedy": [r"enhanced rates? of interest", r"remedies", r"rights and remedies"],
+        "8 percent penalty": [r"8\s*(?:%|percent)"],
+        "minimum 300 charge": [r"minimum.*300", r"\b300\b"],
+        "maximum 100000 charge": [r"100[\s,]*000", r"1,00,000"],
+        "SHG/eligibility exception": [r"shg", r"not applicable"],
+    },
+    "TOP5_25_GSS_GOVERNING_LAW": {
+        "Indian governing law": [r"indian law"],
+        "exclusive jurisdiction": [r"exclusive jurisdiction"],
+        "courts/tribunals": [r"courts?", r"tribunals?"],
+    },
+}
+
+# ---------------------------------------------------------------------
 # EVALUATION METRICS HELPERS
 # ---------------------------------------------------------------------
+
+def normalize_answer(text: str) -> str:
+    return re.sub(r"\s+", " ", text.lower()).strip()
+
+
+def evaluate_required_elements(answer: str, case_id: str) -> Dict[str, Any]:
+    requirements = ANSWER_REQUIREMENTS.get(case_id, {})
+    answer_text = normalize_answer(answer)
+    matched = []
+    missing = []
+
+    for label, patterns in requirements.items():
+        negative_disclosure = (
+            label == "insurance obligation/disclosure"
+            and re.search(r"insurance.{0,80}\b(?:not|no|missing|unavailable|unspecified)\b", answer_text)
+        )
+        if not negative_disclosure and any(re.search(pattern, answer_text, flags=re.IGNORECASE) for pattern in patterns):
+            matched.append(label)
+        else:
+            missing.append(label)
+
+    total = len(requirements)
+    recall = len(matched) / total if total else 1.0
+    return {
+        "matched": len(matched),
+        "total": total,
+        "recall": round(recall, 3),
+        "complete": not missing,
+        "matched_elements": matched,
+        "missing_elements": missing,
+    }
 
 def keyword_hits(answer: str, keywords: List[str]) -> int:
     answer_lower = answer.lower()
@@ -477,12 +657,31 @@ def evaluate_conditions_by_type(answer: str, conditions_dict: Dict[str, List[str
 
 def did_abstain(answer: str) -> bool:
     text = answer.lower()
-    refusal_patterns = [
-        "not specified", "unable to provide", "not covered", "not disclosed",
-        "not mentioned", "not found", "insufficient evidence", "outside the scope",
-        "cannot verify", "unable to verify", "insufficient to support",
+    global_refusal_patterns = [
+        "unable to provide a verified answer",
+        "no relevant information found",
+        "insufficient evidence to support",
+        "unable to verify the requested information",
+        "outside the scope of the provided documents",
     ]
-    return any(p in text for p in refusal_patterns)
+    if any(pattern in text for pattern in global_refusal_patterns):
+        return True
+
+    # A complete answer may legitimately say that one sub-term is absent
+    # (e.g. "the borrower option is not specified") while answering the other
+    # requested terms. Only treat a short answer beginning with a refusal as
+    # an abstention.
+    stripped = text.strip()
+    return stripped.startswith("not specified in the provided documents") and len(stripped) < 240
+
+
+def extract_claims(answer: str) -> List[str]:
+    sentences = re.split(r"[.!?]\s+|\n+", answer)
+    return [s.strip(" -*#") for s in sentences if len(s.strip(" -*#")) > 15]
+
+
+def has_citation_marker(claim: str) -> bool:
+    return bool(re.search(r"(?:\[?\s*page\s*\d+|section\s*[:\w.-]+)", claim, re.IGNORECASE))
 
 # ---------------------------------------------------------------------
 # SINGLE QUERY EVALUATION WITH CAUSAL CLASSIFICATION
@@ -542,6 +741,7 @@ def evaluate_case(case: Dict[str, Any], document_cfg: Dict[str, Any]) -> Dict[st
     hits = keyword_hits(answer, case["keywords"])
     keyword_score = hits / max(len(case["keywords"]), 1)
     evidence_sufficient = evidence_score >= 35 and retrieval_count > 0
+    required_eval = evaluate_required_elements(answer, case["id"])
 
     # Apply Causal Decision Tree
     if not info_present:
@@ -562,6 +762,9 @@ def evaluate_case(case: Dict[str, Any], document_cfg: Dict[str, Any]) -> Dict[st
             elif keyword_score < 0.20:
                 classification = "GENERATION_OR_ROUTING_FAILURE"
                 correctness = 0.0
+            elif not required_eval["complete"]:
+                classification = "INCOMPLETE_ANSWER"
+                correctness = 0.0
             else:
                 classification = "CORRECT"
                 correctness = 1.0
@@ -569,25 +772,24 @@ def evaluate_case(case: Dict[str, Any], document_cfg: Dict[str, Any]) -> Dict[st
     faithful = 1.0 if evidence_score >= 45 or result.get("evidence_status") in ("EXPLICIT", "CONDITIONAL", "PARTIAL") or not info_present else 0.0
     relevancy = 1.0 if correctness == 1.0 else 0.0
 
-    # 4. Atomic Claims & Support
-    sentences = re.split(r"[.!?]\s+|\n+", answer)
-    claims = [s.strip() for s in sentences if len(s.strip()) > 15]
-    if not claims:
-        claim_support = 1.0 if abstained else 0.0
-    else:
-        supported = sum(1 for c in claims if evidence_score >= 40 or any(k.lower() in c.lower() for k in case["keywords"]))
-        claim_support = supported / len(claims)
+    # 4. Atomic Claims & Citation Coverage
+    claims = extract_claims(answer)
+    cited_claims = sum(1 for claim in claims if has_citation_marker(claim))
+    claim_citation_coverage = (cited_claims / len(claims)) if claims else (1.0 if abstained else 0.0)
 
     # 5. Granular Condition Taxonomy
     condition_eval = evaluate_conditions_by_type(answer, case.get("conditions", {}))
 
-    valid_citations = sum(1 for c in citations if c.get("page") is not None or c.get("section") or c.get("verified"))
-    citation_accuracy = (valid_citations / len(citations)) if citations else (1.0 if not info_present else 0.0)
-    citation_completeness = min(valid_citations / max(len(claims), 1), 1.0) if claims else 1.0
+    metadata_citations = sum(1 for c in citations if c.get("page") is not None or c.get("section"))
+    verified_citations = sum(1 for c in citations if c.get("verified") is True)
+    citation_accuracy = (verified_citations / len(citations)) if citations else (1.0 if not info_present else 0.0)
+    citation_completeness = min(verified_citations / max(len(claims), 1), 1.0) if claims else 1.0
 
     print(f"Classification : [{classification}]", flush=True)
     print(f"Answer Preview : {answer[:130]}...", flush=True)
-    print(f"Tier: {processing_tier} | Latency: {latency_ms:.1f}ms | Score: {evidence_score} | Correct: {correctness == 1.0} | CPR: {condition_eval['overall_recall']*100:.0f}%", flush=True)
+    print(f"Tier: {processing_tier} | Latency: {latency_ms:.1f}ms | Score: {evidence_score} | Correct: {correctness == 1.0} | Required Recall: {required_eval['recall']*100:.0f}%", flush=True)
+    if required_eval["missing_elements"]:
+        print(f"Missing Required Elements: {', '.join(required_eval['missing_elements'])}", flush=True)
 
     return {
         "id": case["id"],
@@ -609,12 +811,17 @@ def evaluate_case(case: Dict[str, Any], document_cfg: Dict[str, Any]) -> Dict[st
         "correctness": correctness,
         "faithfulness": faithful,
         "relevancy": relevancy,
-        "claim_support": claim_support,
-        "condition_recall": condition_eval["overall_recall"],
+        "claim_support": claim_citation_coverage,
+        "claim_citation_coverage": claim_citation_coverage,
+        "condition_recall": required_eval["recall"],
+        "legacy_condition_recall": condition_eval["overall_recall"],
         "condition_precision": condition_eval["overall_precision"],
         "condition_by_type": condition_eval["by_type"],
+        "required_elements": required_eval,
         "citation_accuracy": citation_accuracy,
         "citation_completeness": citation_completeness,
+        "citation_metadata_presence": (metadata_citations / len(citations)) if citations else (1.0 if not info_present else 0.0),
+        "verified_citation_rate": citation_accuracy,
         "evidence_sufficient": evidence_sufficient,
         "abstained": abstained,
         "citations": citations,
@@ -651,6 +858,7 @@ def main():
     doc_insufficient_count = classifications.count("DOCUMENT_INSUFFICIENT")
     retrieval_failure_count = classifications.count("RETRIEVAL_FAILURE")
     gen_or_routing_failure_count = classifications.count("GENERATION_OR_ROUTING_FAILURE")
+    incomplete_answer_count = classifications.count("INCOMPLETE_ANSWER")
     false_abstention_count = classifications.count("FALSE_ABSTENTION")
 
     # 3. Compute High-Level Metrics
@@ -664,9 +872,10 @@ def main():
     sufficient_and_present = [r for r in results if r["information_present"] and r["evidence_sufficient"]]
     conditional_correctness = (sum(r["correctness"] for r in sufficient_and_present) / len(sufficient_and_present)) if sufficient_and_present else 0.0
     
-    # Overall End-to-End Correctness (19 fully answered + 3 validly handled unanswerable = 22, or strictly answerable 19/25 = 76%)
+    # Separate strict answerable completeness from correct abstentions.
     raw_answered_correctly = sum(1 for r in results if r["classification"] == "CORRECT") / total
     effective_system_accuracy = sum(r["correctness"] for r in results) / total
+    strict_answerable_correctness = (correct_count / len(info_present_queries)) if info_present_queries else 0.0
 
     avg = lambda field: (sum(float(r[field]) for r in results) / total)
     faithfulness = avg("faithfulness")
@@ -674,7 +883,12 @@ def main():
     relevancy = avg("relevancy")
     citation_accuracy = avg("citation_accuracy")
     condition_recall = avg("condition_recall")
+    legacy_condition_recall = avg("legacy_condition_recall")
     condition_precision = avg("condition_precision")
+    claim_citation_coverage = avg("claim_citation_coverage")
+    citation_completeness = avg("citation_completeness")
+    citation_metadata_presence = avg("citation_metadata_presence")
+    verified_citation_rate = avg("verified_citation_rate")
 
     # Granular Condition Recall by Type
     type_totals = {}
@@ -705,23 +919,28 @@ def main():
     print(f"  • Evidence Availability Rate (EAR)  : {ear * 100:.1f}% ({len(info_present_queries)}/{total} queries present in corpus)", flush=True)
     print(f"  • Evidence Sufficiency Rate (ESR)   : {esr * 100:.1f}% ({len(evidence_sufficient_queries)}/{total} queries retrieved sufficient evidence)", flush=True)
     print(f"  • Conditional Answer Correctness    : {conditional_correctness * 100:.1f}% (given sufficient evidence)", flush=True)
-    print(f"  • Fully Correct Answers             : {correct_count}/{total} ({correct_count/total*100:.1f}%)", flush=True)
+    print(f"  • Strict Answerable Completeness    : {strict_answerable_correctness * 100:.1f}% ({correct_count}/{len(info_present_queries)} answerable queries)", flush=True)
+    print(f"  • Fully Complete Answers            : {correct_count}/{total} ({correct_count/total*100:.1f}%)", flush=True)
     
     print("\n2. FAILURE BREAKDOWN CLASSIFICATION", flush=True)
     print(f"  • Correct Answers                   : {correct_count} ({correct_count/total*100:.1f}%)", flush=True)
     print(f"  • Document Limitations (Blank/Form) : {doc_insufficient_count} ({doc_insufficient_count/total*100:.1f}%)", flush=True)
     print(f"  • Actual Retrieval Failures         : {retrieval_failure_count} ({retrieval_failure_count/total*100:.1f}%)", flush=True)
     print(f"  • Generation / Routing Failures     : {gen_or_routing_failure_count} ({gen_or_routing_failure_count/total*100:.1f}%)", flush=True)
+    print(f"  • Incomplete Answers                : {incomplete_answer_count} ({incomplete_answer_count/total*100:.1f}%)", flush=True)
     print(f"  • False Abstentions                 : {false_abstention_count} ({false_abstention_count/total*100:.1f}%)", flush=True)
 
     print("\n3. GENERATION QUALITY & GROUNDING", flush=True)
     print(f"  • Faithfulness                      : {faithfulness * 100:.1f}%", flush=True)
-    print(f"  • Atomic Claim Support Rate         : {claim_support * 100:.1f}%", flush=True)
-    print(f"  • Citation Accuracy                 : {citation_accuracy * 100:.1f}%", flush=True)
+    print(f"  • Claim Citation Coverage (proxy)   : {claim_citation_coverage * 100:.1f}%", flush=True)
+    print(f"  • Citation Verification Rate        : {citation_accuracy * 100:.1f}%", flush=True)
+    print(f"  • Citation Completeness (proxy)     : {citation_completeness * 100:.1f}%", flush=True)
+    print(f"  • Citation Metadata Presence        : {citation_metadata_presence * 100:.1f}%", flush=True)
     print(f"  • Answer Relevancy                  : {relevancy * 100:.1f}%", flush=True)
 
     print("\n4. CONDITION PRESERVATION & GRANULAR TAXONOMY", flush=True)
-    print(f"  • Condition Recall (CPR Overall)    : {condition_recall * 100:.1f}%", flush=True)
+    print(f"  • Required Element Recall           : {condition_recall * 100:.1f}%", flush=True)
+    print(f"  • Legacy Condition Recall           : {legacy_condition_recall * 100:.1f}%", flush=True)
     print(f"  • Condition Precision (CP Overall)  : {condition_precision * 100:.1f}%", flush=True)
     for ctype, recall_val in sorted(condition_type_recalls.items()):
         print(f"    - {ctype.capitalize():18} Recall : {recall_val:.1f}%", flush=True)
@@ -741,10 +960,11 @@ def main():
         d_doc_lim = sum(1 for r in doc_results if r["classification"] == "DOCUMENT_INSUFFICIENT")
         d_ret_fail = sum(1 for r in doc_results if r["classification"] == "RETRIEVAL_FAILURE")
         d_gen_fail = sum(1 for r in doc_results if r["classification"] == "GENERATION_OR_ROUTING_FAILURE")
+        d_incomplete = sum(1 for r in doc_results if r["classification"] == "INCOMPLETE_ANSWER")
         davg = lambda f: sum(r[f] for r in doc_results) / len(doc_results)
         print(f"\n{cfg['filename']}", flush=True)
-        print(f"  Correct: {d_correct}/5 | Doc Limitation: {d_doc_lim}/5 | Retrieval Fail: {d_ret_fail}/5 | Routing Fail: {d_gen_fail}/5", flush=True)
-        print(f"  Faithfulness: {davg('faithfulness')*100:.1f}% | Claim Support: {davg('claim_support')*100:.1f}% | CPR: {davg('condition_recall')*100:.1f}%", flush=True)
+        print(f"  Complete: {d_correct}/5 | Incomplete: {d_incomplete}/5 | Doc Limitation: {d_doc_lim}/5 | Retrieval Fail: {d_ret_fail}/5 | Routing Fail: {d_gen_fail}/5", flush=True)
+        print(f"  Faithfulness: {davg('faithfulness')*100:.1f}% | Claim Citation Coverage: {davg('claim_citation_coverage')*100:.1f}% | Required Recall: {davg('condition_recall')*100:.1f}% | Citation Verification: {davg('citation_accuracy')*100:.1f}%", flush=True)
 
     # 6. Save JSON Report
     output_path = os.path.join(PROJECT_ROOT, "tests", "top5_benchmark_results.json")
@@ -756,14 +976,20 @@ def main():
                 "evidence_availability_rate_ear_pct": round(ear * 100, 1),
                 "evidence_sufficiency_rate_esr_pct": round(esr * 100, 1),
                 "conditional_answer_correctness_pct": round(conditional_correctness * 100, 1),
+                "strict_answerable_completeness_pct": round(strict_answerable_correctness * 100, 1),
                 "raw_correct_count": correct_count,
                 "document_limitations_count": doc_insufficient_count,
                 "retrieval_failures_count": retrieval_failure_count,
                 "generation_or_routing_failures_count": gen_or_routing_failure_count,
+                "incomplete_answer_count": incomplete_answer_count,
+                "false_abstention_count": false_abstention_count,
                 "faithfulness_pct": round(faithfulness * 100, 1),
-                "claim_support_rate_pct": round(claim_support * 100, 1),
-                "citation_accuracy_pct": round(citation_accuracy * 100, 1),
-                "condition_recall_cpr_pct": round(condition_recall * 100, 1),
+                "claim_citation_coverage_pct": round(claim_citation_coverage * 100, 1),
+                "citation_verification_rate_pct": round(citation_accuracy * 100, 1),
+                "citation_completeness_proxy_pct": round(citation_completeness * 100, 1),
+                "citation_metadata_presence_pct": round(citation_metadata_presence * 100, 1),
+                "required_element_recall_pct": round(condition_recall * 100, 1),
+                "legacy_condition_recall_pct": round(legacy_condition_recall * 100, 1),
                 "condition_precision_cp_pct": round(condition_precision * 100, 1),
                 "condition_taxonomy_recalls_pct": condition_type_recalls,
                 "p50_latency_ms": round(p50, 1),

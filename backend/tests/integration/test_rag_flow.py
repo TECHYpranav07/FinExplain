@@ -52,7 +52,7 @@ def test_rag_flow_end_to_end():
 
     with patch("app.rag.orchestrator.get_cached_response", return_value=None), \
          patch("app.rag.orchestrator.classify_intent", return_value=mock_intent), \
-         patch("app.rag.orchestrator.rewrite_query", return_value="What is the interest rate?"), \
+         patch("app.rag.orchestrator.rewrite_query", return_value="What is the interest rate and processing fee?"), \
          patch("app.rag.orchestrator.hybrid_search", return_value=mock_chunks), \
          patch("app.rag.orchestrator.rerank_chunks", return_value=mock_chunks), \
          patch("app.rag.orchestrator.get_all_facts", return_value=mock_facts), \
@@ -60,7 +60,7 @@ def test_rag_flow_end_to_end():
          patch("app.rag.orchestrator.generate_answer", return_value={"answer": "The interest rate is 10.50% [Page 1]. Processing fee is 1.00% [Page 1]."}):
 
         result = process_query(
-            question="What is the interest rate and fee?",
+            question="What is the interest rate and processing fee?",
             product_ids=["1"],
         )
 

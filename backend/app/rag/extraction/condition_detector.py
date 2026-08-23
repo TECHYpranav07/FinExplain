@@ -19,6 +19,12 @@ from app.core.loan_categories import LoanFact, EvidenceStatus
 # ---------------------------------------------------------------------------
 
 CONDITIONAL_PHRASES: List[str] = [
+    "if",
+    "when",
+    "after",
+    "before",
+    "within",
+    "only",
     "subject to",
     "provided that",
     "only if",
