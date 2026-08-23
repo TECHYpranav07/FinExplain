@@ -126,8 +126,11 @@ def update_user_password(user_id: str, hashed_password: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def get_user_role(user_id: str, email: Optional[str] = None) -> str:
-    """Fetch the role for a user. Checks email first and falls back to Supabase query."""
-    if email and email.lower().strip() in ADMIN_EMAILS:
+    """Fetch the role for a user. Checks configured ADMIN_EMAIL from .env first, then Supabase."""
+    from app.core.config import settings
+    admin_email = settings.effective_admin_email
+
+    if email and (email.lower().strip() == admin_email or email.lower().strip() in ADMIN_EMAILS):
         return "admin"
 
     supabase = get_supabase_client()
@@ -139,8 +142,8 @@ def get_user_role(user_id: str, email: Optional[str] = None) -> str:
             role = res.data[0].get("role")
             if role:
                 return role
-            user_email = res.data[0].get("email", "")
-            if user_email.lower().strip() in ADMIN_EMAILS:
+            user_email = res.data[0].get("email", "").lower().strip()
+            if user_email == admin_email or user_email in ADMIN_EMAILS:
                 return "admin"
         return "user"
     except Exception as e:
@@ -148,8 +151,8 @@ def get_user_role(user_id: str, email: Optional[str] = None) -> str:
         try:
             res = supabase.table("users").select("id, email").eq("id", user_id).execute()
             if res.data and len(res.data) > 0:
-                user_email = res.data[0].get("email", "")
-                if user_email.lower().strip() in ADMIN_EMAILS:
+                user_email = res.data[0].get("email", "").lower().strip()
+                if user_email == admin_email or user_email in ADMIN_EMAILS:
                     return "admin"
         except Exception:
             pass
@@ -171,6 +174,9 @@ def update_user_role(user_id: str, role: str) -> bool:
 
 def get_all_users(limit: int = 50, offset: int = 0, search: Optional[str] = None) -> List[Dict[str, Any]]:
     """Fetch all users with optional search and pagination."""
+    from app.core.config import settings
+    admin_email = settings.effective_admin_email
+
     supabase = get_supabase_client()
     if not supabase:
         return []
@@ -191,7 +197,7 @@ def get_all_users(limit: int = 50, offset: int = 0, search: Optional[str] = None
         for u in users:
             if not u.get("role"):
                 email = u.get("email", "").lower().strip()
-                u["role"] = "admin" if email in ADMIN_EMAILS else "user"
+                u["role"] = "admin" if (email == admin_email or email in ADMIN_EMAILS) else "user"
 
         return users
     except Exception as e:

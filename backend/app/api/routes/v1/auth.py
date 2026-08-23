@@ -210,6 +210,46 @@ async def register(req: RegisterRequest):
 async def login(req: LoginRequest):
     """Log in with email and password."""
     email_key = req.email.lower().strip()
+
+    # 1. Dedicated Admin Login configured in .env (ADMIN_EMAIL & ADMIN_PS / ADMIN_PASSWORD)
+    if (
+        settings.effective_admin_password
+        and email_key == settings.effective_admin_email
+        and req.password == settings.effective_admin_password
+    ):
+        db_user = get_user_by_email(email_key)
+        admin_id = (db_user.get("id") if db_user else None) or "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+        admin_name = (db_user.get("full_name") if db_user else None) or "System Administrator"
+
+        # Ensure admin user exists in Supabase table
+        ensure_user_exists(
+            user_id=admin_id,
+            email=email_key,
+            full_name=admin_name,
+            hashed_password=hash_password(req.password),
+        )
+
+        admin_record = {
+            "id": admin_id,
+            "email": email_key,
+            "name": admin_name,
+            "role": "admin",
+        }
+        USERS_DB[email_key] = admin_record
+
+        token = create_access_token({
+            "sub": admin_id,
+            "email": email_key,
+            "name": admin_name,
+            "role": "admin",
+        })
+
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user": admin_record,
+        }
+
     user = USERS_DB.get(email_key)
     
     # If not in active memory, fetch from Supabase database
@@ -221,7 +261,7 @@ async def login(req: LoginRequest):
                 "email": db_user["email"],
                 "name": db_user.get("full_name") or db_user.get("name") or email_key.split("@")[0].title(),
                 "hashed_password": db_user.get("hashed_password", ""),
-                "role": db_user.get("role", "user"),
+                "role": "admin" if email_key == settings.effective_admin_email else db_user.get("role", "user"),
                 "picture": db_user.get("picture"),
             }
             USERS_DB[email_key] = user
@@ -381,12 +421,15 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired access token.")
     
+    user_email = (payload.get("email") or "").lower().strip()
+    user_role = "admin" if (user_email == settings.effective_admin_email or payload.get("role") == "admin") else payload.get("role", "user")
+
     return {
         "user": {
             "id": payload.get("sub"),
             "email": payload.get("email"),
             "name": payload.get("name"),
-            "role": payload.get("role", "user"),
+            "role": user_role,
             "picture": payload.get("picture"),
         }
     }

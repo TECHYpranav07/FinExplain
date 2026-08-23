@@ -19,6 +19,8 @@ services:
       - SUPABASE_KEY=${SUPABASE_KEY:-}
       - PINECONE_API_KEY=${PINECONE_API_KEY:-}
       - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-finexplain}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@finexplain.com}
+      - ADMIN_PS=${ADMIN_PS:-}
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - redis

@@ -78,6 +78,20 @@ class Settings(BaseSettings):
     BREVO_FROM_EMAIL: str = "no-reply@finexplain.com"
     BREVO_FROM_NAME: str = "FinExplain Security"
 
+    # Admin Credentials Configuration (.env)
+    ADMIN_EMAIL: str = "admin@finexplain.com"
+    ADMIN_PASSWORD: str = ""
+    ADMIN_PS: Optional[str] = None
+
+    @property
+    def effective_admin_email(self) -> str:
+        return (self.ADMIN_EMAIL or "admin@finexplain.com").lower().strip()
+
+    @property
+    def effective_admin_password(self) -> str:
+        # Admin access must be explicitly configured; never ship a default password.
+        return self.ADMIN_PS or self.ADMIN_PASSWORD or ""
+
     @property
     def effective_gemini_api_key(self) -> str:
         return self.GEMINI_API_KEY or self.GOOGLE_API_KEY or ""
