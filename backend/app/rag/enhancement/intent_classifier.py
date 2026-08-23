@@ -25,6 +25,10 @@ def classify_intent(query: str) -> IntentResult:
     q_lower = query.lower().strip()
 
     # 1. Fast deterministic heuristic checks (Zero LLM tokens used)
+    # Calculation intent MUST be checked before general lookup terms like "interest rate" or "emi"
+    if any(k in q_lower for k in ("calculate", "compute", "how much will i pay", "amortization", "total cost if i borrow", "monthly emi if i", "repayment schedule and emi")) or re.search(r'\b(?:calculate|compute|find)\b.*?\b(?:emi|interest|cost|repayment)\b', q_lower):
+        return IntentResult(intent=QueryIntent.CALCULATION, confidence=0.95, extracted_entities={})
+
     if any(k in q_lower for k in ("risk factor", "risk score", "confidence score", "confidence and risk", "how risky", "risk rating")):
         return IntentResult(intent=QueryIntent.RISK, confidence=0.95, extracted_entities={})
     
@@ -40,9 +44,6 @@ def classify_intent(query: str) -> IntentResult:
         "penal", "penalty", "grace period", "what is the", "what is", "how much is"
     )):
         return IntentResult(intent=QueryIntent.LOOKUP, confidence=0.95, extracted_entities={})
-
-    if any(k in q_lower for k in ("calculate", "total cost", "how much will i pay", "amortization")):
-        return IntentResult(intent=QueryIntent.CALCULATION, confidence=0.95, extracted_entities={})
 
     # 2. LLM fallback only if heuristic does not match
     prompt = f"""

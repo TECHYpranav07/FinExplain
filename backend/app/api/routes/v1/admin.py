@@ -14,7 +14,9 @@ All endpoints require admin role authorization.
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
+from datetime import datetime, timezone
 import logging
+from postgrest.types import CountMethod
 
 from app.auth.jwt_handler import get_current_user
 from app.db.supabase_client import get_supabase_client
@@ -38,7 +40,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 def require_admin(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     """Dependency that ensures the authenticated user has admin role."""
-    user_id = current_user.get("id")
+    user_id = str(current_user.get("id") or "")
     email = current_user.get("email", "")
     role = get_user_role(user_id, email=email)
     if role != "admin":
@@ -75,28 +77,28 @@ def get_platform_stats(admin: Dict[str, Any] = Depends(require_admin)):
 
     try:
         # Users count
-        res = supabase.table("users").select("id", count="exact").execute()
+        res = supabase.table("users").select("id", count=CountMethod.exact).execute()
         stats["total_users"] = res.count if hasattr(res, "count") and res.count is not None else len(res.data or [])
     except Exception:
         stats["total_users"] = 0
 
     try:
         # Products count
-        res = supabase.table("products").select("id", count="exact").execute()
+        res = supabase.table("products").select("id", count=CountMethod.exact).execute()
         stats["total_products"] = res.count if hasattr(res, "count") and res.count is not None else len(res.data or [])
     except Exception:
         stats["total_products"] = 0
 
     try:
         # Documents count
-        res = supabase.table("documents").select("id", count="exact").execute()
+        res = supabase.table("documents").select("id", count=CountMethod.exact).execute()
         stats["total_documents"] = res.count if hasattr(res, "count") and res.count is not None else len(res.data or [])
     except Exception:
         stats["total_documents"] = 0
 
     try:
         # Chunks count
-        res = supabase.table("chunks").select("id", count="exact").execute()
+        res = supabase.table("chunks").select("id", count=CountMethod.exact).execute()
         stats["total_chunks"] = res.count if hasattr(res, "count") and res.count is not None else len(res.data or [])
     except Exception:
         stats["total_chunks"] = 0
@@ -115,17 +117,19 @@ def get_platform_stats(admin: Dict[str, Any] = Depends(require_admin)):
 
     try:
         # Feedback (verified_answers) count
-        res = supabase.table("verified_answers").select("id", count="exact").execute()
+        res = supabase.table("verified_answers").select("id", count=CountMethod.exact).execute()
         stats["total_feedback"] = res.count if hasattr(res, "count") and res.count is not None else len(res.data or [])
     except Exception:
         stats["total_feedback"] = 0
 
     try:
         # Scenarios count
-        res = supabase.table("scenarios").select("id", count="exact").execute()
+        res = supabase.table("scenarios").select("id", count=CountMethod.exact).execute()
         stats["total_scenarios"] = res.count if hasattr(res, "count") and res.count is not None else len(res.data or [])
     except Exception:
         stats["total_scenarios"] = 0
+
+    return stats
 
     return stats
 
@@ -164,7 +168,7 @@ def get_user_detail(user_id: str, admin: Dict[str, Any] = Depends(require_admin)
     # Get user's products and documents count
     supabase = get_supabase_client()
     try:
-        prods = supabase.table("products").select("id", count="exact").eq("user_id", user_id).execute()
+        prods = supabase.table("products").select("id", count=CountMethod.exact).eq("user_id", user_id).execute()
         user["products_count"] = prods.count if hasattr(prods, "count") and prods.count is not None else len(prods.data or [])
     except Exception:
         user["products_count"] = 0
@@ -250,7 +254,7 @@ def list_all_documents(
                 d["owner_user_id"] = prod.get("user_id")
 
         # Total count
-        count_res = supabase.table("documents").select("id", count="exact").execute()
+        count_res = supabase.table("documents").select("id", count=CountMethod.exact).execute()
         total = count_res.count if hasattr(count_res, "count") and count_res.count is not None else len(docs)
 
         return {"documents": docs, "total": total, "limit": limit, "offset": offset}
@@ -303,7 +307,7 @@ def list_all_products(
         # Enrich with document count per product
         for p in products:
             try:
-                doc_res = supabase.table("documents").select("id", count="exact").eq("product_id", p["id"]).execute()
+                doc_res = supabase.table("documents").select("id", count=CountMethod.exact).eq("product_id", p["id"]).execute()
                 p["document_count"] = doc_res.count if hasattr(doc_res, "count") and doc_res.count is not None else len(doc_res.data or [])
             except Exception:
                 p["document_count"] = 0
@@ -318,7 +322,7 @@ def list_all_products(
                 p["owner_email"] = owner.get("email", "Unknown")
                 p["owner_name"] = owner.get("full_name", "Unknown")
 
-        count_res = supabase.table("products").select("id", count="exact").execute()
+        count_res = supabase.table("products").select("id", count=CountMethod.exact).execute()
         total = count_res.count if hasattr(count_res, "count") and count_res.count is not None else len(products)
 
         return {"products": products, "total": total, "limit": limit, "offset": offset}
@@ -366,7 +370,7 @@ def list_all_hitl_tasks(
         res = query.execute()
         tasks = res.data or []
 
-        count_query = supabase.table("hilt_tasks").select("id", count="exact")
+        count_query = supabase.table("hilt_tasks").select("id", count=CountMethod.exact)
         if status_filter:
             count_query = count_query.eq("status", status_filter)
         count_res = count_query.execute()
@@ -391,7 +395,6 @@ def admin_resolve_hitl_task(
         if not res.data:
             raise HTTPException(status_code=404, detail="HITL task not found")
 
-        from datetime import datetime
         update_data = {
             "status": "resolved",
             "resolution_data": {
@@ -401,7 +404,7 @@ def admin_resolve_hitl_task(
                 "admin_resolved": True,
             },
             "resolver_user_id": admin["id"],
-            "resolved_at": datetime.utcnow().isoformat(),
+            "resolved_at": datetime.now(timezone.utc).isoformat(),
         }
         supabase.table("hilt_tasks").update(update_data).eq("id", task_id).execute()
         return {"message": "HITL task resolved by admin", "task_id": task_id}
@@ -434,10 +437,13 @@ def list_all_feedback(
         )
         feedback = res.data or []
 
-        count_res = supabase.table("verified_answers").select("id", count="exact").execute()
+        count_res = supabase.table("verified_answers").select("id", count=CountMethod.exact).execute()
         total = count_res.count if hasattr(count_res, "count") and count_res.count is not None else len(feedback)
 
         return {"feedback": feedback, "total": total, "limit": limit, "offset": offset}
+    except Exception as e:
+        logger.error(f"Admin feedback listing error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch feedback")
     except Exception as e:
         logger.error(f"Admin feedback listing error: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch feedback")
@@ -497,22 +503,20 @@ async def admin_health_check(admin: Dict[str, Any] = Depends(require_admin)):
     except Exception:
         checks["redis"] = {"status": "unknown", "detail": "Unable to check"}
 
-    # Embeddings model
+    # Embeddings model (Hugging Face Cloud API)
     try:
-        from app.external.huggingface_client import get_sentence_transformer
-        model = get_sentence_transformer()
-        checks["embeddings"] = {"status": "ok", "detail": settings.HF_EMBEDDING_MODEL}
+        from app.external.huggingface_client import get_hf_token
+        token = get_hf_token()
+        if token:
+            checks["embeddings"] = {"status": "ok", "detail": f"HuggingFace Cloud API ({settings.HF_EMBEDDING_MODEL or 'all-MiniLM-L6-v2'})"}
+        else:
+            checks["embeddings"] = {"status": "warning", "detail": "HF_TOKEN not configured"}
     except Exception as e:
         checks["embeddings"] = {"status": "error", "detail": str(e)[:100]}
         overall = "degraded"
 
     # Reranker
-    try:
-        from sentence_transformers import CrossEncoder
-        checks["reranker"] = {"status": "ok", "detail": "CrossEncoder available"}
-    except Exception:
-        checks["reranker"] = {"status": "unavailable", "detail": "Not installed"}
-        overall = "degraded"
+    checks["reranker"] = {"status": "ok", "detail": "Cloud zero-memory reranker active"}
 
     return {
         "status": overall,

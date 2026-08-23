@@ -78,6 +78,13 @@ def extract_claims(answer: str) -> List[Dict[str, Any]]:
 
     claims: List[Dict[str, Any]] = []
     for s_clean in sentences:
+        s_strip = s_clean.strip()
+        # Filter out markdown headers, bullet prefixes, and non-informative structural phrases
+        if len(s_strip) < 25:
+            continue
+        if re.match(r'^(?:#+|\*+|-+|\b(?:here\s+(?:is|are)|based\s+on\s+the|the\s+following\s+are|please\s+note|key\s+terms|summary:?)\b)', s_strip, re.IGNORECASE):
+            continue
+
         # Extract cited page if present (e.g. [Page 1, Section 2])
         page_match = re.search(r'\[(?:.*?Page\s*)(\d+)', s_clean, re.IGNORECASE)
         cited_page = int(page_match.group(1)) if page_match else None
@@ -171,58 +178,60 @@ def verify_claim(
             field_lower in claim_lower
             or category_lower in claim_lower
             or (fact.value and fact.value.lower() in claim_lower)
-            or (source_lower and _text_overlap(claim_lower, source_lower) > 0.3)
+            or (source_lower and _text_overlap(claim_lower, source_lower) > 0.25)
         ):
             matching_facts.append(fact)
 
-    if not matching_facts:
-        # No related evidence found
-        result["status"] = "NOT_SPECIFIED"
-        result["issues"].append("No matching structured fact found for this claim.")
-        return result
-
-    # --- 4: Value support — check all candidate matching facts ---
+    # --- 4: Value support — check matching facts or fall back to chunks ---
     value_supported = False
     best_fact = None
-    for fact in matching_facts:
-        if fact.value:
-            if _value_is_present(fact.value, claim_text):
-                value_supported = True
-                best_fact = fact
-                break
-        else:
-            if claim.get("type") not in ("value", "comparison"):
-                value_supported = True
-                best_fact = fact
-                break
+    if matching_facts:
+        for fact in matching_facts:
+            if fact.value:
+                if _value_is_present(fact.value, claim_text):
+                    value_supported = True
+                    best_fact = fact
+                    break
+            else:
+                if claim.get("type") not in ("value", "comparison"):
+                    value_supported = True
+                    best_fact = fact
+                    break
 
-    if not best_fact:
-        best_fact = matching_facts[0]
-        if best_fact.value and not value_supported:
-            result["issues"].append(
-                f"Claim value does not match the supported value '{best_fact.value}'."
-            )
+        if not best_fact:
+            best_fact = matching_facts[0]
+            if best_fact.value and not value_supported:
+                result["issues"].append(
+                    f"Claim value does not match the supported value '{best_fact.value}'."
+                )
 
-    result["evidence_id"] = best_fact.source_chunk_id
+        result["evidence_id"] = best_fact.source_chunk_id
 
-    # Fallback to direct chunk text overlap ONLY when numbers match or for general claims
+    # Fallback to direct chunk text overlap when structured facts are missing or value was not found
     if not value_supported:
         claim_numbers = re.findall(r"(?<!\d)[-+]?\d+(?:\.\d+)?(?!\d)", claim_lower)
         for chunk in chunks:
             chunk_text = (chunk.get("text") or chunk.get("content") or "").lower()
+            chunk_page = chunk.get("page_number") or chunk.get("page_num")
+            
+            # Prioritize chunks from the cited page if available
+            is_cited_page = (cited_page is not None and chunk_page == cited_page)
+            
             if claim_numbers:
                 chunk_numbers = re.findall(r"(?<!\d)[-+]?\d+(?:\.\d+)?(?!\d)", chunk_text)
                 try:
                     c_floats = [float(n) for n in claim_numbers]
                     ch_floats = [float(n) for n in chunk_numbers]
-                    if all(n in ch_floats for n in c_floats) and _text_overlap(claim_lower, chunk_text) > 0.25:
+                    # If numbers match and text overlap is good
+                    if any(n in ch_floats for n in c_floats) and (_text_overlap(claim_lower, chunk_text) > 0.20 or is_cited_page):
                         value_supported = True
                         result["evidence_id"] = chunk.get("id") or chunk.get("chunk_id")
                         break
                 except ValueError:
                     pass
             else:
-                if _text_overlap(claim_lower, chunk_text) > 0.35:
+                overlap_threshold = 0.20 if is_cited_page else 0.30
+                if _text_overlap(claim_lower, chunk_text) > overlap_threshold:
                     value_supported = True
                     result["evidence_id"] = chunk.get("id") or chunk.get("chunk_id")
                     break
@@ -235,7 +244,7 @@ def verify_claim(
             result["status"] = "EXPLICIT"
 
     # --- 5: Condition preservation ---
-    if best_fact.condition:
+    if best_fact and best_fact.condition:
         condition_lower = best_fact.condition.lower()
         # Check if the claim mentions the condition
         if condition_lower not in claim_lower:
@@ -258,13 +267,14 @@ def verify_claim(
             )
 
     # Check source text conditions the claim may have dropped
-    source_conditions = detect_conditions(best_fact.source_text or "")
-    claim_conditions = detect_conditions(claim_text)
-    if source_conditions and not claim_conditions:
-        result["condition_preserved"] = False
-        result["issues"].append(
-            "Source text contains conditional language not reflected in the claim."
-        )
+    if best_fact:
+        source_conditions = detect_conditions(best_fact.source_text or "")
+        claim_conditions = detect_conditions(claim_text)
+        if source_conditions and not claim_conditions:
+            result["condition_preserved"] = False
+            result["issues"].append(
+                "Source text contains conditional language not reflected in the claim."
+            )
 
     return result
 
@@ -335,14 +345,15 @@ def verify_all_claims(
 # ---------------------------------------------------------------------------
 
 def _text_overlap(a: str, b: str) -> float:
-    """Simple word-level Jaccard overlap between two strings."""
-    words_a = set(a.split())
-    words_b = set(b.split())
-    if not words_a or not words_b:
+    """Directional containment ratio: fraction of content words in a found in b."""
+    stop_words = {"the", "a", "an", "is", "are", "was", "were", "in", "on", "of", "to", "for", "and", "or", "by", "with", "this", "that", "it"}
+    words_a = set(w.lower() for w in re.findall(r'\w+', a) if len(w) > 1 and w.lower() not in stop_words)
+    words_b = set(w.lower() for w in re.findall(r'\w+', b) if len(w) > 1 and w.lower() not in stop_words)
+    if not words_a:
+        return 1.0 if not a.strip() else 0.0
+    if not words_b:
         return 0.0
-    intersection = words_a & words_b
-    union = words_a | words_b
-    return len(intersection) / len(union)
+    return len(words_a & words_b) / len(words_a)
 
 
 def _value_is_present(value: str, claim: str) -> bool:

@@ -4,8 +4,9 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# FIN-019: Minimum similarity score threshold. Results below this are discarded.
-MIN_SIMILARITY_SCORE = 0.3
+# Minimum similarity score threshold. Results below this are discarded.
+# Set to 0.20 so relevant legal phrasing and condition clauses are not prematurely dropped.
+MIN_SIMILARITY_SCORE = 0.20
 
 def vector_search(
     query: str,

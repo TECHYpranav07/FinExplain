@@ -2,49 +2,58 @@ import re
 from typing import List, Dict, Any, Tuple
 
 def extract_citations(answer: str) -> List[Dict[str, Any]]:
-    """Extract document, page, and section citations from the answer text."""
-    # Look for patterns like [sample_loan.pdf, Page 1], [Page 3], 【Page 1.0】, [Doc A, Page 2, Section 2.1]
-    pattern = r'[\[【](?:([^,\]】]+?),\s*)?(?:Page|p\.)\s*([\d.]+)(?:,\s*Section:?\s*([^\]】]+?))?[\]】]|\[Section\s*([\d.]+)\]|Page\s+(\d+)'
+    """Extract document, page, section, and schedule citations from answer text."""
+    # Matches [Doc, Page X, Section Y], [Page X], [Section X. Title], [Schedule II], etc.
+    pattern = r'[\[【](?:([^,\]】]+?),\s*)?(?:(?:Page|p\.)\s*([\d.]+))?(?:,\s*Section:?\s*([^\]】]+?))?[\]】]|\[Section\s*([^\]]+)\]|\[Schedule\s*([^\]]+)\]|Page\s+(\d+)'
     citations = []
     for match in re.finditer(pattern, answer, re.IGNORECASE):
         doc = match.group(1)
-        raw_page = match.group(2) or match.group(5)
+        raw_page = match.group(2) or match.group(6)
         section = match.group(3) or match.group(4)
+        schedule = match.group(5)
+        
+        cit: Dict[str, Any] = {}
         if raw_page:
             try:
-                page_int = int(float(raw_page))
-                cit: Dict[str, Any] = {"page": page_int}
-                if doc and not doc.lower().startswith("section"):
-                    cit["document"] = doc.strip()
-                if section:
-                    cit["section"] = section.strip()
-                citations.append(cit)
+                cit["page"] = int(float(raw_page))
             except ValueError:
                 pass
+        if doc and not doc.lower().startswith("section") and not doc.lower().startswith("schedule"):
+            cit["document"] = doc.strip()
+        if section:
+            cit["section"] = section.strip()
+        if schedule:
+            cit["schedule"] = f"Schedule {schedule.strip()}"
+
+        if cit:
+            citations.append(cit)
     return citations
 
 def verify_citation(citation: Dict[str, Any], retrieved_chunks: List[Dict[str, Any]]) -> bool:
-    """Check if a citation points to an actual retrieved chunk.
-    
-    FIN-007: Requires document_id + page match, not just page existence.
-    """
+    """Check if a citation points to an actual retrieved chunk."""
     page_num = citation.get("page")
-    if not page_num:
-        return False  # FIN-007: No page specified = not verified (was True)
-    
     cited_doc = citation.get("document")
+    cited_sec = citation.get("section")
     
+    if not retrieved_chunks:
+        return False
+
     for chunk in retrieved_chunks:
         chunk_page = chunk.get("page_number") or chunk.get("page_num")
-        if chunk_page != page_num:
-            continue
-        # If a document name was cited, require it to match
-        if cited_doc:
-            chunk_doc = chunk.get("document_name", "")
-            if cited_doc.lower() not in chunk_doc.lower() and chunk_doc.lower() not in cited_doc.lower():
-                continue
-        # Page matches (and document matches if specified)
-        return True
+        chunk_doc = chunk.get("document_name", "")
+        chunk_sec = chunk.get("section_title") or chunk.get("section_name", "")
+        
+        # 1. If page number is given, check page match (and doc match if given)
+        if page_num is not None:
+            if chunk_page == page_num:
+                if not cited_doc or (cited_doc.lower() in chunk_doc.lower() or chunk_doc.lower() in cited_doc.lower()):
+                    return True
+
+        # 2. If section is given without page, check section match
+        if cited_sec and chunk_sec:
+            if cited_sec.lower() in chunk_sec.lower() or chunk_sec.lower() in cited_sec.lower():
+                return True
+
     return False
 
 def calculate_confidence(

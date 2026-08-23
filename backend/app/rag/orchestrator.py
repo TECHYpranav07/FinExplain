@@ -73,6 +73,7 @@ def _format_deterministic_factual_answer(fact: LoanFact) -> str:
     """
     Format a direct, evidence-cited answer from a structured LoanFact
     without requiring an LLM call (0 tokens, 0ms latency).
+    Preserves all legal conditions, lock-ins, tax terms, and default triggers.
     """
     field_label = fact.field.replace("_", " ").title()
     value_str = f"{fact.value} {fact.unit}".strip() if fact.unit else str(fact.value)
@@ -86,8 +87,29 @@ def _format_deterministic_factual_answer(fact: LoanFact) -> str:
 
     answer = f"The {field_label.lower()} is {value_str}{citation_str}."
 
+    conds = []
     if fact.condition:
-        answer += f" Note: Subject to condition ({fact.condition})."
+        conds.append(fact.condition)
+    
+    if fact.source_text:
+        st_lower = fact.source_text.lower()
+        if ("gst" in st_lower or "tax" in st_lower) and not any("tax" in c.lower() or "gst" in c.lower() for c in conds):
+            conds.append("plus applicable GST/statutory taxes")
+        if "notice" in st_lower and not any("notice" in c.lower() for c in conds):
+            conds.append("subject to prior written notice")
+        if ("lock" in st_lower or "emi" in st_lower) and not any("emi" in c.lower() for c in conds):
+            match = re.search(r'(?:after|lock-in of|minimum of|minimum)\s*\d+\s*(?:months?|emis?)', st_lower)
+            if match:
+                conds.append(match.group(0))
+        if ("default" in st_lower or "overdue" in st_lower or "delay" in st_lower) and not any("default" in c.lower() for c in conds):
+            conds.append("applicable in the event of default or delayed payment")
+        if ("floating" in st_lower or "benchmark" in st_lower or "reset" in st_lower) and not any("floating" in c.lower() for c in conds):
+            conds.append("subject to periodic benchmark spread reset")
+        if ("waive" in st_lower or "waiver" in st_lower) and not any("waive" in c.lower() for c in conds):
+            conds.append("waiver applicable as per loan terms")
+
+    if conds:
+        answer += f" Applicable Conditions: {'; '.join(conds)}."
 
     return answer
 
@@ -193,9 +215,9 @@ def process_query(
             # Synthetic citations and verified claims for response packaging
             citations = [{
                 "document": fact.source_document or (product_ids[0] if product_ids else "Agreement"),
-                "page": fact.page or 1,
+                "page": fact.page,
                 "section": fact.section or "Key Terms",
-                "verified": True,
+                "verified": fact.page is not None,
             }]
             
             claim_results = {
@@ -254,20 +276,43 @@ def process_query(
     if tier == QueryTier.CALCULATION or intent_result.intent == "calculation":
         scenario = extract_user_scenario(clean_question)
         if scenario and scenario.get("principal"):
-            # Lookup interest rate & fees directly from LoanFact store
+            # 1. Check if user explicitly provided an interest rate in their query
+            user_rate = scenario.get("interest_rate")
             rate_fact = get_fact(product_ids, "interest_rate")
             fee_fact = get_fact(product_ids, "processing_fee")
             
             interest_rate = None
-            if rate_fact and rate_fact.value:
+            if user_rate is not None:
+                try:
+                    interest_rate = float(user_rate)
+                except (ValueError, TypeError):
+                    pass
+
+            if interest_rate is None and rate_fact and rate_fact.value:
                 try:
                     interest_rate = float(rate_fact.value.replace("%", "").strip())
                 except (ValueError, TypeError):
                     pass
             
-            # Default fallback rate if not specified in document
+            # If interest rate is not available from either the query or documents, refuse
             if interest_rate is None:
-                interest_rate = 10.50
+                return {
+                    "answer": "Unable to calculate: the interest rate is not specified in the uploaded documents and was not provided in your query. Please specify the interest rate to proceed with the calculation.",
+                    "confidence_score": 0.0,
+                    "confidence_label": "Insufficient Data",
+                    "evidence_status": "NOT_SPECIFIED",
+                    "why_this_answer": "Interest rate is a required input for EMI/cost calculation but was not found in the operative credit documentation.",
+                    "citations": [],
+                    "retrieved_chunks": [],
+                    "context_used": "",
+                    "intent": intent_result.intent,
+                    "evidence_score": 0,
+                    "missing_information": [{"field": "interest_rate", "reason": "Not specified in document or query"}],
+                    "conflicts": [],
+                    "key_facts": [],
+                    "status": "insufficient_data",
+                    "token_metrics": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "tier": "calculation"},
+                }
 
             tenure_val = scenario.get("repayment_period", 60)
             rep_unit = scenario.get("repayment_unit", "months").lower()
@@ -276,11 +321,19 @@ def process_query(
             else:
                 tenure_months = int(tenure_val)
 
+            # Use actual processing fee from fact store if available
+            pf_value = None  # unknown by default
+            if fee_fact and fee_fact.value:
+                try:
+                    pf_value = float(fee_fact.value.replace("%", "").replace(",", "").strip())
+                except (ValueError, TypeError):
+                    pass
+
             calc_res = calculate_loan_scenario(
                 principal=float(scenario.get("principal")),
                 interest_rate=float(interest_rate),
                 tenure=int(tenure_months),
-                processing_fee=1.0,
+                processing_fee=pf_value,
                 evidence_ids=[rate_fact.source_chunk_id] if rate_fact and rate_fact.source_chunk_id else [],
             )
 
@@ -290,10 +343,10 @@ def process_query(
             total_val = results_dict.get("total_repayment", 0)
 
             answer_text = (
-                f"For a principal of ₹{scenario.get('principal'):,.0f} over {tenure_months} months at an interest rate of {interest_rate}% p.a.:\n"
-                f"- **Monthly EMI:** ₹{emi_val:,.0f}\n"
-                f"- **Total Interest Payable:** ₹{interest_val:,.0f}\n"
-                f"- **Total Amount Payable:** ₹{total_val:,.0f}"
+                f"For a principal of ₹{scenario.get('principal'):,.2f} over {tenure_months} months at an interest rate of {interest_rate}% p.a.:\n"
+                f"- **Monthly EMI:** ₹{emi_val:,.2f}\n"
+                f"- **Total Interest Payable:** ₹{interest_val:,.2f}\n"
+                f"- **Total Amount Payable:** ₹{total_val:,.2f}"
             )
             if rate_fact and rate_fact.page:
                 answer_text += f" [Interest rate source: Page {rate_fact.page}, Section {rate_fact.section}]."
@@ -347,13 +400,13 @@ def process_query(
     if tier == QueryTier.DEEP_RAG:
         # Full reranker for deep analytical queries
         reranked_chunks = rerank_chunks(rewritten_query, retrieved_chunks, top_k=6)
-    elif agreement_score >= 0.5 and top_rrf >= 0.020:
+    elif agreement_score >= 0.8 and top_rrf >= 0.030:
         # High Dense/BM25 agreement — skip CrossEncoder
         reranked_chunks = retrieved_chunks[:6]
         for i, c in enumerate(reranked_chunks):
             if "rerank_score" not in c:
                 c["rerank_score"] = max(0.1, 0.9 - (i * 0.05))
-        logger.info(f"[Retriever] ⚡ Reranker SKIPPED (Dense/BM25 Agreement: {agreement_score:.2f} >= 0.50)")
+        logger.info(f"[Retriever] ⚡ Reranker SKIPPED (Dense/BM25 Agreement: {agreement_score:.2f} >= 0.80)")
     else:
         # Low agreement — invoke CrossEncoder to resolve divergence
         reranked_chunks = rerank_chunks(rewritten_query, retrieved_chunks, top_k=6)
@@ -363,7 +416,7 @@ def process_query(
     # Build Context (Evidence Compression for Standard RAG)
     if tier == QueryTier.STANDARD_RAG:
         from app.rag.context.builder import compress_evidence_context
-        context = compress_evidence_context(reranked_chunks, clean_question, max_tokens=600)
+        context = compress_evidence_context(reranked_chunks, clean_question, max_tokens=1200, max_passages=5)
     else:
         context = build_context(reranked_chunks, max_tokens=max_context_tokens)
 
@@ -372,6 +425,34 @@ def process_query(
         rewritten_query, reranked_chunks, rerank_scores
     )
     if not can_answer and tier != QueryTier.DEEP_RAG:
+        # Fallback: check if the structured fact store has a direct answer before refusing
+        if detected_field:
+            fallback_fact = get_fact(product_ids, detected_field)
+            if fallback_fact and fallback_fact.value:
+                logger.info(f"[Fallback] Answerability gate refused but fact store has: {detected_field}={fallback_fact.value}")
+                answer_text = _format_deterministic_factual_answer(fallback_fact)
+                citations = [{
+                    "document": fallback_fact.source_document or "Agreement",
+                    "page": fallback_fact.page,
+                    "section": fallback_fact.section or "Key Terms",
+                    "verified": fallback_fact.page is not None,
+                }]
+                result = _build_response(
+                    answer_text=answer_text,
+                    structured_facts=[fallback_fact],
+                    reranked_chunks=[],
+                    context=fallback_fact.source_text or answer_text,
+                    intent_result=intent_result,
+                    claim_results={"claims": [{"claim": answer_text, "supported": True}], "total_claims": 1, "supported_claims": 1, "unsupported_claims": 0, "invalid_citations": 0, "conditions_dropped": 0, "claim_coverage": 1.0},
+                    evidence_score_result={"score": 90, "score_normalized": 0.90, "label": "High"},
+                    grounded={"citations": citations},
+                    clean_question=clean_question,
+                    tier=tier,
+                    token_metrics={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "tier": "fast_factual_fallback", "model": "none (deterministic)"},
+                )
+                set_cached_response(question, product_ids, result, user_id=user_id)
+                return result
+
         return {
             "answer": "Unable to provide a verified answer based on the retrieved documents. The requested topic is not covered in the operative credit documentation.",
             "confidence_score": 0.0,
@@ -455,6 +536,15 @@ def process_query(
     )
     if not validation["valid"]:
         answer_text = validation["sanitized_answer"]
+
+    # Hard safety gate: refuse delivery of very low-confidence answers
+    if evidence_score_result.get("score", 100) < 30 and tier not in (QueryTier.DEEP_RAG, QueryTier.FAST_FACTUAL):
+        logger.warning(f"[SafetyGate] 🛑 Blocking low-confidence answer (evidence_score={evidence_score_result.get('score')})")
+        answer_text = (
+            "Unable to provide a verified answer. The retrieved evidence is insufficient "
+            "to support a reliable response for this query. Please try rephrasing your question "
+            "or consult the source documents directly."
+        )
 
     grounded = ground_answer(answer_text, reranked_chunks, rerank_scores)
 

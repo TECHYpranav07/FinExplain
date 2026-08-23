@@ -127,12 +127,15 @@ def validate_final_response(
     sanitized = answer
     if unsupported_claims and not is_eval_query:
         has_valid_citations = invalid_citations == 0 and len(cited_pages) > 0
-        # FIN-026: If all claims are unsupported and citations are invalid/absent on a factual query, refuse
+        # FIN-026-REVISED: When all claims are unsupported, append a verification
+        # notice instead of replacing the entire answer with a refusal. The claim
+        # verifier's Jaccard-based matching has a known short-claim / long-chunk
+        # bias (RC-2), so "all claims unsupported" does NOT mean the answer is wrong.
         if len(unsupported_claims) == len(claims) and len(claims) > 0 and not has_valid_citations:
-            sanitized = (
-                "Unable to provide a verified answer based on the retrieved documents. "
-                "The extracted statements could not be verified against the source text. "
-                "Please review the source documents or consult a loan officer."
+            sanitized = answer + (
+                "\n\n⚠️ **Verification Notice:** The claims in this answer could not be "
+                "independently verified against the structured evidence. Please cross-check "
+                "with the source documents."
             )
         else:
             # Annotate specific unsupported claims

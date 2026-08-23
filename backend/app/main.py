@@ -13,10 +13,11 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["PYTHONIOENCODING"] = "utf-8"
 os.environ["PYTHONUTF8"] = "1"
 
+import asyncio
+import logging
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
-import logging
 
 from app.core.config import settings
 
@@ -44,21 +45,19 @@ async def startup_warmup():
     except Exception as e:
         startup_logger.error(f"⚠️ Gemini model validation failed: {e}")
 
-    # 2. Pre-load SentenceTransformer embedding model
+    # 2. Validate Hugging Face Cloud Inference API
     try:
-        from app.external.huggingface_client import get_sentence_transformer
-        get_sentence_transformer()
-        startup_logger.info("✅ SentenceTransformer embedding model loaded")
+        from app.external.huggingface_client import get_hf_inference_client
+        client = get_hf_inference_client()
+        if client:
+            startup_logger.info("✅ Hugging Face Cloud Inference API client initialized")
+        else:
+            startup_logger.warning("⚠️ Hugging Face API token not configured; check HF_TOKEN / HUGGINGFACE_API_KEY")
     except Exception as e:
-        startup_logger.warning(f"⚠️ Embedding model pre-load failed: {e}")
+        startup_logger.warning(f"⚠️ Hugging Face Cloud API initialization warning: {e}")
 
-    # 3. Pre-load CrossEncoder reranker model
-    try:
-        from app.rag.retrieval.reranker import get_reranker
-        get_reranker()
-        startup_logger.info("✅ CrossEncoder reranker model loaded")
-    except Exception as e:
-        startup_logger.warning(f"⚠️ Reranker model pre-load failed: {e}")
+    # 3. Cloud-Optimized Reranker
+    startup_logger.info("✅ Cloud-optimized zero-memory reranker ready")
 
     # 4. Warm Pinecone index connection
     try:
@@ -68,7 +67,40 @@ async def startup_warmup():
     except Exception as e:
         startup_logger.warning(f"⚠️ Pinecone warm-up failed: {e}")
 
+    # 5. Schedule Keep-Alive Background Ping Task (every 60s)
+    asyncio.create_task(_render_keep_alive_task())
+    startup_logger.info("✅ Keep-alive background ping task scheduled (every 60s)")
+
     startup_logger.info("🚀 FinExplain startup warm-up complete")
+
+
+async def _render_keep_alive_task():
+    """
+    Background worker that pings the backend health endpoint every 60 seconds.
+    Prevents free-tier cloud platforms (like Render) from idling or sleeping due to inactivity.
+    """
+    import httpx
+    keep_alive_logger = logging.getLogger("keep_alive")
+    await asyncio.sleep(15)  # Wait 15s after startup before first ping
+
+    while True:
+        try:
+            port = os.getenv("PORT", "8000")
+            render_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("APP_URL") or os.getenv("BASE_URL")
+
+            # Prioritize public Render URL so inbound traffic hits the Render load balancer
+            if render_url:
+                target_url = f"{render_url.rstrip('/')}/health"
+            else:
+                target_url = f"http://127.0.0.1:{port}/health"
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(target_url)
+                keep_alive_logger.info(f"[KeepAlive] Heartbeat ping -> {target_url} (HTTP {resp.status_code})")
+        except Exception as e:
+            keep_alive_logger.debug(f"[KeepAlive] Ping notice: {e}")
+
+        await asyncio.sleep(60)
 
 
 from app.core.security_middleware import SecurityMiddleware

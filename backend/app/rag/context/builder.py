@@ -47,7 +47,7 @@ def compress_evidence_context(
 
     for chunk in chunks[:6]:
         metadata = chunk.get("metadata") or {}
-        raw_text = chunk.get("text", "").strip()
+        raw_text = (chunk.get("parent_text") or chunk.get("text") or "").strip()
         if not raw_text:
             continue
 

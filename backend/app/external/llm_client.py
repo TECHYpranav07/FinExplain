@@ -25,6 +25,16 @@ from app.core.constants import DEFAULT_GEMINI_MODEL
 
 logger = logging.getLogger(__name__)
 
+import threading
+
+# ---------------------------------------------------------------------------
+# Process-wide Gemini API Call Pacer (Strictly <= 14 requests / min)
+# ---------------------------------------------------------------------------
+_GEMINI_CALL_LOCK = threading.Lock()
+_LAST_GEMINI_CALL_TIME = 0.0
+_MIN_GEMINI_INTERVAL_SECONDS = 4.2
+
+
 # ---------------------------------------------------------------------------
 # Persistent HTTP session — reuses TCP connections and TLS handshakes
 # ---------------------------------------------------------------------------
@@ -103,7 +113,7 @@ _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 class LLMClient:
     """Resilient Google Gemini LLM completions client."""
 
-    def __init__(self, max_retries: int = 2, initial_backoff: float = 1.0):
+    def __init__(self, max_retries: int = 3, initial_backoff: float = 2.0):
         self.max_retries = max_retries
         self.initial_backoff = initial_backoff
 
@@ -156,7 +166,16 @@ class LLMClient:
                     raise e
 
                 if attempt < self.max_retries:
-                    sleep_time = self.initial_backoff * (2 ** attempt)
+                    # Dynamically parse retryDelay from Gemini 429 quota failure
+                    import re
+                    retry_match = re.search(r'retry in ([\d\.]+)s', err_str) or re.search(r'"retrydelay":\s*"([\d\.]+)s"', err_str)
+                    if retry_match:
+                        sleep_time = float(retry_match.group(1)) + 1.5
+                    elif "429" in err_str or "resource_exhausted" in err_str:
+                        sleep_time = max(5.0 * (2 ** attempt), self.initial_backoff * (2 ** attempt))
+                    else:
+                        sleep_time = self.initial_backoff * (2 ** attempt)
+
                     logger.warning(
                         f"[LLMClient] Attempt {attempt + 1} failed: {e}. Retrying in {sleep_time:.1f}s..."
                     )
@@ -208,6 +227,14 @@ class LLMClient:
         }
         if system_instruction:
             payload["system_instruction"] = system_instruction
+
+        global _LAST_GEMINI_CALL_TIME
+        with _GEMINI_CALL_LOCK:
+            now = time.time()
+            elapsed = now - _LAST_GEMINI_CALL_TIME
+            if elapsed < _MIN_GEMINI_INTERVAL_SECONDS:
+                time.sleep(_MIN_GEMINI_INTERVAL_SECONDS - elapsed)
+            _LAST_GEMINI_CALL_TIME = time.time()
 
         session = _get_http_session()
         res = session.post(url, json=payload, timeout=45)

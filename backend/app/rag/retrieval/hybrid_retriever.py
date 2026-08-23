@@ -146,5 +146,28 @@ def hybrid_search(
     for chunk in fused_results:
         chunk["retrieval_agreement_score"] = agreement_score
     
-    # Return top_k
-    return fused_results[:top_k]
+    top_chunks = fused_results[:top_k] if top_k else fused_results
+    return expand_parent_context(top_chunks)
+
+
+def expand_parent_context(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Fetch parent chunk text for child chunks to prevent dropping legal conditions
+    and qualifiers that span across child chunk boundaries.
+    """
+    parent_ids = [c.get("parent_chunk_id") for c in chunks if c.get("parent_chunk_id")]
+    if not parent_ids:
+        return chunks
+    try:
+        from app.db.repositories.chunk_repo import get_chunks_by_ids
+        parent_map = get_chunks_by_ids(parent_ids)
+        for c in chunks:
+            p_id = c.get("parent_chunk_id")
+            if p_id and p_id in parent_map:
+                parent_chunk = parent_map[p_id]
+                p_text = parent_chunk.get("text")
+                if p_text and len(p_text) > len(c.get("text", "")):
+                    c["parent_text"] = p_text
+    except Exception as e:
+        logger.debug(f"[ParentExpansion] Note: {e}")
+    return chunks

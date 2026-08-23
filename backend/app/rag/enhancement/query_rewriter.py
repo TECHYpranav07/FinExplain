@@ -3,12 +3,16 @@ import re
 
 # Fast heuristic expansions (Zero LLM latency and zero token consumption)
 FAST_KEYWORD_EXPANSIONS = [
-    (re.compile(r"\b(?:interest\s*rate|rate\s*of\s*interest|roi|annual\s*rate)\b", re.IGNORECASE), "interest rate per annum fixed floating percentage benchmark"),
-    (re.compile(r"\b(?:processing\s*fee|admin\s*fee|origination\s*fee)\b", re.IGNORECASE), "processing fee upfront administrative charges"),
-    (re.compile(r"\b(?:documentation\s*fee|doc\s*fee|stamp\s*duty)\b", re.IGNORECASE), "documentation fee upfront administrative charges"),
-    (re.compile(r"\b(?:prepayment|foreclosure|early\s*closure|close\s*early)\b", re.IGNORECASE), "prepayment penalty foreclosure charges early repayment"),
-    (re.compile(r"\b(?:late\s*payment|delayed\s*payment|late\s*fee|miss\s*a\s*payment|bounce)\b", re.IGNORECASE), "late payment fee penalty overdue interest bounce charges"),
-    (re.compile(r"\b(?:tenure|repayment\s*period|duration|months)\b", re.IGNORECASE), "loan tenure repayment period duration months"),
+    (re.compile(r"\b(?:interest\s*rate|rate\s*of\s*interest|roi|annual\s*rate)\b", re.IGNORECASE), "interest rate per annum fixed floating percentage benchmark spread SBBR"),
+    (re.compile(r"\b(?:penal|penal\s*interest|delayed\s*payment|default\s*interest|overdue)\b", re.IGNORECASE), "penal interest rate overdue delayed payment default charges 6% per annum"),
+    (re.compile(r"\b(?:processing\s*fee|admin\s*fee|origination\s*fee)\b", re.IGNORECASE), "processing fee upfront administrative charges GST non-refundable schedule"),
+    (re.compile(r"\b(?:documentation\s*fee|doc\s*fee|stamp\s*duty)\b", re.IGNORECASE), "documentation fee stamp duty statutory legal charges"),
+    (re.compile(r"\b(?:prepayment|foreclosure|early\s*closure|close\s*early)\b", re.IGNORECASE), "prepayment penalty foreclosure charges early settlement 0.25% 12 EMIs lock-in waiver"),
+    (re.compile(r"\b(?:bounce|dishonour|ecs|cheque\s*return)\b", re.IGNORECASE), "cheque bounce charges ECS return dishonour penalty 750"),
+    (re.compile(r"\b(?:tenure|repayment\s*period|duration|months)\b", re.IGNORECASE), "loan tenure repayment period duration months schedule"),
+    (re.compile(r"\b(?:sanction|principal|sanctioned\s*amount|limit|facility\s*amount)\b", re.IGNORECASE), "sanctioned loan amount principal facility limit credit"),
+    (re.compile(r"\b(?:cooling|cooling-off|cancel|cancellation|look-up)\b", re.IGNORECASE), "cooling off period look up cancellation proportionate interest days"),
+    (re.compile(r"\b(?:collateral|mortgage|security|hypothecat|property)\b", re.IGNORECASE), "collateral security mortgage hypothecation property charge insurance"),
     (re.compile(r"\b(?:monthly\s*emi|emi|installment|instalment)\b", re.IGNORECASE), "monthly EMI installment repayment schedule amount"),
     (re.compile(r"\b(?:confidence\s*score|risk\s*score|risk\s*factor|risk\s*rating|how\s*risky)\b", re.IGNORECASE), "loan agreement risk factors penalty terms default conditions"),
 ]
@@ -64,10 +68,11 @@ def rewrite_query(query: str, intent: str = "general") -> str:
             matched_expansions.append(expansion)
 
     if matched_expansions:
-        # Combine unique keywords from matched expansions
+        # Combine unique keywords from matched expansions and append to original query
         combined = " ".join(matched_expansions)
         words = list(dict.fromkeys(combined.split()))
-        return " ".join(words[:10])
+        expansion = " ".join(words[:8])
+        return f"{q_clean} {expansion}"
 
     # No match — return original query (dense retriever handles semantics)
     return q_clean

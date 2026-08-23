@@ -1,5 +1,6 @@
 from app.db.supabase_client import get_supabase_client
 from typing import Optional, Dict, Any, List
+from postgrest.types import CountMethod
 import logging
 import uuid
 
@@ -217,7 +218,7 @@ def count_all_users() -> int:
     if not supabase:
         return 0
     try:
-        res = supabase.table("users").select("id", count="exact").execute()
+        res = supabase.table("users").select("id", count=CountMethod.exact).execute()
         return res.count if hasattr(res, "count") and res.count is not None else len(res.data or [])
     except Exception as e:
         logger.error(f"Error counting users: {e}")

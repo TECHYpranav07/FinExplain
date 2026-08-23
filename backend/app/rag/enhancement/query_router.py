@@ -34,7 +34,7 @@ class QueryTier(str, Enum):
 _FACTUAL_FIELD_PATTERNS = [
     (re.compile(r"\b(?:penal(?:ty)?\s*(?:interest|rate|charge)|late\s*(?:payment\s*)?(?:fee|charge|penalty))\b", re.I), "penal_interest"),
     (re.compile(r"\b(?:prepayment|foreclosure|early\s*(?:closure|repayment|settlement))\s*(?:fee|charge|penalty)?\b", re.I), "prepayment_fee"),
-    (re.compile(r"\b(?:processing\s*fee|admin(?:istrative)?\s*fee|origination\s*fee|fees?|charges?)\b", re.I), "processing_fee"),
+    (re.compile(r"\b(?:processing\s*(?:fee|charge)|admin(?:istrative)?\s*(?:fee|charge)|origination\s*fee|upfront\s*fee)\b", re.I), "processing_fee"),
     (re.compile(r"\b(?:documentation\s*(?:fee|charge)|doc\s*fee|stamp\s*duty)\b", re.I), "documentation_fee"),
     (re.compile(r"\b(?:bounce\s*charge|ecs\s*bounce|cheque\s*bounce|nach\s*bounce)\b", re.I), "bounce_charge"),
     (re.compile(r"\b(?:cooling[\s-]off\s*period)\b", re.I), "cooling_off_period"),
@@ -104,6 +104,11 @@ def classify_query_tier(query: str, intent: Optional[str] = None) -> tuple:
     """
     q = query.strip()
     q_lower = q.lower()
+
+    # ----- 0. Out-of-scope / Unanswerable domain check -----
+    from app.guardrails.answerability_guard import UNANSWERABLE_DOMAINS
+    if any(term in q_lower for term in UNANSWERABLE_DOMAINS):
+        return QueryTier.STANDARD_RAG, None
 
     # ----- 1. Deep / Audit / Risk / Comparison triggers -----
     if intent in ("review", "risk", "comparison"):

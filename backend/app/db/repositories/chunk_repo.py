@@ -2,6 +2,8 @@ from app.db.supabase_client import get_supabase_client
 from typing import List, Dict, Any, Optional
 import uuid
 import logging
+import re
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,20 @@ def get_chunks_by_document(document_id: str) -> List[Dict[str, Any]]:
     return response.data or []
 
 
+def get_chunks_by_ids(chunk_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+    """Batch fetch chunks by their IDs from Supabase for parent context expansion."""
+    if not chunk_ids:
+        return {}
+    try:
+        supabase = get_supabase_client()
+        clean_ids = [str(cid) for cid in set(chunk_ids) if cid]
+        response = supabase.table("chunks").select("*").in_("id", clean_ids).execute()
+        return {r["id"]: r for r in (response.data or []) if r.get("id")}
+    except Exception as e:
+        logger.debug(f"Failed to fetch chunks by ids: {e}")
+        return {}
+
+
 def bm25_search(query: str, product_ids: List[str], limit: int = 10) -> List[Dict[str, Any]]:
     """
     BM25 / Full-Text search executed on Supabase cloud PostgreSQL.
@@ -76,16 +92,72 @@ def bm25_search(query: str, product_ids: List[str], limit: int = 10) -> List[Dic
             if doc_ids:
                 chunk_query = chunk_query.in_("document_id", doc_ids)
             
-            # Use PostgreSQL text search on search_vector
-            remote_chunks = chunk_query.limit(limit * 5).execute().data or []
-            query_words = set(query.lower().split())
-            scored = []
+            # Full-text candidate retrieval with BM25 / TF-IDF rank scoring
+            remote_chunks = chunk_query.limit(limit * 8).execute().data or []
+            if not remote_chunks:
+                return []
+
+            # 1. Tokenize query and remove common stopwords
+            stop_words = {
+                "what", "is", "the", "a", "an", "of", "in", "for", "and", "or",
+                "to", "on", "at", "by", "my", "me", "i", "how", "much", "this",
+                "that", "are", "was", "be", "do", "does", "did", "will", "would",
+                "can", "could", "if", "there", "with", "from", "about", "any", "please",
+                "tell", "give", "show", "check", "loan", "under", "per", "agreement"
+            }
+            raw_query_words = [w.lower() for w in re.findall(r'\w+', query) if len(w) > 1]
+            query_terms = [w for w in raw_query_words if w not in stop_words] or raw_query_words
+
+            if not query_terms:
+                return remote_chunks[:limit]
+
+            # 2. Compute document frequencies (DF) for IDF calculation
+            num_docs = len(remote_chunks)
+            doc_token_lists = []
+            doc_lengths = []
+            term_doc_counts = {term: 0 for term in query_terms}
+
             for chunk in remote_chunks:
                 text = (chunk.get("text") or "").lower()
-                chunk_words = set(text.split())
-                overlap = len(query_words & chunk_words)
-                if overlap > 0:
-                    scored.append((overlap, chunk))
+                tokens = re.findall(r'\w+', text)
+                doc_token_lists.append(tokens)
+                doc_lengths.append(len(tokens))
+                token_set = set(tokens)
+                for term in query_terms:
+                    if term in token_set:
+                        term_doc_counts[term] += 1
+
+            avg_dl = sum(doc_lengths) / max(num_docs, 1) or 1.0
+            k1 = 1.5
+            b = 0.75
+
+            # 3. Score each chunk using BM25 formula + financial signal bonus
+            scored = []
+            for i, chunk in enumerate(remote_chunks):
+                tokens = doc_token_lists[i]
+                doc_len = doc_lengths[i]
+                tf_counts = {}
+                for t in tokens:
+                    tf_counts[t] = tf_counts.get(t, 0) + 1
+
+                score = 0.0
+                for term in query_terms:
+                    tf = tf_counts.get(term, 0)
+                    if tf == 0:
+                        continue
+                    df = term_doc_counts[term]
+                    idf = math.log(1.0 + (num_docs - df + 0.5) / (df + 0.5))
+                    bm25_term = idf * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doc_len / avg_dl)))
+                    score += bm25_term
+
+                if score > 0:
+                    # Boost table chunks and chunks with financial values
+                    text_raw = chunk.get("text", "")
+                    if re.search(r'[\d%₹$]|(?:percent|fee|charge|rate|p\.a\.|annual|schedule)', text_raw, re.I):
+                        score *= 1.2
+                    chunk["bm25_score"] = float(score)
+                    scored.append((score, chunk))
+
             scored.sort(key=lambda item: item[0], reverse=True)
             return [item[1] for item in scored[:limit]]
     except Exception as e:
