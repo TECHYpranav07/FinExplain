@@ -124,9 +124,8 @@ def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> Dict[str, Any]:
     """
-    Extract and validate authenticated user from Bearer token.
-    In development mode without credentials, provides a default demo user context
-    so internal tests run smoothly while enforcing strict user isolation when credentials exist.
+    Extract and validate authenticated user from Bearer JWT token.
+    Strictly enforces authorization: unauthenticated requests receive 401 Unauthorized.
     """
     if credentials and credentials.credentials:
         token = credentials.credentials
@@ -141,21 +140,13 @@ def get_current_user(
             }
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired authentication token",
+            detail="Invalid or expired authentication token. Please log in again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # In development mode, provide default user context if unauthenticated
-    if settings.is_development:
-        return {
-            "id": DEFAULT_DEMO_USER_ID,
-            "email": "demo@finexplain.ai",
-            "name": "Demo Auditor",
-        }
-
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Authentication required",
+        detail="Authentication required. Please provide a valid Authorization Bearer token.",
         headers={"WWW-Authenticate": "Bearer"},
     )
 

@@ -1,5 +1,5 @@
 from app.db.supabase_client import get_supabase_client
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import uuid
 from datetime import datetime
 
@@ -8,7 +8,7 @@ def store_feedback(
     query: str,
     answer: str,
     is_correct: bool,
-    correction: str = None
+    correction: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Store user feedback for future improvement."""
     supabase = get_supabase_client()

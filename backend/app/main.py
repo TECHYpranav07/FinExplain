@@ -71,6 +71,11 @@ async def startup_warmup():
     startup_logger.info("🚀 FinExplain startup warm-up complete")
 
 
+from app.core.security_middleware import SecurityMiddleware
+
+# Enable Security & DDoS Rate Limiting Middleware
+app.add_middleware(SecurityMiddleware)
+
 # Enable CORS with origins loaded strictly from .env
 _cors_origins = settings.cors_origins_list
 if not _cors_origins:
