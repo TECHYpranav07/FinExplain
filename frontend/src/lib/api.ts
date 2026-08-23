@@ -383,4 +383,65 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   getMe: () => request<{ user: AuthUser }>("/api/v1/auth/me"),
+
+  // Admin Panel
+  adminStats: () => request<Record<string, number>>("/api/v1/admin/stats"),
+  adminUsers: (params?: { limit?: number; offset?: number; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
+    if (params?.search) q.set("search", params.search);
+    const qs = q.toString();
+    return request<{ users: any[]; total: number }>(`/api/v1/admin/users${qs ? `?${qs}` : ""}`);
+  },
+  adminUserDetail: (id: string) => request<any>(`/api/v1/admin/users/${id}`),
+  adminUpdateRole: (id: string, role: string) =>
+    request<{ message: string }>(`/api/v1/admin/users/${id}/role`, {
+      method: "PUT",
+      body: JSON.stringify({ role }),
+    }),
+  adminDeleteUser: (id: string) =>
+    request<{ message: string }>(`/api/v1/admin/users/${id}`, { method: "DELETE" }),
+  adminDocuments: (params?: { limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
+    const qs = q.toString();
+    return request<{ documents: any[]; total: number }>(`/api/v1/admin/documents${qs ? `?${qs}` : ""}`);
+  },
+  adminDeleteDocument: (id: string) =>
+    request<{ message: string }>(`/api/v1/admin/documents/${id}`, { method: "DELETE" }),
+  adminProducts: (params?: { limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
+    const qs = q.toString();
+    return request<{ products: any[]; total: number }>(`/api/v1/admin/products${qs ? `?${qs}` : ""}`);
+  },
+  adminDeleteProduct: (id: string) =>
+    request<{ message: string }>(`/api/v1/admin/products/${id}`, { method: "DELETE" }),
+  adminHitlTasks: (params?: { limit?: number; offset?: number; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
+    if (params?.status) q.set("status", params.status);
+    const qs = q.toString();
+    return request<{ tasks: any[]; total: number }>(`/api/v1/admin/hitl-tasks${qs ? `?${qs}` : ""}`);
+  },
+  adminResolveHitl: (taskId: string, data: { resolution: string; notes?: string }) =>
+    request<{ message: string }>(`/api/v1/admin/hitl-tasks/${taskId}/resolve`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  adminFeedback: (params?: { limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
+    const qs = q.toString();
+    return request<{ feedback: any[]; total: number }>(`/api/v1/admin/feedback${qs ? `?${qs}` : ""}`);
+  },
+  adminHealth: () =>
+    request<{ status: string; environment: string; checks: Record<string, { status: string; detail: string }> }>(
+      "/api/v1/admin/health"
+    ),
 };
