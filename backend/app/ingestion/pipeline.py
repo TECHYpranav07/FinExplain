@@ -3,7 +3,7 @@ import uuid
 from typing import Dict, Any, Optional
 import io
 
-from app.ingestion.parser import parse_pdf
+from app.ingestion.parser import parse_document, parse_pdf
 from app.ingestion.chunker import chunk_hierarchical
 from app.external.pinecone_client import get_pinecone_index
 from app.db.repositories.document_repo import (
@@ -55,8 +55,8 @@ def process_document(
     product_name = product.get("name", "")
     resolved_user_id = user_id or product.get("user_id", "")
 
-    # Step 2: Parse PDF (now returns sections and document metadata)
-    parsed = parse_pdf(file_bytes)
+    # Step 2: Parse document (PDF, DOCX, XLSX, CSV) using Universal Document Schema
+    parsed = parse_document(file_bytes, filename=file_name)
     full_text = parsed["full_text"]
     pages = parsed["pages"]
     total_pages = parsed["total_pages"]
@@ -186,6 +186,33 @@ def process_document(
         # Step 9: Insert chunks into Supabase
         inserted_chunks = insert_chunks(db_chunks)
         
+        # Step 9b: Extract and store structured LoanFacts at ingestion time (FinExplain V2)
+        try:
+            from app.rag.extraction.fact_extractor import extract_structured_facts
+            from app.rag.extraction.structured_fact_store import store_facts
+            
+            # Extract facts from parent/child chunks once during upload
+            fact_chunks = [
+                {
+                    "text": c["text"],
+                    "page_number": c["page_num"],
+                    "section_title": c.get("section_title") or "",
+                    "chunk_id": c.get("chunk_id", f"{document_id}_{idx}"),
+                    "document_name": file_name,
+                    "product_name": product_name,
+                }
+                for idx, c in enumerate(parents if parents else children)
+            ]
+            extracted_facts = extract_structured_facts(
+                fact_chunks,
+                product_name=product_name,
+                document_name=file_name
+            )
+            store_facts(extracted_facts, product_id=product_id, document_id=document_id)
+        except Exception as fe:
+            import logging
+            logging.getLogger(__name__).warning(f"Ingestion fact extraction non-fatal warning: {fe}")
+
         # Step 10: Update document status to 'indexed'
         update_document_status(document_id, "indexed")
         

@@ -12,6 +12,7 @@ import uuid
 import time
 import base64
 import json
+import secrets
 import logging
 from app.auth.jwt_handler import (
     hash_password,
@@ -20,6 +21,7 @@ from app.auth.jwt_handler import (
     decode_access_token,
 )
 from app.core.config import settings
+from app.services.email_service import send_brevo_otp_email
 
 from app.db.repositories.user_repo import (
     ensure_user_exists,
@@ -32,6 +34,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Active user memory store for runtime caching (synced with Supabase)
 USERS_DB: Dict[str, Dict[str, Any]] = {}
+
+# Password reset OTP in-memory store: { email: { otp, created_at, expires_at, resend_available_at, used } }
+PASSWORD_RESET_OTPS: Dict[str, Dict[str, Any]] = {}
 
 
 class RegisterRequest(BaseModel):
@@ -52,6 +57,27 @@ class GoogleAuthRequest(BaseModel):
     google_id: Optional[str] = None
     picture: Optional[str] = None
 
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ForgotPasswordResponse(BaseModel):
+    status: str = "ok"
+    message: str
+    resend_cooldown_seconds: int = 120
+    expires_in_seconds: int = 300
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    otp: str
+    new_password: str
+
+
+class ResetPasswordResponse(BaseModel):
+    status: str = "ok"
+    message: str
 
 
 class AuthResponse(BaseModel):
@@ -363,4 +389,132 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
             "role": payload.get("role", "user"),
             "picture": payload.get("picture"),
         }
+    }
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+async def forgot_password(req: ForgotPasswordRequest):
+    """
+    Generate a 6-digit OTP code valid for 5 minutes and send it via Brevo email.
+    Enforces a 2-minute cooldown before a new OTP can be requested.
+    If resent, the old OTP is invalidated and replaced by the new OTP.
+    """
+    email_key = req.email.lower().strip()
+    if not email_key or "@" not in email_key:
+        raise HTTPException(status_code=400, detail="Please enter a valid email address.")
+
+    now = time.time()
+    existing_otp_entry = PASSWORD_RESET_OTPS.get(email_key)
+
+    # Enforce 2-minute (120s) cooldown before allowing resend
+    if existing_otp_entry and not existing_otp_entry.get("used"):
+        resend_avail = existing_otp_entry.get("resend_available_at", 0)
+        if now < resend_avail:
+            wait_seconds = int(resend_avail - now)
+            raise HTTPException(
+                status_code=429,
+                detail=f"Please wait {wait_seconds} seconds before requesting a new OTP."
+            )
+
+    # Check if user exists in DB or memory to extract name (graceful fallback if new)
+    user_record = get_user_by_email(email_key) or USERS_DB.get(email_key)
+    user_name = user_record.get("full_name") or user_record.get("name") if user_record else None
+
+    # Generate cryptographically secure 6-digit OTP code
+    otp_code = f"{secrets.randbelow(900000) + 100000}"
+
+    # Invalidate previous OTP and store the new OTP with 5-minute expiry & 2-minute cooldown
+    PASSWORD_RESET_OTPS[email_key] = {
+        "otp": otp_code,
+        "created_at": now,
+        "expires_at": now + 300,            # 5 minutes (300 seconds)
+        "resend_available_at": now + 120,    # 2 minutes (120 seconds)
+        "used": False,
+    }
+
+    # Dispatch email via Brevo
+    try:
+        await send_brevo_otp_email(email_key, otp_code, user_name)
+    except Exception as email_err:
+        logger.error(f"Error dispatching OTP email to {email_key}: {email_err}")
+
+    return {
+        "status": "ok",
+        "message": "A 6-digit verification code has been sent to your email address.",
+        "resend_cooldown_seconds": 120,
+        "expires_in_seconds": 300,
+    }
+
+
+@router.post("/reset-password", response_model=ResetPasswordResponse)
+async def reset_password(req: ResetPasswordRequest):
+    """
+    Validate the 6-digit OTP code and update the user's account password.
+    Rejects expired codes (>5 min), used codes, or mismatching codes.
+    """
+    email_key = req.email.lower().strip()
+    submitted_otp = req.otp.strip()
+
+    if not email_key or "@" not in email_key:
+        raise HTTPException(status_code=400, detail="Invalid email address.")
+
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters.")
+
+    now = time.time()
+    otp_entry = PASSWORD_RESET_OTPS.get(email_key)
+
+    if not otp_entry:
+        raise HTTPException(
+            status_code=400,
+            detail="No active password reset request found. Please request a verification code."
+        )
+
+    if otp_entry.get("used"):
+        raise HTTPException(
+            status_code=400,
+            detail="This verification code has already been used. Please request a new code."
+        )
+
+    if now > otp_entry.get("expires_at", 0):
+        raise HTTPException(
+            status_code=400,
+            detail="Verification code has expired (valid for 5 minutes). Please request a new code."
+        )
+
+    if otp_entry.get("otp") != submitted_otp:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid 6-digit verification code. Please check your email and try again."
+        )
+
+    # Mark OTP as used immediately
+    otp_entry["used"] = True
+
+    # Hash new password
+    hashed_pwd = hash_password(req.new_password)
+
+    # Update in Supabase PostgreSQL database
+    user_db = get_user_by_email(email_key)
+    if user_db:
+        update_user_password(user_db["id"], hashed_pwd)
+    else:
+        # If user only exists in runtime memory or needs provisioning
+        user_id = USERS_DB.get(email_key, {}).get("id") or str(uuid.uuid4())
+        ensure_user_exists(
+            user_id=user_id,
+            email=email_key,
+            full_name=email_key.split("@")[0].title(),
+            hashed_password=hashed_pwd,
+        )
+
+    # Update in-memory runtime cache
+    if email_key in USERS_DB:
+        USERS_DB[email_key]["hashed_password"] = hashed_pwd
+
+    logger.info(f"Successfully reset password for user: {email_key}")
+
+    return {
+        "status": "ok",
+        "message": "Your password has been reset successfully. Please log in with your new password.",
     }

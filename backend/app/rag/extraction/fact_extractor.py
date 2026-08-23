@@ -9,7 +9,9 @@ the numerical / deterministic decision path.
 
 import json
 import logging
+import re
 from typing import List, Dict, Any, Optional
+
 
 from app.core.loan_categories import LoanFact, LOAN_CATEGORIES, EvidenceStatus
 from app.rag.generation.generator import client
@@ -118,19 +120,27 @@ def extract_structured_facts(
             max_tokens=2048,
         )
         raw = response.choices[0].message.content.strip()
+        # Robust JSON array extraction (handles markdown fences, prefixes, etc.)
+        match = re.search(r'\[\s*\{.*\}\s*\]', raw, re.DOTALL)
 
-        # Try to parse JSON (handle markdown fences if present)
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-            raw = raw.strip()
+        if match:
+            parsed = json.loads(match.group(0))
+        elif "```" in raw:
+            parts = raw.split("```")
+            block = parts[1] if len(parts) > 1 else raw
+            if block.startswith("json"):
+                block = block[4:]
+            parsed = json.loads(block.strip())
+        else:
+            parsed = json.loads(raw)
 
-        parsed: list = json.loads(raw)
+        if not isinstance(parsed, list):
+            parsed = [parsed]
 
     except Exception as e:
-        logger.warning(f"[FactExtractor] LLM extraction failed: {e}")
+        logger.warning(f"[FactExtractor] LLM extraction failed: {e} | Raw preview: {raw[:150] if 'raw' in locals() else 'None'}")
         return []
+
 
     # Convert raw dicts into LoanFact models
     facts: List[LoanFact] = []

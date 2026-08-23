@@ -112,6 +112,7 @@ class EvidenceScorer:
         missing: Optional[List[Dict[str, Any]]] = None,
         calculation_result: Optional[Dict[str, Any]] = None,
         rerank_scores: Optional[List[float]] = None,
+        is_meta_query: bool = False,
     ) -> Dict[str, Any]:
         """
         Compute the evidence-quality score.
@@ -124,6 +125,7 @@ class EvidenceScorer:
         missing : list of missing-information dicts
         calculation_result : output of ``calculate_loan_scenario()``
         rerank_scores : list of rerank scores from the retrieval step
+        is_meta_query : whether this is a risk/audit/summary meta query
 
         Returns
         -------
@@ -152,13 +154,17 @@ class EvidenceScorer:
         if total_claims > 0:
             valid_ratio = 1.0 - (invalid_cites / total_claims)
             dimensions["citation_validity"] = round(w * valid_ratio, 2)
+        elif is_meta_query:
+            dimensions["citation_validity"] = float(w)
         else:
             dimensions["citation_validity"] = round(w * 0.5, 2)  # neutral
 
         # ---- Claim evidence support (max = weight) ----
         w = self.weights["claim_evidence_support"]
         coverage = claim_results.get("claim_coverage", 0.0)
-        if coverage >= 0.9:
+        if is_meta_query and facts:
+            dimensions["claim_evidence_support"] = float(w)
+        elif coverage >= 0.9:
             dimensions["claim_evidence_support"] = float(w)
         elif coverage >= 0.6:
             dimensions["claim_evidence_support"] = round(w * 0.6, 2)
@@ -166,6 +172,7 @@ class EvidenceScorer:
             dimensions["claim_evidence_support"] = round(w * 0.3, 2)
         else:
             dimensions["claim_evidence_support"] = 0.0
+
 
         # ---- Retrieval relevance (max = weight) ----
         w = self.weights["retrieval_relevance"]

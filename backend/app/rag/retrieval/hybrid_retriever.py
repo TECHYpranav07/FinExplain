@@ -1,7 +1,58 @@
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Dict, Any, Optional, Tuple
+from collections import defaultdict
+
 from app.rag.retrieval.dense_retriever import vector_search
 from app.rag.retrieval.sparse_retriever import bm25_search
-from typing import List, Dict, Any, Optional
-from collections import defaultdict
+
+logger = logging.getLogger(__name__)
+
+# Shared thread pool for parallel retrieval (2 workers: dense + sparse)
+_retrieval_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="retrieval")
+
+
+def compute_retrieval_agreement(
+    dense_results: List[Dict[str, Any]],
+    sparse_results: List[Dict[str, Any]],
+    top_n: int = 3,
+) -> float:
+    """
+    Compute rank agreement between Dense (semantic) and BM25 (keyword) retrieval.
+    
+    Returns a score between 0.0 and 1.0:
+    - 1.0: Perfect agreement (both search engines agree on top ranked passages)
+    - 0.5+: High agreement -> Safe to skip cross-encoder reranking
+    - <0.5: Low agreement -> Cross-encoder reranking recommended to resolve divergence
+    """
+    if not dense_results or not sparse_results:
+        return 0.0
+
+    dense_top = [
+        c.get("id") or c.get("chunk_id") or c.get("embedding_id")
+        for c in dense_results[:top_n]
+        if c.get("id") or c.get("chunk_id") or c.get("embedding_id")
+    ]
+    sparse_top = [
+        c.get("id") or c.get("chunk_id") or c.get("embedding_id")
+        for c in sparse_results[:top_n]
+        if c.get("id") or c.get("chunk_id") or c.get("embedding_id")
+    ]
+
+    if not dense_top or not sparse_top:
+        return 0.0
+
+    # Top-1 exact match gives a high baseline
+    top1_match = 1.0 if dense_top[0] == sparse_top[0] else 0.0
+    
+    # Overlap among top-N
+    set_dense = set(dense_top)
+    set_sparse = set(sparse_top)
+    overlap = len(set_dense & set_sparse) / max(len(set_dense | set_sparse), 1)
+
+    agreement = (0.6 * top1_match) + (0.4 * overlap)
+    return round(agreement, 3)
+
 
 def reciprocal_rank_fusion(
     dense_results: List[Dict[str, Any]], 
@@ -49,24 +100,51 @@ def reciprocal_rank_fusion(
     
     return results[:top_k] if top_k else results
 
+
 def hybrid_search(
     query: str,
     product_ids: List[str],
-    top_k: int = 20,
+    top_k: int = 15,
     user_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Perform hybrid search: Dense (Pinecone) + Sparse (BM25) with RRF fusion.
     Returns top_k fused results filtered by user_id and product_ids.
+
+    Dense and sparse retrieval run in parallel via a shared thread pool.
+    Theoretical latency = max(dense, sparse) instead of dense + sparse.
     """
-    # Get dense results (top 30)
-    dense_results = vector_search(query, product_ids, top_k=30, user_id=user_id)
-    
-    # Get sparse results (top 30)
-    sparse_results = bm25_search(query, product_ids, limit=30)
-    
+    dense_results = []
+    sparse_results = []
+
+    # Submit both retrievals in parallel
+    future_dense = _retrieval_pool.submit(
+        vector_search, query, product_ids, top_k=15, user_id=user_id
+    )
+    future_sparse = _retrieval_pool.submit(
+        bm25_search, query, product_ids, limit=15
+    )
+
+    # Collect results (each has its own error handling internally)
+    try:
+        dense_results = future_dense.result(timeout=30)
+    except Exception as e:
+        logger.warning(f"[HybridSearch] Dense retrieval failed: {e}")
+
+    try:
+        sparse_results = future_sparse.result(timeout=30)
+    except Exception as e:
+        logger.warning(f"[HybridSearch] Sparse retrieval failed: {e}")
+
+    # Compute Dense/BM25 rank agreement score
+    agreement_score = compute_retrieval_agreement(dense_results, sparse_results)
+
     # Fuse using RRF
     fused_results = reciprocal_rank_fusion(dense_results, sparse_results)
+    
+    # Annotate agreement score onto results
+    for chunk in fused_results:
+        chunk["retrieval_agreement_score"] = agreement_score
     
     # Return top_k
     return fused_results[:top_k]

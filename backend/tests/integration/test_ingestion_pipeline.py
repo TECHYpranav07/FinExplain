@@ -27,6 +27,7 @@ def test_ingestion_pipeline_with_mocked_stores():
 
     with patch("app.ingestion.pipeline.get_document_by_hash", return_value=None), \
          patch("app.ingestion.pipeline.get_product_by_id", return_value=mock_product), \
+         patch("app.ingestion.pipeline.parse_document", return_value=mock_parsed), \
          patch("app.ingestion.pipeline.parse_pdf", return_value=mock_parsed), \
          patch("app.ingestion.pipeline.create_document", return_value=mock_doc), \
          patch("app.ingestion.embedder.generate_embeddings", return_value=[[0.1] * 384]), \
@@ -57,6 +58,7 @@ def test_ingestion_pipeline_marks_failed_on_error():
 
     with patch("app.ingestion.pipeline.get_document_by_hash", return_value=None), \
          patch("app.ingestion.pipeline.get_product_by_id", return_value={"id": "1", "name": "Prod"}), \
+         patch("app.ingestion.pipeline.parse_document", return_value=mock_parsed), \
          patch("app.ingestion.pipeline.parse_pdf", return_value=mock_parsed), \
          patch("app.ingestion.pipeline.create_document", return_value=mock_doc), \
          patch("app.ingestion.pipeline.chunk_hierarchical", side_effect=ValueError("Chunking error")), \

@@ -14,6 +14,7 @@ import {
 } from "@/components/finex/primitives";
 import { FormattedMarkdown } from "@/components/finex/FormattedMarkdown";
 import { InlineMarkdown, sanitizeLenderQuestion } from "@/pages/ReviewPage";
+import { downloadPdf, type PdfSection } from "@/lib/pdfExporter";
 
 export function BeforeConfirmationPage() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
@@ -79,17 +80,74 @@ export function BeforeConfirmationPage() {
   };
 
   const handleDownloadBrief = () => {
-    const text = getGuideMarkdown();
-    if (!text) return;
-    const blob = new Blob([text], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `FinExplain_PreConfirmation_Checklist_${Date.now()}.md`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    const rawMd = getGuideMarkdown();
+    if (!rawMd && !result) return;
+
+    const sections: PdfSection[] = [];
+
+    // 1. Executive Summary
+    if (result?.checklist_text) {
+      sections.push({
+        title: "1. Executive Pre-Signing Summary",
+        content: result.checklist_text.slice(0, 500),
+      });
+    }
+
+    // 2. Interactive Pre-Signing Checklist
+    const chk = result?.checklist || [];
+    if (chk.length > 0) {
+      sections.push({
+        title: "2. Contractual Verification Checklist",
+        table: {
+          headers: ["Item / Clause", "Status", "Contract Reference & Guidance"],
+          rows: chk.map((item) => [
+            String(item.title || item.item || "Clause"),
+            item.marker === "✓"
+              ? "Verified"
+              : item.marker === "⚠"
+                ? "Caution"
+                : item.marker === "🚨"
+                  ? "Conflict"
+                  : "Pending",
+            String(item.action_guidance || item.value || item.status || "Refer to agreement clause"),
+          ]),
+        },
+      });
+    }
+
+    // 3. Questions to Ask Lender
+    const questions = result?.questions || chk.map((c) => c.suggested_question).filter(Boolean) as string[];
+    if (questions.length > 0) {
+      sections.push({
+        title: "3. Essential Lender Negotiation & Clarification Questions",
+        bulletPoints: questions.map(
+          (q, idx) => `${idx + 1}. ${sanitizeLenderQuestion(q)}`
+        ),
+      });
+    }
+
+    // 4. Red Flag Warnings
+    const flags = result?.risk_factors || [];
+    if (flags.length > 0) {
+      sections.push({
+        title: "4. Critical Red Flags & Unilateral Clauses",
+        bulletPoints: flags.map((f) => `[${f.severity || "WARNING"}] ${f.title || f.category}: ${f.description || f.impact || ""}`),
+      });
+    }
+
+    downloadPdf({
+      filename: `FinExplain_PreConfirmation_Brief_${Date.now()}.pdf`,
+      title: "FinExplain Pre-Confirmation Borrower Brief",
+      subtitle:
+        "Regulatory Disclosure Audit, Critical Lender Inquiries, & Clause Verification Matrix",
+      metadata: {
+        "Audited Facility": selectedProducts.join(", ") || "Selected Credit Agreement",
+        "Verified Checklist Items": `${verifiedCount} of ${totalItems} items`,
+        "Flagged Discrepancies": String(conflictCount),
+        "Caution Points": String(cautionCount),
+      },
+      sections,
+    });
   };
 
   const checklist: ChecklistItem[] = result?.checklist || [];
@@ -372,8 +430,8 @@ export function BeforeConfirmationPage() {
                 onClick={handleDownloadBrief}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface px-3 py-1.5 text-xs font-medium text-white/80 hover:text-white hover:border-white/20 transition-colors"
               >
-                <i className="fa-solid fa-download text-[11px]" />
-                <span>Download .MD</span>
+                <i className="fa-solid fa-file-pdf text-[11px] text-rose-400" />
+                <span>Download PDF</span>
               </button>
             </div>
           </div>
@@ -480,113 +538,118 @@ export function BeforeConfirmationPage() {
                     const action = item.action_guidance;
                     const question = item.suggested_question;
                     const evidence = item.evidence;
+                    const cleanQ = sanitizeLenderQuestion(question);
 
                     return (
                       <div
                         key={originalIdx}
-                        className={`rounded-xl border p-4.5 transition-all ${
+                        className={`rounded-2xl border p-4 sm:p-5 transition-all w-full max-w-full overflow-hidden break-words [overflow-wrap:anywhere] ${
                           isChecked
-                            ? "border-emerald-500/30 bg-emerald-950/10 opacity-80"
-                            : "border-white/10 bg-surface hover:border-white/20"
+                            ? "border-emerald-500/30 bg-emerald-950/10 opacity-75"
+                            : "border-white/10 bg-surface hover:border-white/20 shadow-sm"
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex items-start gap-3.5 flex-1">
-                            {/* Checkbox Button */}
-                            <button
-                              type="button"
-                              onClick={() => toggleCheckItem(originalIdx)}
-                              className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-colors ${
-                                isChecked
-                                  ? "border-emerald-500 bg-emerald-500 text-black"
-                                  : "border-white/30 bg-surface-2 hover:border-white"
-                              }`}
-                              title={isChecked ? "Mark as unverified" : "Mark as verified with lender"}
-                            >
-                              {isChecked && <i className="fa-solid fa-check text-xs font-bold" />}
-                            </button>
+                        <div className="flex items-start gap-3.5 w-full">
+                          {/* Checkbox Button */}
+                          <button
+                            type="button"
+                            onClick={() => toggleCheckItem(originalIdx)}
+                            className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-lg border transition-all ${
+                              isChecked
+                                ? "border-emerald-500 bg-emerald-500 text-black shadow-sm"
+                                : "border-white/30 bg-surface-2 hover:border-white hover:bg-surface-3"
+                            }`}
+                            title={isChecked ? "Mark as unverified" : "Mark as verified with lender"}
+                          >
+                            {isChecked && <i className="fa-solid fa-check text-xs font-bold" />}
+                          </button>
 
-                            <div className="space-y-1.5 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className={`text-sm font-semibold ${isChecked ? "text-white/70 line-through" : "text-white"}`}>
-                                  {title}
+                          {/* Card Content Stack */}
+                          <div className="space-y-3 flex-1 min-w-0">
+                            {/* Header row: Title & Badges */}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={`text-sm font-bold leading-snug break-words ${isChecked ? "text-white/60 line-through" : "text-white"}`}>
+                                {title}
+                              </span>
+                              {item.value && item.value !== "Not Specified" && (
+                                <span className="font-mono text-xs font-semibold text-primary-light bg-primary/10 px-2.5 py-0.5 rounded-md border border-primary/20">
+                                  {item.value}
                                 </span>
-                                {item.value && item.value !== "Not Specified" && (
-                                  <span className="font-mono text-xs text-white/90 bg-surface-3 px-2 py-0.5 rounded border border-white/10">
-                                    {item.value}
-                                  </span>
-                                )}
-                                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground bg-surface-2 px-2 py-0.5 rounded border border-white/5">
-                                  {category}
-                                </span>
-                                {item.marker === "✓" && (
-                                  <Badge tone="success">✓ Verified</Badge>
-                                )}
-                                {item.marker === "⚠" && (
-                                  <Badge tone="warning">⚠ Caution</Badge>
-                                )}
-                                {item.marker === "?" && (
-                                  <Badge tone="danger">? Omission</Badge>
-                                )}
-                                {item.marker === "🚨" && (
-                                  <Badge tone="solid">🚨 Conflict</Badge>
-                                )}
-                                <SeverityBadge level={priority} />
-                              </div>
-
-                              {/* Action Guidance */}
-                              {action && (
-                                <p className="text-xs text-white/90 leading-relaxed">
-                                  <strong className="text-emerald-400">Action:</strong> {action}
-                                </p>
                               )}
-
-                              {/* Condition details if any */}
-                              {condition && (
-                                <p className="text-xs text-muted-foreground leading-relaxed">
-                                  <strong className="text-amber-400">Clause Terms:</strong> {condition}
-                                </p>
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-surface-2 px-2 py-0.5 rounded border border-white/5">
+                                {category}
+                              </span>
+                              {item.marker === "✓" && (
+                                <Badge tone="success">✓ Verified</Badge>
                               )}
-
-                              {/* Evidence Citation */}
-                              {evidence && (evidence.document || evidence.page) && (
-                                <div className="flex items-center gap-2 pt-1">
-                                  <EvidenceBadge status={item.status || "EXPLICIT"} />
-                                  <span className="text-[11px] text-muted-foreground font-mono">
-                                    Source: {evidence.document || "Document"} {evidence.page ? `• Page ${evidence.page}` : ""}
-                                  </span>
-                                </div>
+                              {item.marker === "⚠" && (
+                                <Badge tone="warning">⚠ Caution</Badge>
                               )}
-
-                              {/* Suggested Question Box */}
-                              {question && (
-                                <div className="mt-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5 text-xs">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex items-start gap-2">
-                                      <i className="fa-solid fa-comment-dots text-amber-400 mt-0.5" />
-                                      <div>
-                                        <span className="font-semibold text-amber-300 block mb-0.5">
-                                          Ask Lender in Writing:
-                                        </span>
-                                        <span className="text-white/90 italic">"{sanitizeLenderQuestion(question)}"</span>
-                                      </div>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleCopySingleQuestion(sanitizeLenderQuestion(question), originalIdx)}
-                                      className="flex-shrink-0 text-[11px] text-amber-400/80 hover:text-amber-300 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20 transition-colors"
-                                      title="Copy question text"
-                                    >
-                                      {copiedQuestionIdx === originalIdx ? (
-                                        <span className="text-emerald-400 font-bold">✓ Copied</span>
-                                      ) : (
-                                        <span>Copy</span>
-                                      )}
-                                    </button>
-                                  </div>
-                                </div>
+                              {item.marker === "?" && (
+                                <Badge tone="danger">? Omission</Badge>
                               )}
+                              {item.marker === "🚨" && (
+                                <Badge tone="solid">🚨 Conflict</Badge>
+                              )}
+                              <SeverityBadge level={priority} />
                             </div>
+
+                            {/* Action Guidance */}
+                            {action && (
+                              <div className="text-xs text-white/90 leading-relaxed bg-white/[0.02] p-2.5 rounded-lg border border-white/5">
+                                <strong className="text-emerald-400 font-semibold mr-1">
+                                  <i className="fa-solid fa-arrow-right-long mr-1 text-[11px]" />
+                                  Action:
+                                </strong>
+                                <span>{action}</span>
+                              </div>
+                            )}
+
+                            {/* Condition / Clause terms */}
+                            {condition && (
+                              <div className="text-xs text-white/80 leading-relaxed bg-amber-500/5 p-2.5 rounded-lg border border-amber-500/15">
+                                <strong className="text-amber-300 font-semibold mr-1">
+                                  <i className="fa-solid fa-triangle-exclamation mr-1 text-[11px]" />
+                                  Clause Terms:
+                                </strong>
+                                <span>{condition}</span>
+                              </div>
+                            )}
+
+                            {/* Evidence Citation & Source */}
+                            {evidence && (evidence.document || evidence.page) && (
+                              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                                <EvidenceBadge status={item.status || "EXPLICIT"} />
+                                <span className="inline-flex items-center gap-1.5 rounded bg-white/5 border border-white/10 px-2 py-0.5 text-[11px] font-mono text-white/70">
+                                  <i className="fa-regular fa-bookmark text-[10px] text-primary" />
+                                  {evidence.document || "Document"} {evidence.page ? `• Page ${evidence.page}` : ""}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Suggested Lender Question Box */}
+                            {cleanQ && (
+                              <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3.5 space-y-2 text-xs">
+                                <div className="flex items-center justify-between gap-2 border-b border-amber-500/20 pb-1.5">
+                                  <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                                    <i className="fa-solid fa-comment-dots text-xs" />
+                                    <span>Ask Lender in Writing:</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopySingleQuestion(cleanQ, originalIdx)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-300 hover:text-amber-200 px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 transition-colors"
+                                    title="Copy question to clipboard"
+                                  >
+                                    <i className={`fa-solid ${copiedQuestionIdx === originalIdx ? "fa-check text-emerald-400" : "fa-copy"} text-[10px]`} />
+                                    <span>{copiedQuestionIdx === originalIdx ? "Copied!" : "Copy"}</span>
+                                  </button>
+                                </div>
+                                <p className="text-white/95 italic leading-relaxed break-words bg-black/20 p-2.5 rounded-lg border border-white/5">
+                                  "{cleanQ}"
+                                </p>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -608,46 +671,53 @@ export function BeforeConfirmationPage() {
                   No specific lender inquiries generated.
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 w-full">
                   {questionItems.map(({ item, originalIdx }, qIdx) => {
                     const cleanQ = sanitizeLenderQuestion(item.suggested_question || "");
+                    const title = item.title || item.category || "Loan Clause";
+                    const action = item.action_guidance;
                     return (
                       <div
                         key={originalIdx}
-                        className="rounded-xl border border-white/10 bg-surface-2 p-4.5 transition-all hover:border-white/20"
+                        className="rounded-2xl border border-white/10 bg-surface-2 p-4 sm:p-5 space-y-3.5 transition-all hover:border-white/20 shadow-sm w-full max-w-full overflow-hidden break-words [overflow-wrap:anywhere]"
                       >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="space-y-2 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-surface-3 font-mono text-xs font-bold text-white">
-                                {(qIdx + 1).toString().padStart(2, "0")}
-                              </span>
-                              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                Regarding {item.title || item.category || "Loan Clause"}
-                              </h4>
-                              <SeverityBadge level={item.priority || "MEDIUM"} />
-                            </div>
-
-                            <p className="text-sm font-medium text-white pl-8 leading-relaxed italic">
-                              "{cleanQ}"
-                            </p>
-
-                            {item.action_guidance && (
-                              <p className="text-xs text-muted-foreground pl-8">
-                                <strong className="text-white/70">Why this matters:</strong> {item.action_guidance}
-                              </p>
-                            )}
+                        {/* Question Card Header */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-2.5">
+                          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-surface-3 font-mono text-xs font-bold text-white shrink-0 border border-white/10">
+                              {(qIdx + 1).toString().padStart(2, "0")}
+                            </span>
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-white truncate">
+                              Regarding {title}
+                            </h4>
+                            <SeverityBadge level={item.priority || "MEDIUM"} />
                           </div>
 
                           <button
                             type="button"
                             onClick={() => handleCopySingleQuestion(cleanQ, originalIdx)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10 transition-colors flex-shrink-0"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10 hover:border-white/20 transition-colors shrink-0"
                           >
                             <i className={`fa-solid ${copiedQuestionIdx === originalIdx ? "fa-check text-emerald-400" : "fa-copy"} text-[11px]`} />
                             <span>{copiedQuestionIdx === originalIdx ? "Copied!" : "Copy Question"}</span>
                           </button>
                         </div>
+
+                        {/* Prompt Body Box */}
+                        <div className="rounded-xl border border-primary/25 bg-primary/5 p-3.5 sm:p-4 text-sm font-medium text-white leading-relaxed break-words shadow-inner">
+                          <p className="italic">"{cleanQ}"</p>
+                        </div>
+
+                        {/* Rationale & Action Guidance */}
+                        {action && (
+                          <div className="rounded-lg bg-white/[0.02] border border-white/5 p-3 text-xs text-white/80 leading-relaxed">
+                            <strong className="text-emerald-400 font-semibold mr-1">
+                              <i className="fa-solid fa-circle-info mr-1 text-[11px]" />
+                              Why this matters:
+                            </strong>
+                            <span>{action}</span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

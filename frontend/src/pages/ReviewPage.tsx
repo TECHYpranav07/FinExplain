@@ -13,6 +13,7 @@ import {
 } from "@/components/finex/primitives";
 import { FormattedMarkdown } from "@/components/finex/FormattedMarkdown";
 import { cn } from "@/lib/utils";
+import { downloadPdf, type PdfSection } from "@/lib/pdfExporter";
 
 /**
  * sanitizeLenderQuestion: Strips all surrounding quotes, asterisks, italic tags,
@@ -465,17 +466,104 @@ export function ReviewPage() {
   };
 
   const handleDownloadReport = () => {
-    const text = getReportMarkdown();
-    if (!text) return;
-    const blob = new Blob([text], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `FinExplain_Audit_Report_${Date.now()}.md`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    const rawMd = getReportMarkdown();
+    if (!rawMd && !reviewResult) return;
+
+    const sections: PdfSection[] = [];
+
+    // 1. Executive Summary
+    if (reviewResult?.review?.executive_summary) {
+      sections.push({
+        title: "1. Executive Summary & Verification Scope",
+        content: reviewResult.review.executive_summary,
+      });
+    }
+
+    // 2. Key Risk Factors
+    const risks = reviewResult?.review?.key_risk_factors || [];
+    if (risks.length > 0) {
+      sections.push({
+        title: "2. Key Risk Factors & Critical Clauses",
+        bulletPoints: risks.map(
+          (r: any) =>
+            `[${r.severity || "CAUTION"}] ${r.title || r.category || "Risk"}: ${
+              r.description || r.impact || ""
+            }`
+        ),
+      });
+    }
+
+    // 3. Cost Drivers
+    const drivers = reviewResult?.cost_drivers || [];
+    if (drivers.length > 0) {
+      sections.push({
+        title: "3. Total Cost of Borrowing & Fee Breakdown",
+        bulletPoints: drivers.map(
+          (d: any) =>
+            `${d.name}: Rs. ${Number(d.cost || 0).toLocaleString("en-IN")} (${
+              d.recurrence || "One-time"
+            }) - ${d.impact || ""}`
+        ),
+      });
+    }
+
+    // 4. Structured Facts Table
+    const facts = reviewResult?.review?.structured_facts || [];
+    if (facts.length > 0) {
+      sections.push({
+        title: "4. Verified Financial Fact Matrix",
+        table: {
+          headers: ["Parameter", "Extracted Value", "Status", "Source Clause"],
+          rows: facts.slice(0, 15).map((f: any) => [
+            String(f.field || f.category || "Item"),
+            f.value ? `${f.value} ${f.unit || ""}`.trim() : "N/A",
+            String(f.status || "VERIFIED"),
+            f.source_document
+              ? `${f.source_document.slice(0, 20)} (p.${f.page || 1})`
+              : "Document Clause",
+          ]),
+        },
+      });
+    }
+
+    // 5. Contractual Conflicts
+    const conflicts = reviewResult?.review?.conflicts || [];
+    if (conflicts.length > 0) {
+      sections.push({
+        title: "5. Contractual Discrepancies & Contradictions",
+        bulletPoints: conflicts.map(
+          (c: any) =>
+            `Contradiction in ${c.field}: "${c.value_a}" vs "${c.value_b}" (${
+              c.discrepancy || c.resolution || ""
+            })`
+        ),
+      });
+    }
+
+    // 6. Missing Disclosures
+    const missing = reviewResult?.review?.missing_information || [];
+    if (missing.length > 0) {
+      sections.push({
+        title: "6. Regulatory Gaps & Missing Information",
+        bulletPoints: missing.map(
+          (m: any) => `${m.field || m.category}: ${m.reason || "Not specified in document"}`
+        ),
+      });
+    }
+
+    downloadPdf({
+      filename: `FinExplain_Audit_Report_${Date.now()}.pdf`,
+      title: "FinExplain Comprehensive Loan Audit Report",
+      subtitle: "Multi-Clause Credit Agreement Verification & Regulatory Disclosure Analysis",
+      metadata: {
+        "Analyzed Products":
+          selectedProducts.join(", ") || "Selected Credit Facility",
+        "Total Verified Facts": String(totalFacts),
+        "Detected Discrepancies": String(totalConflicts),
+        "Missing Disclosures": String(totalMissing),
+      },
+      sections,
+    });
   };
 
   const loanSummary = reviewResult?.review?.loan_summary || {};
@@ -705,8 +793,8 @@ export function ReviewPage() {
                 onClick={handleDownloadReport}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface px-3 py-1.5 text-xs font-medium text-white/80 hover:text-white hover:border-white/20 transition-colors"
               >
-                <i className="fa-solid fa-download text-[11px]" />
-                <span>Download .MD</span>
+                <i className="fa-solid fa-file-pdf text-[11px] text-rose-400" />
+                <span>Download PDF</span>
               </button>
             </div>
           </div>
@@ -1155,8 +1243,26 @@ export function ReviewPage() {
             <Panel
               title="Full Narrative Audit Report"
               subtitle="Evidence-backed comprehensive report generated by FinExplain RAG Engine"
+              action={
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopyReport}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition-colors"
+                  >
+                    <i className={cn("fa-solid", copied ? "fa-check text-emerald-400" : "fa-copy text-white/70")} />
+                    <span>{copied ? "Copied" : "Copy Markdown"}</span>
+                  </button>
+                  <button
+                    onClick={handleDownloadReport}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/20 px-3 py-1.5 text-xs font-medium text-primary-light transition-colors"
+                  >
+                    <i className="fa-solid fa-file-pdf text-xs text-rose-400" />
+                    <span>Download PDF</span>
+                  </button>
+                </div>
+              }
             >
-              <div className="prose prose-invert max-w-none">
+              <div className="rounded-xl border border-white/10 bg-surface/80 p-5 shadow-inner">
                 <FormattedMarkdown content={getReportMarkdown()} />
               </div>
             </Panel>

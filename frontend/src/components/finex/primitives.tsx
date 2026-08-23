@@ -298,24 +298,28 @@ export function toText(item: unknown): string {
 }
 
 export function CitationChip({
+  document,
   page,
   section,
   verified,
 }: {
+  document?: string;
   page?: number | string;
   section?: string;
   verified?: boolean;
 }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-surface-2 px-2.5 py-1 text-xs text-muted-foreground">
-      <i className="fa-regular fa-file-lines text-[10px]" aria-hidden="true" />
-      <span className="text-white">Page {page ?? "—"}</span>
-      {section && <span>· Section: {section}</span>}
+    <span className="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-surface-2 px-2.5 py-1 text-xs text-muted-foreground">
+      <i className="fa-regular fa-file-lines text-[10px] text-primary-light" aria-hidden="true" />
+      {document && <span className="text-white font-medium truncate max-w-[140px]">{document}</span>}
+      {document && page && <span className="text-white/40">·</span>}
+      {page && <span className="text-white">Page {page}</span>}
+      {section && <span className="text-white/70">· {section}</span>}
       {verified !== undefined && (
         <i
           className={cn(
             verified ? "fa-solid fa-circle-check text-success" : "fa-regular fa-circle text-muted-foreground",
-            "text-[10px]"
+            "text-[10px] ml-0.5"
           )}
           aria-label={verified ? "Verified citation" : "Unverified citation"}
         />

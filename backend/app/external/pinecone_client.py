@@ -14,23 +14,21 @@ def get_pinecone_client() -> Pinecone:
     return _pinecone_client
 
 def get_pinecone_index():
+    """
+    Return the cached Pinecone index object.
+
+    Previously called ``pc.list_indexes()`` on every cold init to verify
+    that the index exists before returning.  That added a full AWS
+    us-east-1 HTTP roundtrip (~1-2 s) before the actual vector query.
+
+    Now we go directly to ``pc.Index(index_name)``.  If the index does
+    not exist, Pinecone will raise on the first query — which is the
+    correct fail-fast behavior.
+    """
     global _pinecone_index
     if _pinecone_index is None:
         pc = get_pinecone_client()
         index_name = settings.PINECONE_INDEX_NAME
-        
-        # Check if index exists, create if not present
-        existing_indexes = [idx.name for idx in pc.list_indexes()]
-        if index_name not in existing_indexes:
-            pc.create_index(
-                name=index_name,
-                dimension=384,  # Default for all-MiniLM-L6-v2 embeddings
-                metric="cosine",
-                spec=ServerlessSpec(
-                    cloud="aws",
-                    region="us-east-1"
-                )
-            )
         _pinecone_index = pc.Index(index_name)
     return _pinecone_index
 

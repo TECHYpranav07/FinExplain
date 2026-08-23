@@ -5,7 +5,9 @@ Exclusively uses Google Gemini API with configuration sourced from backend/.env.
 Features:
 - Pure Google Gemini LLM engine (API Key & Model strictly from backend/.env)
 - Auto-sanitizes model names (e.g. handles flash-light -> flash-lite, strips models/ prefix)
-- Auto-fallback across official Gemini Flash models on 404
+- Persistent HTTP session for TCP/TLS reuse (saves ~50-100ms per call)
+- Fail-fast on 404 (configuration error) — only retries transient 429/5xx
+- Startup model validation
 - OpenAI-compatible completion proxy (client.chat.completions.create) for unified downstream caller support
 - Resilient retry logic with exponential backoff for rate limits (429) and transient server errors (5xx)
 - Structured logging
@@ -22,6 +24,20 @@ from app.core.config import settings
 from app.core.constants import DEFAULT_GEMINI_MODEL
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Persistent HTTP session — reuses TCP connections and TLS handshakes
+# ---------------------------------------------------------------------------
+_http_session: Optional[requests.Session] = None
+
+
+def _get_http_session() -> requests.Session:
+    """Return a persistent HTTP session for Gemini API calls."""
+    global _http_session
+    if _http_session is None:
+        _http_session = requests.Session()
+        _http_session.headers.update({"Content-Type": "application/json"})
+    return _http_session
 
 
 def _sanitize_model_name(raw_model: Optional[str]) -> str:
@@ -45,6 +61,43 @@ def _sanitize_model_name(raw_model: Optional[str]) -> str:
             model = model.replace("flash-light", "flash-lite").replace("FLASH-LIGHT", "flash-lite")
 
     return model
+
+
+def validate_model(model: Optional[str] = None) -> bool:
+    """
+    Validate that the configured Gemini model exists on the API.
+    Call this at application startup to fail fast on misconfiguration.
+    Returns True if valid, raises RuntimeError if not.
+    """
+    api_key = settings.effective_gemini_api_key
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is not configured in backend/.env")
+
+    target_model = _sanitize_model_name(model)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{target_model}?key={api_key}"
+
+    try:
+        session = _get_http_session()
+        res = session.get(url, timeout=10)
+        if res.ok:
+            logger.info(f"[LLMClient] ✅ Model '{target_model}' validated successfully")
+            return True
+        elif res.status_code == 404:
+            raise RuntimeError(
+                f"Gemini model '{target_model}' does not exist (404). "
+                f"Check GEMINI_MODEL in backend/.env. "
+                f"Available models: gemini-2.5-flash, gemini-2.5-pro, gemini-2.0-flash"
+            )
+        else:
+            logger.warning(f"[LLMClient] Model validation returned {res.status_code}: {res.text[:200]}")
+            return True  # Non-404 errors might be transient
+    except requests.RequestException as e:
+        logger.warning(f"[LLMClient] Model validation network error (non-fatal): {e}")
+        return True  # Network errors during startup are non-fatal
+
+
+# Retryable HTTP status codes (transient failures only)
+_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
 class LLMClient:
@@ -94,6 +147,14 @@ class LLMClient:
                     logger.error(f"[LLMClient] Non-retryable API key error: {e}")
                     raise e
 
+                # Fail fast on 404 — this is a configuration error, not transient
+                if "404" in err_str and "not found" in err_str:
+                    logger.error(
+                        f"[LLMClient] Model '{target_model}' not found (404). "
+                        f"Fix GEMINI_MODEL in backend/.env. Not retrying."
+                    )
+                    raise e
+
                 if attempt < self.max_retries:
                     sleep_time = self.initial_backoff * (2 ** attempt)
                     logger.warning(
@@ -114,7 +175,7 @@ class LLMClient:
         max_tokens: int = 2048,
         response_format: Optional[Dict[str, str]] = None,
     ) -> str:
-        """Invokes Google Generative Language REST API directly with automatic model resolution."""
+        """Invokes Google Generative Language REST API directly."""
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 
         system_instruction = None
@@ -148,20 +209,8 @@ class LLMClient:
         if system_instruction:
             payload["system_instruction"] = system_instruction
 
-        res = requests.post(url, json=payload, timeout=45)
-        
-        # If model is 404 Not Found, attempt fallback to other standard Gemini Flash models
-        if not res.ok and res.status_code == 404:
-            for fallback_model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
-                if fallback_model != model:
-                    logger.warning(
-                        f"[LLMClient] Model '{model}' not found (404). Falling back to '{fallback_model}'..."
-                    )
-                    fallback_url = f"https://generativelanguage.googleapis.com/v1beta/models/{fallback_model}:generateContent?key={api_key}"
-                    fallback_res = requests.post(fallback_url, json=payload, timeout=45)
-                    if fallback_res.ok:
-                        res = fallback_res
-                        break
+        session = _get_http_session()
+        res = session.post(url, json=payload, timeout=45)
 
         if not res.ok:
             raise RuntimeError(f"Gemini API error ({res.status_code}): {res.text}")

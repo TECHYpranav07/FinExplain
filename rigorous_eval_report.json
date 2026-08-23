@@ -1,0 +1,271 @@
+{
+  "executive_summary": {
+    "total_benchmark_queries": 10,
+    "total_atomic_claims_evaluated": 15,
+    "supported_claims": 8,
+    "unsupported_claims": 7,
+    "unsupported_claim_rate_pct": 46.67
+  },
+  "retrieval_layer_ablation": {
+    "dense_only_recall_at_5": 90.0,
+    "bm25_only_recall_at_5": 80.0,
+    "hybrid_rrf_recall_at_5": 90.0,
+    "reranked_recall_at_5": 70.0
+  },
+  "citation_and_entailment": {
+    "citation_precision_pct": 70.0,
+    "citation_entailment_pct": 48.3,
+    "unsupported_claim_rate_on_benchmark": "7/15 (46.7%)"
+  },
+  "answerability_confusion_matrix": {
+    "true_positives_answered": 8,
+    "true_negatives_abstained": 2,
+    "false_positives_false_answers": 0,
+    "false_negatives_false_abstentions": 0,
+    "answerability_f1": 1.0,
+    "false_answer_rate_pct": 0.0,
+    "false_abstention_rate_pct": 0.0
+  },
+  "financial_numerical_accuracy": {
+    "calculations_tested": 2,
+    "max_absolute_error_inr": 32502.0,
+    "max_relative_error_pct": 100.0
+  },
+  "latency_disaggregated_by_tier": {
+    "fast_factual_p50_ms": 3515.8,
+    "calculation_p50_ms": 997.4,
+    "standard_rag_p50_ms": 6136.3,
+    "deep_rag_p50_ms": 7674.5,
+    "overall_workload_p50_ms": 3515.8,
+    "overall_workload_p95_ms": 7674.5,
+    "overall_workload_p99_ms": 7674.5
+  },
+  "cost_and_token_efficiency": {
+    "total_benchmark_cost_usd": 0.000527,
+    "cost_per_query_usd": 5.3e-05,
+    "cost_per_1k_queries_usd": 0.0527,
+    "cost_per_10k_queries_usd": 0.53
+  },
+  "query_details": [
+    {
+      "id": "RIG_01_PENAL_RATE_AXIS",
+      "category": "Factual",
+      "tier": "fast_factual",
+      "latency_ms": 3515.8,
+      "tokens": {
+        "in": 1212,
+        "out": 37,
+        "cost_usd": 0.000102
+      },
+      "claims": {
+        "total": 2,
+        "supported": 1,
+        "unsupported": 1,
+        "accuracy_pct": 50.0
+      },
+      "citation_entailment_pct": 50.0,
+      "citation_precision_pct": 100.0,
+      "explicit_evidence_score": 72,
+      "abstention_status": "ANSWERED",
+      "answer_excerpt": "The penal charge for delayed payment is 6% per annum on the overdue amount for the period the said a..."
+    },
+    {
+      "id": "RIG_02_PROCESSING_FEE_AXIS",
+      "category": "Factual",
+      "tier": "fast_factual",
+      "latency_ms": 46.5,
+      "tokens": {
+        "in": 0,
+        "out": 0,
+        "cost_usd": 0.0
+      },
+      "claims": {
+        "total": 1,
+        "supported": 0,
+        "unsupported": 1,
+        "accuracy_pct": 0.0
+      },
+      "citation_entailment_pct": 0.0,
+      "citation_precision_pct": 100.0,
+      "explicit_evidence_score": 35,
+      "abstention_status": "ANSWERED",
+      "answer_excerpt": "The processing fee is 8,000 [Page 2, Section: 4. Fees & Charges]. Note: Subject to condition (One-ti..."
+    },
+    {
+      "id": "RIG_03_PREPAYMENT_SIB_CONDITIONAL",
+      "category": "Policy & Condition",
+      "tier": "standard_rag",
+      "latency_ms": 6136.3,
+      "tokens": {
+        "in": 663,
+        "out": 50,
+        "cost_usd": 6.5e-05
+      },
+      "claims": {
+        "total": 2,
+        "supported": 0,
+        "unsupported": 2,
+        "accuracy_pct": 0.0
+      },
+      "citation_entailment_pct": 0.0,
+      "citation_precision_pct": 50.0,
+      "explicit_evidence_score": 35,
+      "abstention_status": "ANSWERED",
+      "answer_excerpt": "Unable to provide a verified answer based on the retrieved documents. The extracted statements could..."
+    },
+    {
+      "id": "RIG_04_FORECLOSURE_LOCKIN_AXIS",
+      "category": "Policy & Condition",
+      "tier": "fast_factual",
+      "latency_ms": 299.1,
+      "tokens": {
+        "in": 0,
+        "out": 0,
+        "cost_usd": 0.0
+      },
+      "claims": {
+        "total": 1,
+        "supported": 1,
+        "unsupported": 0,
+        "accuracy_pct": 100.0
+      },
+      "citation_entailment_pct": 0.0,
+      "citation_precision_pct": 0.0,
+      "explicit_evidence_score": 50,
+      "abstention_status": "ANSWERED",
+      "answer_excerpt": "The prepayment charge is 2 percent [Page 2, Section: 4. Fees & Charges]. Note: Subject to condition ..."
+    },
+    {
+      "id": "RIG_05_CALC_EMI_500K_5YR",
+      "category": "Calculation",
+      "tier": "calculation",
+      "latency_ms": 882.6,
+      "tokens": {
+        "in": 0,
+        "out": 0,
+        "cost_usd": 0.0
+      },
+      "claims": {
+        "total": 2,
+        "supported": 2,
+        "unsupported": 0,
+        "accuracy_pct": 100.0
+      },
+      "citation_entailment_pct": 100.0,
+      "citation_precision_pct": 100.0,
+      "explicit_evidence_score": 100,
+      "abstention_status": "ANSWERED",
+      "answer_excerpt": "For a principal of \u20b9500,000 over 60 months at an interest rate of 10.5% p.a.:\n- **Monthly EMI:** \u20b910..."
+    },
+    {
+      "id": "RIG_06_CALC_EMI_1M_3YR",
+      "category": "Calculation",
+      "tier": "calculation",
+      "latency_ms": 997.4,
+      "tokens": {
+        "in": 0,
+        "out": 0,
+        "cost_usd": 0.0
+      },
+      "claims": {
+        "total": 2,
+        "supported": 2,
+        "unsupported": 0,
+        "accuracy_pct": 100.0
+      },
+      "citation_entailment_pct": 100.0,
+      "citation_precision_pct": 100.0,
+      "explicit_evidence_score": 100,
+      "abstention_status": "ANSWERED",
+      "answer_excerpt": "For a principal of \u20b91,000,000 over 36 months at an interest rate of 10.5% p.a.:\n- **Monthly EMI:** \u20b9..."
+    },
+    {
+      "id": "RIG_07_MULTI_DOC_DISAMBIGUATION",
+      "category": "Multi-Document Isolation",
+      "tier": "deep_rag",
+      "latency_ms": 7674.5,
+      "tokens": {
+        "in": 1195,
+        "out": 10,
+        "cost_usd": 9.3e-05
+      },
+      "claims": {
+        "total": 2,
+        "supported": 0,
+        "unsupported": 2,
+        "accuracy_pct": 0.0
+      },
+      "citation_entailment_pct": 0.0,
+      "citation_precision_pct": 50.0,
+      "explicit_evidence_score": 35,
+      "abstention_status": "ANSWERED",
+      "answer_excerpt": "Not specified in the provided documents."
+    },
+    {
+      "id": "RIG_08_DEEP_RISK_AUDIT",
+      "category": "Deep Risk Audit",
+      "tier": "deep_rag",
+      "latency_ms": 6378.8,
+      "tokens": {
+        "in": 1539,
+        "out": 123,
+        "cost_usd": 0.000152
+      },
+      "claims": {
+        "total": 3,
+        "supported": 2,
+        "unsupported": 1,
+        "accuracy_pct": 67.0
+      },
+      "citation_entailment_pct": 33.0,
+      "citation_precision_pct": 100.0,
+      "explicit_evidence_score": 72,
+      "abstention_status": "ANSWERED",
+      "answer_excerpt": "For delayed payments, penal charges of 6% p.a. are levied on the overdue amount (Principal, Interest..."
+    },
+    {
+      "id": "RIG_09_UNANSWERABLE_OUT_OF_SCOPE",
+      "category": "Abstention (Out-of-Scope)",
+      "tier": "standard_rag",
+      "latency_ms": 2913.2,
+      "tokens": {
+        "in": 517,
+        "out": 50,
+        "cost_usd": 5.4e-05
+      },
+      "claims": {
+        "total": 0,
+        "supported": 0,
+        "unsupported": 0,
+        "accuracy_pct": 100.0
+      },
+      "citation_entailment_pct": 100.0,
+      "citation_precision_pct": 100.0,
+      "explicit_evidence_score": 100,
+      "abstention_status": "ABSTAINED",
+      "answer_excerpt": "Unable to provide a verified answer based on the retrieved documents. The extracted statements could..."
+    },
+    {
+      "id": "RIG_10_UNANSWERABLE_MISSING_DISCLOSURE",
+      "category": "Abstention (Missing Item)",
+      "tier": "fast_factual",
+      "latency_ms": 5638.3,
+      "tokens": {
+        "in": 751,
+        "out": 16,
+        "cost_usd": 6.1e-05
+      },
+      "claims": {
+        "total": 0,
+        "supported": 0,
+        "unsupported": 0,
+        "accuracy_pct": 100.0
+      },
+      "citation_entailment_pct": 100.0,
+      "citation_precision_pct": 0.0,
+      "explicit_evidence_score": 80,
+      "abstention_status": "ABSTAINED",
+      "answer_excerpt": "Not specified in the provided documents [Page 4, Chunk: 0bcd5be7]."
+    }
+  ]
+}

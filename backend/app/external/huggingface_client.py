@@ -141,17 +141,30 @@ def generate_hf_embeddings(
     model_name: Optional[str] = None
 ) -> List[List[float]]:
     """
-    Generate embeddings using Hugging Face API first, with local fallback if needed.
+    Generate embeddings with smart routing:
+    - Small batches (≤5 texts, e.g. query-time): use local SentenceTransformer
+      to avoid ~2s of unnecessary network roundtrips to HF API.
+    - Large batches (>5 texts, e.g. ingestion): try HF Inference API first
+      for parallelism, fall back to local model.
     """
     if not texts:
         return []
 
-    # 1. Try Hugging Face Inference API
+    # For query-time single/small text embedding, local is faster than network
+    if len(texts) <= 5:
+        try:
+            model = get_sentence_transformer(model_name or "all-MiniLM-L6-v2")
+            embeddings = model.encode(texts, convert_to_numpy=True)
+            return embeddings.tolist()
+        except Exception as e:
+            logger.warning(f"Local SentenceTransformer failed: {e}, trying HF API...")
+
+    # For large batches (ingestion), try HF API for parallelism
     api_result = generate_hf_embeddings_api(texts, model_name=model_name)
     if api_result is not None and len(api_result) == len(texts):
         return api_result
 
-    # 2. Fallback to local SentenceTransformer
+    # Final fallback to local SentenceTransformer
     logger.info("Using local SentenceTransformer embedding model fallback.")
     model = get_sentence_transformer(model_name or "all-MiniLM-L6-v2")
     embeddings = model.encode(texts, convert_to_numpy=True)

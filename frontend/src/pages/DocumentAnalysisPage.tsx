@@ -236,6 +236,7 @@ export function DocumentAnalysisPage() {
                           {analysisResult.citations.map((c, i) => (
                             <CitationChip
                               key={i}
+                              document={c.document || doc?.name}
                               page={c.page || 1}
                               section={c.section || "Clause"}
                               verified={c.verified ?? true}

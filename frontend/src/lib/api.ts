@@ -60,6 +60,7 @@ export interface CostDriver {
 }
 
 export interface Citation {
+  document?: string;
   document_name?: string;
   page_number?: number;
   page?: number;
@@ -184,6 +185,12 @@ export interface LoanCompareResponse {
 export interface HealthResponse {
   status: string;
   environment?: string;
+  checks?: {
+    supabase?: string;
+    llm?: string;
+    pinecone?: string;
+    reranker?: string;
+  };
 }
 
 export interface AuthUser {
@@ -361,6 +368,19 @@ export const api = {
     request<AuthResponse>("/api/v1/auth/google", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+  forgotPassword: (email: string) =>
+    request<{ status: string; message: string; resend_cooldown_seconds: number; expires_in_seconds: number }>(
+      "/api/v1/auth/forgot-password",
+      {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      }
+    ),
+  resetPassword: (payload: { email: string; otp: string; new_password: string }) =>
+    request<{ status: string; message: string }>("/api/v1/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
   getMe: () => request<{ user: AuthUser }>("/api/v1/auth/me"),
 };

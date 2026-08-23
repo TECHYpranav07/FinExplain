@@ -125,6 +125,7 @@ export function ChatMessageItem({ message, onAskQuestion, onResolveHitl }: ChatM
                   {res.citations.map((c, idx) => (
                     <CitationChip
                       key={idx}
+                      document={c.document || (c as any).document_name}
                       page={c.page || 1}
                       section={c.section || "General Terms"}
                       verified={c.verified ?? true}

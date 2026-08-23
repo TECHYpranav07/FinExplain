@@ -4,10 +4,15 @@ LLM generation layer for FinExplain.
 Uses Google Gemini LLM API with centralized prompt templates.
 Supports both the legacy ``(query, context)`` signature and the new
 enriched signature with structured facts, calculations, conflicts, etc.
+
+Tiered prompt selection:
+  - When only facts/context provided → FAST_QA (minimal tokens)
+  - When enrichment data present → full QA_USER_PROMPT_TEMPLATE
 """
 
 import json
 import logging
+import re
 from app.external.llm_client import llm, client
 from app.core.constants import DEFAULT_LLM_MODEL
 
@@ -19,6 +24,8 @@ from app.rag.generation.prompt_templates import (
     SYSTEM_PROMPT_LOAN_COMPARE,
     SYSTEM_PROMPT_FINANCIAL_EXPERT,
     QA_USER_PROMPT_TEMPLATE,
+    FAST_QA_SYSTEM_PROMPT,
+    FAST_QA_USER_PROMPT,
     LOAN_REVIEW_PROMPT,
     BEFORE_CONFIRMATION_PROMPT,
     MULTI_PRODUCT_COMPARISON_PROMPT,
@@ -49,35 +56,66 @@ def generate_answer(
     claim_verification: Optional[Dict[str, Any]] = None,
     evidence_score: Optional[Dict[str, Any]] = None,
     scenario: Optional[Dict[str, Any]] = None,
+    risk_factors: Optional[List[Dict[str, Any]]] = None,
+    risk_score: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Generate an answer using Gemini LLM with evidence-first prompting.
 
-    Backward-compatible: callers passing only ``(query, context)`` still work.
-    When the enriched kwargs are provided, uses the full structured QA prompt.
+    Automatically selects between fast (minimal) and full prompt based
+    on the presence of enrichment data (risk, conflicts, calculations).
     """
-    # Build the user prompt
-    prompt = QA_USER_PROMPT_TEMPLATE.format(
-        question=query,
-        scenario=_format_for_prompt(scenario),
-        context=context,
-        structured_facts=_format_for_prompt(structured_facts),
-        calculation_results=_format_for_prompt(calculation_results),
-        conflicts=_format_for_prompt(conflicts),
-        missing_information=_format_for_prompt(missing_information),
-        claim_verification=_format_for_prompt(claim_verification),
-        evidence_score=_format_for_prompt(evidence_score),
-    )
+    # Determine if this is a simple factual query (no heavy enrichment)
+    has_enrichment = any([
+        conflicts,
+        risk_factors,
+        risk_score and risk_score.get("score") is not None,
+        calculation_results,
+        scenario,
+    ])
+
+    if not has_enrichment:
+        # FAST PATH: Minimal prompt for factual lookups
+        system_prompt = FAST_QA_SYSTEM_PROMPT
+        prompt = FAST_QA_USER_PROMPT.format(
+            question=query,
+            context=context,
+            structured_facts=_format_for_prompt(structured_facts),
+        )
+        max_tokens = 512
+    else:
+        # FULL PATH: Rich prompt with all enrichment data
+        system_prompt = SYSTEM_PROMPT_ASK_AI
+        prompt = QA_USER_PROMPT_TEMPLATE.format(
+            question=query,
+            scenario=_format_for_prompt(scenario),
+            context=context,
+            structured_facts=_format_for_prompt(structured_facts),
+            calculation_results=_format_for_prompt(calculation_results),
+            conflicts=_format_for_prompt(conflicts),
+            missing_information=_format_for_prompt(missing_information),
+            claim_verification=_format_for_prompt(claim_verification),
+            evidence_score=_format_for_prompt(evidence_score),
+            risk_factors=_format_for_prompt(risk_factors),
+            risk_score=_format_for_prompt(risk_score),
+        )
+        max_tokens = 2048
 
     try:
         answer_text = llm.chat_completion(
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT_ASK_AI},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.1,
-            max_tokens=2048,
+            max_tokens=max_tokens,
         )
+
+        if answer_text:
+            # Strip any internal chunk IDs like ", Chunk: c21c2086" or "Chunk c21c2086"
+            answer_text = re.sub(r'(?:,\s*)?Chunk:?\s*[a-f0-9]{6,}\b', '', answer_text, flags=re.I)
+            answer_text = re.sub(r'\[\s*,\s*', '[', answer_text)
+            answer_text = re.sub(r',\s*\]', ']', answer_text)
 
         return {
             "answer": answer_text,

@@ -52,19 +52,42 @@ def chunk_hierarchical(
     for page in pages:
         page_num = page.get("page_num") or page.get("page_number", 1)
         text = page.get("text", "")
+        raw_text = page.get("raw_text", text)
         page_sections = page.get("sections", [])
+        page_tables = page.get("tables", [])
 
-        # Split text into sentences (rough split by periods/newlines).
+        child_chunks_for_page: List[Dict[str, Any]] = []
+
+        # 1. Emit atomic chunks for structured tables first (preserves fee & condition columns)
+        for t in page_tables:
+            t_md = t.get("markdown", "")
+            if not t_md:
+                continue
+            t_tokens = estimate_tokens(t_md)
+            t_section = _resolve_section_title(page_sections, 0, text)
+            child_chunks_for_page.append({
+                "chunk_id": str(uuid.uuid4()),
+                "text": f"[Structured Table - Page {page_num}]\n{t_md}",
+                "token_count": t_tokens,
+                "page_num": page_num,
+                "section_title": t_section or "Schedule of Charges / Terms Table",
+                "document_name": document_name,
+                "product_name": product_name,
+                "effective_date": effective_date,
+                "document_version": document_version,
+                "is_table": True,
+            })
+
+        # 2. Split narrative text into sentences
         # IMPORTANT: Do NOT strip conditional language ("if", "unless",
         # "subject to", etc.) — they are financially significant.
-        sentences = re.split(r'(?<=[.!?])\s+|(?<=\n)\s*', text)
+        sentences = re.split(r'(?<=[.!?])\s+|(?<=\n)\s*', raw_text)
         sentences = [s.strip() for s in sentences if s.strip()]
 
-        # Build child chunks
+        # Build child chunks for narrative text
         current_child = ""
         current_child_tokens = 0
         current_child_start_pos = 0  # char offset in page text
-        child_chunks_for_page: List[Dict[str, Any]] = []
 
         for sentence in sentences:
             sentence_tokens = estimate_tokens(sentence)
@@ -72,7 +95,7 @@ def chunk_hierarchical(
             if current_child_tokens + sentence_tokens > child_token_size and current_child:
                 # Save current child chunk
                 section = _resolve_section_title(
-                    page_sections, current_child_start_pos, text
+                    page_sections, current_child_start_pos, raw_text
                 )
                 child_chunks_for_page.append({
                     "chunk_id": str(uuid.uuid4()),
@@ -84,20 +107,21 @@ def chunk_hierarchical(
                     "product_name": product_name,
                     "effective_date": effective_date,
                     "document_version": document_version,
+                    "is_table": False,
                 })
-                current_child_start_pos = text.find(sentence, current_child_start_pos)
+                current_child_start_pos = raw_text.find(sentence, current_child_start_pos)
                 current_child = sentence
                 current_child_tokens = sentence_tokens
             else:
                 if not current_child:
-                    current_child_start_pos = text.find(sentence)
+                    current_child_start_pos = raw_text.find(sentence)
                 current_child += " " + sentence
                 current_child_tokens += sentence_tokens
 
         # Add the last child chunk
         if current_child:
             section = _resolve_section_title(
-                page_sections, current_child_start_pos, text
+                page_sections, current_child_start_pos, raw_text
             )
             child_chunks_for_page.append({
                 "chunk_id": str(uuid.uuid4()),
@@ -109,6 +133,7 @@ def chunk_hierarchical(
                 "product_name": product_name,
                 "effective_date": effective_date,
                 "document_version": document_version,
+                "is_table": False,
             })
 
         # Now build parent chunks by grouping child chunks
@@ -180,6 +205,7 @@ def chunk_hierarchical(
                 "product_name": product_name,
                 "effective_date": effective_date,
                 "document_version": document_version,
+                "is_table": child.get("is_table", False),
                 "parent_text": None,
             })
 
@@ -197,6 +223,7 @@ def chunk_hierarchical(
                 "product_name": product_name,
                 "effective_date": effective_date,
                 "document_version": document_version,
+                "is_table": any(c.get("is_table") for c in child_chunks_for_page if c["chunk_id"] in parent.get("child_ids", [])),
             })
 
     return chunks

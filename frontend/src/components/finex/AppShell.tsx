@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/authContext";
+import { GlobalSearch } from "@/components/finex/GlobalSearch";
 
 const NAV = [
   { to: "/app", label: "Dashboard", icon: "fa-solid fa-gauge-high", exact: true },
@@ -211,17 +212,8 @@ export function AppShell() {
               </Link>
             </div>
 
-            <div className="relative hidden max-w-md flex-1 md:block">
-              <i
-                className="fa-solid fa-magnifying-glass pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground"
-                aria-hidden="true"
-              />
-              <input
-                type="search"
-                aria-label="Search workspace"
-                placeholder="Search documents, products, terms..."
-                className="w-full rounded-lg border border-white/10 bg-surface py-2 pl-9 pr-3.5 text-xs text-white placeholder:text-muted-foreground focus:border-white/30 focus:outline-none transition-colors"
-              />
+            <div className="hidden max-w-md flex-1 md:block">
+              <GlobalSearch />
             </div>
 
             <div className="flex items-center gap-3">

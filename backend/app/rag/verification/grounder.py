@@ -1,22 +1,24 @@
 import re
 from typing import List, Dict, Any, Tuple
 
-def extract_citations(answer: str) -> List[str]:
-    """Extract page/section citations from the answer text."""
-    # Look for patterns like [Page 3], 【Page 1.0】, [Section 2.1], Page 2
-    pattern = r'[\[【]Page\s*([\d.]+)(?:,\s*Section\s*([\d.]+))?[\]】]|\[Section\s*([\d.]+)\]|[\[【]p\.\s*([\d.]+)[\]】]|Page\s+(\d+)'
-    matches = re.findall(pattern, answer)
+def extract_citations(answer: str) -> List[Dict[str, Any]]:
+    """Extract document, page, and section citations from the answer text."""
+    # Look for patterns like [sample_loan.pdf, Page 1], [Page 3], 【Page 1.0】, [Doc A, Page 2, Section 2.1]
+    pattern = r'[\[【](?:([^,\]】]+?),\s*)?(?:Page|p\.)\s*([\d.]+)(?:,\s*Section:?\s*([^\]】]+?))?[\]】]|\[Section\s*([\d.]+)\]|Page\s+(\d+)'
     citations = []
-    for match in matches:
-        raw_page = match[0] or match[3] or match[4]
-        section = match[1] or match[2]
+    for match in re.finditer(pattern, answer, re.IGNORECASE):
+        doc = match.group(1)
+        raw_page = match.group(2) or match.group(5)
+        section = match.group(3) or match.group(4)
         if raw_page:
             try:
                 page_int = int(float(raw_page))
+                cit: Dict[str, Any] = {"page": page_int}
+                if doc and not doc.lower().startswith("section"):
+                    cit["document"] = doc.strip()
                 if section:
-                    citations.append({"page": page_int, "section": section})
-                else:
-                    citations.append({"page": page_int})
+                    cit["section"] = section.strip()
+                citations.append(cit)
             except ValueError:
                 pass
     return citations

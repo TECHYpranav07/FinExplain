@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str = ""
     GOOGLE_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-3.5-flash-lite"
     LLM_MODEL: Optional[str] = None
 
     # Redis (Caching)
@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
     GOOGLE_CLIENT_ID: Optional[str] = None
+
+    # Brevo Transactional Email Configuration
+    BREVO_API_KEY: Optional[str] = None
+    BREVO_FROM_EMAIL: str = "no-reply@finexplain.com"
+    BREVO_FROM_NAME: str = "FinExplain Security"
 
     @property
     def effective_gemini_api_key(self) -> str:

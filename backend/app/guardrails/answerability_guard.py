@@ -41,8 +41,16 @@ class AnswerabilityGate:
                 "No relevant document sections found matching this inquiry in the uploaded agreements."
             )
 
-        if rerank_scores and max(rerank_scores) < MIN_RETRIEVAL_CONFIDENCE and len(retrieved_chunks) < 2:
-            logger.info(f"[AnswerabilityGate] Low retrieval score ({max(rerank_scores):.3f}). Insufficient evidence.")
+        # Check dense vector similarity and RRF fusion score
+        dense_scores = [c.get("similarity_score") for c in retrieved_chunks if c.get("similarity_score") is not None]
+        rrf_scores = [c.get("rrf_score") for c in retrieved_chunks if c.get("rrf_score") is not None]
+
+        max_dense = max(dense_scores) if dense_scores else 1.0
+        max_rrf = max(rrf_scores) if rrf_scores else 1.0
+
+        # Truly out-of-scope queries have extremely low dense score (<0.20) and low RRF (<0.015)
+        if dense_scores and max_dense < 0.20 and max_rrf < 0.015:
+            logger.info(f"[AnswerabilityGate] Low retrieval score (Dense: {max_dense:.3f}, RRF: {max_rrf:.4f}). Insufficient evidence.")
             return (
                 False,
                 "Retrieved document context does not contain sufficient confidence to answer this specific query."
@@ -52,3 +60,5 @@ class AnswerabilityGate:
 
 
 answerability_gate = AnswerabilityGate()
+
+

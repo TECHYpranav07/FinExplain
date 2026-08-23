@@ -28,6 +28,49 @@ app = FastAPI(
     version="1.0.0"
 )
 
+
+@app.on_event("startup")
+async def startup_warmup():
+    """
+    Validate configuration and pre-load ML models at startup.
+    Moves cold-start latency from the first user request to application boot.
+    """
+    startup_logger = logging.getLogger("startup")
+
+    # 1. Validate Gemini model configuration
+    try:
+        from app.external.llm_client import validate_model
+        validate_model()
+    except Exception as e:
+        startup_logger.error(f"⚠️ Gemini model validation failed: {e}")
+
+    # 2. Pre-load SentenceTransformer embedding model
+    try:
+        from app.external.huggingface_client import get_sentence_transformer
+        get_sentence_transformer()
+        startup_logger.info("✅ SentenceTransformer embedding model loaded")
+    except Exception as e:
+        startup_logger.warning(f"⚠️ Embedding model pre-load failed: {e}")
+
+    # 3. Pre-load CrossEncoder reranker model
+    try:
+        from app.rag.retrieval.reranker import get_reranker
+        get_reranker()
+        startup_logger.info("✅ CrossEncoder reranker model loaded")
+    except Exception as e:
+        startup_logger.warning(f"⚠️ Reranker model pre-load failed: {e}")
+
+    # 4. Warm Pinecone index connection
+    try:
+        from app.external.pinecone_client import get_pinecone_index
+        get_pinecone_index()
+        startup_logger.info("✅ Pinecone index connection warmed")
+    except Exception as e:
+        startup_logger.warning(f"⚠️ Pinecone warm-up failed: {e}")
+
+    startup_logger.info("🚀 FinExplain startup warm-up complete")
+
+
 # Enable CORS with origins loaded strictly from .env
 _cors_origins = settings.cors_origins_list
 if not _cors_origins:

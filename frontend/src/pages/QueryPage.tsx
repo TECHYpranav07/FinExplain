@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { api, type QueryResponse } from "@/lib/api";
 import { ProductPicker } from "@/components/finex/ProductSelect";
@@ -18,6 +19,7 @@ import {
 } from "@/lib/chatStorage";
 import { ChatSidebar } from "@/components/finex/ChatSidebar";
 import { ChatMessageItem } from "@/components/finex/ChatMessageItem";
+import { downloadPdf, type PdfSection } from "@/lib/pdfExporter";
 import {
   Send,
   Sparkles,
@@ -81,10 +83,19 @@ export function QueryPage() {
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0];
 
-  // Auto-scroll to bottom when new messages arrive
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialQueryParam = searchParams.get("q");
+
+  // Handle incoming query param from Navbar Global Search
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeSession?.messages, activeSession?.messages.length]);
+    if (initialQueryParam && initialQueryParam.trim()) {
+      setQuestion(initialQueryParam.trim());
+      setSearchParams({}, { replace: true });
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 100);
+    }
+  }, [initialQueryParam]);
 
   const handleProductChange = (newSelected: string[]) => {
     setSelectedProducts(newSelected);
@@ -314,18 +325,62 @@ export function QueryPage() {
 
   const handleExportChat = () => {
     if (!activeSession || activeSession.messages.length === 0) return;
-    const dataStr =
-      "data:text/json;charset=utf-8," +
-      encodeURIComponent(JSON.stringify(activeSession, null, 2));
-    const downloadAnchor = document.createElement("a");
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute(
-      "download",
-      `FinExplain_Audit_${activeSession.title.replace(/\s+/g, "_")}.json`
-    );
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+
+    const sections: PdfSection[] = [];
+
+    activeSession.messages.forEach((msg, idx) => {
+      if (msg.role === "user") {
+        sections.push({
+          title: `Inquiry #${Math.ceil((idx + 1) / 2)}: ${msg.content}`,
+        });
+      } else {
+        const resp = msg.response;
+        const answerText = resp?.answer || msg.content || "No response recorded.";
+        const citations = resp?.citations || [];
+        const facts = resp?.key_facts || [];
+
+        const bulletPoints: string[] = [];
+        if (citations.length > 0) {
+          citations.forEach((c) => {
+            bulletPoints.push(
+              `Citation: [${c.document || "Loan Agreement"}, Page ${c.page || 1}${
+                c.section ? `, Section: ${c.section}` : ""
+              }] ${c.text ? `"${c.text.slice(0, 100)}..."` : ""}`
+            );
+          });
+        }
+        if (facts.length > 0) {
+          facts.forEach((f) => {
+            bulletPoints.push(
+              `Fact: ${f.field || f.category} = ${f.value} ${f.unit || ""} (${
+                f.status || "VERIFIED"
+              })`
+            );
+          });
+        }
+
+        sections.push({
+          subtitle: `FinExplain AI Precision Response (${
+            msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : "Verified"
+          })`,
+          content: answerText,
+          bulletPoints: bulletPoints.length > 0 ? bulletPoints : undefined,
+        });
+      }
+    });
+
+    downloadPdf({
+      filename: `FinExplain_Chat_${activeSession.title.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`,
+      title: "FinExplain AI Precision Q&A Transcript",
+      subtitle: `Audit Session: ${activeSession.title}`,
+      metadata: {
+        "Session ID": activeSession.id,
+        "Total Messages": String(activeSession.messages.length),
+        "Products Consulted":
+          activeSession.selectedProductIds?.join(", ") || "Active Workspace Facility",
+      },
+      sections,
+    });
   };
 
   return (
