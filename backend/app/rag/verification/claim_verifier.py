@@ -143,6 +143,8 @@ def verify_claim(
 
     result: Dict[str, Any] = {
         "claim": claim_text,
+        "cited_page": cited_page,
+        "cited_document": cited_doc,
         "supported": False,
         "evidence_id": None,
         "status": "NOT_SPECIFIED",

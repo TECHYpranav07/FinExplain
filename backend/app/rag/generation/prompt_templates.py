@@ -32,7 +32,13 @@ Evidence:
 Structured Facts:
 {structured_facts}
 
-Answer directly and concisely in a clean, structured format, making sure to include all applicable conditions, lock-ins, and tax terms."""
+Requested Answer Checklist:
+{query_requirements}
+
+Completeness Feedback From Prior Attempt:
+{completeness_feedback}
+
+Answer every checklist item. If the evidence does not specify an item, say exactly: "Not specified in the provided documents." Do not stop after giving only the headline number. Include applicable conditions, lock-ins, exceptions, and tax terms."""
 
 # =========================================================================
 # 1. ASK AI — Precision Q&A System Prompt
@@ -184,6 +190,12 @@ CLAIM VERIFICATION RESULTS:
 DETERMINISTIC EVIDENCE SCORE:
 {evidence_score}
 
+REQUESTED ANSWER CHECKLIST:
+{query_requirements}
+
+COMPLETENESS FEEDBACK FROM PRIOR ATTEMPT:
+{completeness_feedback}
+
 OPERATIVE RISK FACTORS:
 {risk_factors}
 
@@ -222,7 +234,8 @@ INSTRUCTIONS & PRECISION RULES (STRICT CONCISENESS)
    - Do not invent missing rates, fees, penalties, or page numbers.
    - Preserve all material conditions (e.g. waiver timing, floating rate reset benchmarks).
    - If information is not in the documents, state: "Not specified in the provided documents."
-   - If two documents conflict on a term, state: "Conflict detected between [Doc A] and [Doc B]."
+    - If two documents conflict on a term, state: "Conflict detected between [Doc A] and [Doc B]."
+    - Before finalizing, address every item in the REQUESTED ANSWER CHECKLIST. If an item is not disclosed, state that it is not specified instead of silently omitting it.
 
 4. FORMATTING RULES:
    - Do NOT wrap entire sentences, statements, or questions in asterisks (e.g., do NOT output *What is...* or **What is...**).

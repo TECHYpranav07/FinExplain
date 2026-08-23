@@ -1,5 +1,5 @@
 import re
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 
 def extract_citations(answer: str) -> List[Dict[str, Any]]:
     """Extract document, page, section, and schedule citations from answer text."""
@@ -59,7 +59,8 @@ def verify_citation(citation: Dict[str, Any], retrieved_chunks: List[Dict[str, A
 def calculate_confidence(
     answer: str, 
     retrieved_chunks: List[Dict[str, Any]], 
-    rerank_scores: List[float]
+    rerank_scores: List[float],
+    claim_results: Optional[Dict[str, Any]] = None,
 ) -> float:
     """
     Calculate confidence score (0.0 - 1.0) based on:
@@ -77,9 +78,18 @@ def calculate_confidence(
     # Factor 2: Average rerank score (if available)
     avg_rerank = sum(rerank_scores) / len(rerank_scores) if rerank_scores else 0.5
     
-    # Factor 3: Citation coverage
+    # Factor 3: Citation coverage. Prefer claim-level verification when the
+    # verifier has already mapped each claim to a cited page.
     citations = extract_citations(answer)
-    if citations:
+    verified_claims = []
+    if claim_results and claim_results.get("claims"):
+        verified_claims = [
+            claim for claim in claim_results["claims"]
+            if claim.get("supported") and claim.get("citation_valid")
+        ]
+    if claim_results and claim_results.get("total_claims"):
+        citation_coverage = len(verified_claims) / claim_results["total_claims"]
+    elif citations:
         verified_citations = sum(1 for c in citations if verify_citation(c, retrieved_chunks))
         citation_coverage = verified_citations / len(citations)
     else:
@@ -91,10 +101,36 @@ def calculate_confidence(
     
     return min(max(confidence, 0.0), 1.0)
 
+
+def _map_claims_to_citations(
+    claim_results: Dict[str, Any],
+    citations: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Expose an auditable claim -> citation -> evidence relationship."""
+    mapped = []
+    for claim in (claim_results or {}).get("claims", []):
+        cited_page = claim.get("cited_page")
+        matching = [
+            citation for citation in citations
+            if cited_page is not None and citation.get("page") == cited_page
+        ]
+        mapped.append({
+            "claim": claim.get("claim", ""),
+            "cited_page": cited_page,
+            "cited_document": claim.get("cited_document"),
+            "evidence_id": claim.get("evidence_id"),
+            "supported": bool(claim.get("supported")),
+            "citation_verified": bool(claim.get("citation_valid")),
+            "citation": matching[0] if matching else None,
+            "issues": claim.get("issues", []),
+        })
+    return mapped
+
 def ground_answer(
     answer: str, 
     retrieved_chunks: List[Dict[str, Any]], 
-    rerank_scores: List[float]
+    rerank_scores: List[float],
+    claim_results: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Verifies every claim in the answer against the retrieved chunks.
@@ -113,12 +149,20 @@ def ground_answer(
         })
     
     # Calculate confidence
-    confidence = calculate_confidence(answer, retrieved_chunks, rerank_scores)
+    confidence = calculate_confidence(answer, retrieved_chunks, rerank_scores, claim_results)
+    claim_citations = _map_claims_to_citations(claim_results or {}, verified_citations)
+    claim_citation_coverage = (
+        sum(1 for claim in claim_citations if claim["supported"] and claim["citation_verified"])
+        / len(claim_citations)
+        if claim_citations else 0.0
+    )
     
     return {
         "answer": answer,
         "citations": verified_citations,
         "confidence_score": confidence,
         "confidence_label": "High" if confidence >= 0.75 else "Medium" if confidence >= 0.50 else "Low",
-        "citation_coverage": len(verified_citations) / max(len(citations), 1)
+        "citation_coverage": len(verified_citations) / max(len(citations), 1),
+        "claim_citations": claim_citations,
+        "claim_citation_coverage": claim_citation_coverage,
     }

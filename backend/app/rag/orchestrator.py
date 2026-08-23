@@ -32,7 +32,12 @@ from app.rag.generation.generator import generate_answer
 from app.rag.verification.grounder import ground_answer
 from app.rag.enhancement.intent_classifier import classify_intent
 from app.rag.enhancement.query_rewriter import rewrite_query
-from app.rag.enhancement.query_router import classify_query_tier, QueryTier
+from app.rag.enhancement.query_router import (
+    classify_query_tier,
+    QueryTier,
+    extract_query_requirements,
+    missing_answer_requirements,
+)
 from app.rag.verification.conflict_detector import detect_conflicts, detect_fact_conflicts
 from app.rag.verification.confidence import calculate_confidence, evidence_scorer
 from app.rag.verification.claim_verifier import verify_all_claims
@@ -69,6 +74,38 @@ def _is_fact_verified(fact: LoanFact, claim_results: Dict[str, Any]) -> bool:
     return False
 
 
+def _extract_source_qualifiers(fact: LoanFact) -> List[str]:
+    """Keep short, relevant qualifier clauses in deterministic fast answers."""
+    source = fact.source_text or ""
+    if not source:
+        return []
+
+    field_terms = set(fact.field.lower().replace("_", " ").split())
+    if fact.value:
+        field_terms.update(fact.value.lower().replace(",", "").split())
+    qualifier_terms = (
+        "gst", "tax", "statutory", "notice", "request", "lock", "emi",
+        "after", "before", "within", "only", "except", "unless", "subject",
+        "default", "overdue", "benchmark", "reference", "spread", "daily",
+        "365", "financial year", "business purpose", "individual",
+        "outstanding", "principal", "applicable", "payable", "waived", "per annum",
+    )
+    clauses = re.split(r"(?<=[.!?;])\s+|\n+", source)
+    selected: List[str] = []
+    for clause in clauses:
+        clean = re.sub(r"\s+", " ", clause).strip(" -*")
+        lower = clean.lower()
+        if len(clean) < 20 or not any(term in lower for term in qualifier_terms):
+            continue
+        if field_terms and not any(term in lower for term in field_terms if len(term) > 2):
+            continue
+        if clean not in selected:
+            selected.append(clean[:320])
+        if len(selected) == 3:
+            break
+    return selected
+
+
 def _format_deterministic_factual_answer(fact: LoanFact) -> str:
     """
     Format a direct, evidence-cited answer from a structured LoanFact
@@ -90,6 +127,10 @@ def _format_deterministic_factual_answer(fact: LoanFact) -> str:
     conds = []
     if fact.condition:
         conds.append(fact.condition)
+
+    for qualifier in _extract_source_qualifiers(fact):
+        if qualifier not in conds and not any(qualifier in existing for existing in conds):
+            conds.append(qualifier)
     
     if fact.source_text:
         st_lower = fact.source_text.lower()
@@ -201,7 +242,11 @@ def process_query(
     intent_result = classify_intent(clean_question)
     intent_val = intent_result.intent.value if hasattr(intent_result.intent, 'value') else str(intent_result.intent)
     tier, detected_field = classify_query_tier(clean_question, intent=intent_val)
-    logger.info(f"[Router] 🔀 Tier: {tier.value.upper()} | Intent: {intent_val.upper()} | Target Field: {detected_field or 'None'}")
+    query_requirements = extract_query_requirements(clean_question)
+    logger.info(
+        f"[Router] 🔀 Tier: {tier.value.upper()} | Intent: {intent_val.upper()} "
+        f"| Target Field: {detected_field or 'None'} | Requirements: {query_requirements or ['direct answer']}"
+    )
 
     # ===================================================================
     # ⚡ PATH 1: TRUE ZERO-LLM FAST_FACTUAL PATH (~50-150ms)
@@ -513,8 +558,31 @@ def process_query(
         missing_information=missing_info if tier != QueryTier.FAST_FACTUAL else None,
         risk_factors=risk_factors if tier == QueryTier.DEEP_RAG else None,
         risk_score=risk_score_result if tier == QueryTier.DEEP_RAG else None,
+        query_requirements=query_requirements,
     )
     answer_text = generation_result.get("answer", "")
+
+    # Multi-aspect answers get one focused retry when the first draft visibly
+    # omits a requested dimension. This is a bounded completeness gate, not an
+    # unbounded generation loop.
+    missing_answer_elements = missing_answer_requirements(answer_text, query_requirements)
+    if missing_answer_elements and tier != QueryTier.DEEP_RAG:
+        logger.info(f"[CompletenessGate] Retrying answer for missing requirements: {missing_answer_elements}")
+        retry_result = generate_answer(
+            clean_question,
+            context,
+            structured_facts=facts_dicts,
+            conflicts=all_conflicts if tier == QueryTier.DEEP_RAG else None,
+            missing_information=missing_info,
+            risk_factors=risk_factors if tier == QueryTier.DEEP_RAG else None,
+            risk_score=risk_score_result if tier == QueryTier.DEEP_RAG else None,
+            query_requirements=query_requirements,
+            completeness_feedback=missing_answer_elements,
+        )
+        retry_answer = retry_result.get("answer", "")
+        if retry_answer and not retry_answer.lower().startswith("error generating"):
+            answer_text = retry_answer
+            missing_answer_elements = missing_answer_requirements(answer_text, query_requirements)
 
     # Claim Verification & Scoring
     claim_results = verify_all_claims(answer_text, structured_facts, reranked_chunks)
@@ -536,6 +604,20 @@ def process_query(
     )
     if not validation["valid"]:
         answer_text = validation["sanitized_answer"]
+        missing_answer_elements = missing_answer_requirements(answer_text, query_requirements)
+
+    answer_completeness = (
+        1.0 - (len(missing_answer_elements) / len(query_requirements))
+        if query_requirements else 1.0
+    )
+    if missing_answer_elements:
+        missing_info = list(missing_info) + [
+            {
+                "field": requirement,
+                "reason": "The generated answer did not explicitly address this requested element.",
+            }
+            for requirement in missing_answer_elements
+        ]
 
     # Hard safety gate: refuse delivery of very low-confidence answers
     if evidence_score_result.get("score", 100) < 30 and tier not in (QueryTier.DEEP_RAG, QueryTier.FAST_FACTUAL):
@@ -546,7 +628,7 @@ def process_query(
             "or consult the source documents directly."
         )
 
-    grounded = ground_answer(answer_text, reranked_chunks, rerank_scores)
+    grounded = ground_answer(answer_text, reranked_chunks, rerank_scores, claim_results)
 
     # Token usage estimation
     in_tok = len(context) // 4 + 150
@@ -577,6 +659,9 @@ def process_query(
         risk_score_result=risk_score_result,
         lender_questions=lender_questions,
         token_metrics=token_metrics,
+        answer_requirements=query_requirements,
+        answer_completeness=answer_completeness,
+        answer_completeness_missing=missing_answer_elements,
     )
 
     set_cached_response(question, product_ids, result, user_id=user_id)
@@ -604,6 +689,9 @@ def _build_response(
     lender_questions: Optional[List] = None,
     scenario: Optional[Dict] = None,
     token_metrics: Optional[Dict] = None,
+    answer_requirements: Optional[List[str]] = None,
+    answer_completeness: Optional[float] = None,
+    answer_completeness_missing: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Shared builder to standardize final response payload across all tiers."""
     all_conflicts = all_conflicts or []
@@ -614,6 +702,8 @@ def _build_response(
     lender_questions = lender_questions or []
     scenario = scenario or {}
     token_metrics = token_metrics or {}
+    answer_requirements = answer_requirements or []
+    answer_completeness_missing = answer_completeness_missing or []
 
     facts_dicts = [f.model_dump() for f in structured_facts]
 
@@ -677,6 +767,8 @@ def _build_response(
         "evidence_score": evidence_score_result.get("score", 0),
         "evidence_score_details": evidence_score_result,
         "claim_coverage": claim_results.get("claim_coverage", 1.0),
+        "claim_citations": grounded.get("claim_citations", []),
+        "claim_citation_coverage": grounded.get("claim_citation_coverage", 0.0),
         "cost_drivers": cost_drivers,
         "risk_factors": risk_factors,
         "risk_score": risk_score_result.get("score"),
@@ -684,4 +776,7 @@ def _build_response(
         "questions_to_ask_provider": lender_questions,
         "scenario": scenario,
         "token_metrics": token_metrics,
+        "answer_requirements": answer_requirements,
+        "answer_completeness": answer_completeness if answer_completeness is not None else 1.0,
+        "answer_completeness_missing": answer_completeness_missing,
     }

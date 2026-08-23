@@ -58,6 +58,8 @@ def generate_answer(
     scenario: Optional[Dict[str, Any]] = None,
     risk_factors: Optional[List[Dict[str, Any]]] = None,
     risk_score: Optional[Dict[str, Any]] = None,
+    query_requirements: Optional[List[str]] = None,
+    completeness_feedback: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Generate an answer using Gemini LLM with evidence-first prompting.
@@ -66,6 +68,11 @@ def generate_answer(
     on the presence of enrichment data (risk, conflicts, calculations).
     """
     # Determine if this is a simple factual query (no heavy enrichment)
+    query_requirements = query_requirements or []
+    completeness_feedback = completeness_feedback or []
+    requirements_text = "\n".join(f"- {item.replace('_', ' ')}" for item in query_requirements) or "- Address the user's question directly."
+    feedback_text = "\n".join(f"- {item.replace('_', ' ')}" for item in completeness_feedback) or "None"
+
     has_enrichment = any([
         conflicts,
         risk_factors,
@@ -73,14 +80,20 @@ def generate_answer(
         calculation_results,
         scenario,
     ])
+    # A multi-aspect lookup needs the full answer template even when it has no
+    # risk or calculation enrichment. The old fast prompt encouraged a single
+    # headline fact for questions that requested several contractual terms.
+    requires_structured_answer = len(query_requirements) > 1
 
-    if not has_enrichment:
+    if not has_enrichment and not requires_structured_answer:
         # FAST PATH: Minimal prompt for factual lookups
         system_prompt = FAST_QA_SYSTEM_PROMPT
         prompt = FAST_QA_USER_PROMPT.format(
             question=query,
             context=context,
             structured_facts=_format_for_prompt(structured_facts),
+            query_requirements=requirements_text,
+            completeness_feedback=feedback_text,
         )
         max_tokens = 512
     else:
@@ -98,6 +111,8 @@ def generate_answer(
             evidence_score=_format_for_prompt(evidence_score),
             risk_factors=_format_for_prompt(risk_factors),
             risk_score=_format_for_prompt(risk_score),
+            query_requirements=requirements_text,
+            completeness_feedback=feedback_text,
         )
         max_tokens = 2048
 
@@ -531,4 +546,4 @@ def generate_loan_comparison(
         field_comparisons=field_comparisons,
         scenario=scenario,
     )
-    return {"comparison": fallback_markdown}
+    return {"comparison": fallback_markdown}

@@ -16,7 +16,7 @@ CALCULATION     "How much EMI for 5 years?"   → Structured facts + determinist
 import re
 import logging
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,89 @@ _FACTUAL_FIELD_PATTERNS = [
     (re.compile(r"\b(?:insurance|credit\s*life|loan\s*protection)\b", re.I), "insurance"),
     (re.compile(r"\b(?:collateral|security|mortgage|hypothecat)\b", re.I), "collateral"),
 ]
+
+# Aspects that require more than a single structured fact. These are kept
+# separate from _FACTUAL_FIELD_PATTERNS because a query can mention one fact
+# and still request several contractual qualifiers around it.
+_QUERY_ASPECT_PATTERNS = [
+    (re.compile(r"\b(?:interest\s*rate|rate\s*of\s*interest|roi|annual\s*rate)\b", re.I), "interest_rate"),
+    (re.compile(r"\b(?:fixed|floating|variable|adjustable|benchmark|reference\s*rate|spread|rate\s*type)\b", re.I), "rate_type_or_benchmark"),
+    (re.compile(r"\b(?:processing|administrative|origination|upfront)\s*(?:fee|charge)s?\b", re.I), "processing_fee"),
+    (re.compile(r"\b(?:other|additional|applicable)\s*(?:fees?|charges?)\b", re.I), "other_charges"),
+    (re.compile(r"\b(?:gst|tax(?:es)?|lev(?:y|ies)|stamp\s*duty|statutory)\b", re.I), "taxes_and_levies"),
+    (re.compile(r"\b(?:prepayment|foreclosure|early\s*(?:closure|repayment|settlement))\b", re.I), "prepayment_or_foreclosure"),
+    (re.compile(r"\b(?:lock[\s-]?in|cooling[\s-]?off|look[\s-]?up|emi(?:s)?|financial\s*year)\b", re.I), "timing_or_lock_in"),
+    (re.compile(r"\b(?:notice|written\s*request|procedure|conditions?)\b", re.I), "procedure_and_conditions"),
+    (re.compile(r"\b(?:eligib(?:ility|le)|individual\s*borrower|business\s*purpose|except|unless|waiver|exception)\b", re.I), "eligibility_and_exceptions"),
+    (re.compile(r"\b(?:default|penal|overdue|delayed\s*payment)\b", re.I), "default_or_penal_charges"),
+    (re.compile(r"\b(?:bounce|ecs|cheque|check)\b", re.I), "bounce_charges"),
+    (re.compile(r"\b(?:epi|equated\s*(?:monthly\s*)?install?ment)\b", re.I), "epi_calculation"),
+    (re.compile(r"\b(?:repayment|install?ment|amortization|schedule)\b", re.I), "repayment_terms"),
+    (re.compile(r"\b(?:how\s+is\s+interest|daily|365|actual\s*days|monthly\s*rests?|day[- ]count)\b", re.I), "calculation_basis"),
+    (re.compile(r"\b(?:security|collateral|mortgage|hypothecat)\b", re.I), "security_or_mortgage"),
+    (re.compile(r"\b(?:insurance|insured|policy)\b", re.I), "insurance"),
+    (re.compile(r"\b(?:governing\s*law|jurisdiction|arbitration|dispute|court|tribunal)\b", re.I), "governing_law_or_disputes"),
+]
+
+_QUALIFIER_PATTERN = re.compile(
+    r"\b(?:conditions?|terms?|options?|applicable|specific|detailed|how|what\s+happens|who\s+bears)\b",
+    re.I,
+)
+
+_ANSWER_REQUIREMENT_PATTERNS = {
+    "interest_rate": re.compile(r"\b(?:interest\s*rate|rate\s*of\s*interest|roi)\b|\b\d+(?:\.\d+)?\s*(?:%|percent)", re.I),
+    "rate_type_or_benchmark": re.compile(r"\b(?:fixed|floating|variable|adjustable|benchmark|reference\s*rate|spread)\b", re.I),
+    "processing_fee": re.compile(r"\b(?:processing|administrative|origination|upfront)\s*(?:fee|charge)s?\b", re.I),
+    "other_charges": re.compile(r"\b(?:fee|fees|charge|charges|costs?)\b", re.I),
+    "taxes_and_levies": re.compile(r"\b(?:gst|tax(?:es)?|lev(?:y|ies)|stamp\s*duty|statutory)\b", re.I),
+    "prepayment_or_foreclosure": re.compile(r"\b(?:prepayment|foreclosure|early\s*(?:closure|repayment|settlement))\b", re.I),
+    "timing_or_lock_in": re.compile(r"\b(?:lock[\s-]?in|cooling[\s-]?off|look[\s-]?up|after\s+\d+\s*emis?|\d+\s*days?|financial\s*year|monthly)\b", re.I),
+    "procedure_and_conditions": re.compile(r"\b(?:condition|terms?|applicable|subject\s+to|only|except|unless|provided|notice|request|procedure|after|before|within|until)\b", re.I),
+    "eligibility_and_exceptions": re.compile(r"\b(?:eligib(?:ility|le)|individual\s*borrower|business\s*purpose|except|unless|waiver|exception)\b", re.I),
+    "default_or_penal_charges": re.compile(r"\b(?:default|penal|overdue|delayed\s*payment)\b", re.I),
+    "bounce_charges": re.compile(r"\b(?:bounce|ecs|cheque|check)\b", re.I),
+    "epi_calculation": re.compile(r"\b(?:epi|equated\s*(?:monthly\s*)?install?ment)\b", re.I),
+    "repayment_terms": re.compile(r"\b(?:repayment|install?ment|amortization|schedule)\b", re.I),
+    "calculation_basis": re.compile(r"\b(?:calculat|daily|365|actual\s*days|monthly\s*rests?)\b", re.I),
+    "security_or_mortgage": re.compile(r"\b(?:security|collateral|mortgage|hypothecat)\b", re.I),
+    "insurance": re.compile(r"\b(?:insurance|insured|policy)\b", re.I),
+    "governing_law_or_disputes": re.compile(r"\b(?:governing\s*law|jurisdiction|arbitration|dispute|court|tribunal)\b", re.I),
+}
+
+
+def extract_query_requirements(query: str) -> List[str]:
+    """Return the contractual answer dimensions requested by *query*."""
+    requirements: List[str] = []
+    for pattern, requirement in _QUERY_ASPECT_PATTERNS:
+        if pattern.search(query) and requirement not in requirements:
+            requirements.append(requirement)
+
+    # A qualifier turns a headline lookup into a conditions question even if
+    # the query names only one financial field.
+    has_repayment_terms = bool(re.search(r"\brepayment\s+terms?\b", query, re.I))
+    if requirements and _QUALIFIER_PATTERN.search(query) and not has_repayment_terms and "procedure_and_conditions" not in requirements:
+        requirements.append("procedure_and_conditions")
+    return requirements
+
+
+def is_compound_query(query: str) -> bool:
+    """Identify queries that must not use the single-fact fast path."""
+    requirements = extract_query_requirements(query)
+    return len(requirements) > 1 or bool(
+        re.search(r"\b(?:and|or|as\s+well\s+as|along\s+with)\b", query, re.I)
+        and _QUALIFIER_PATTERN.search(query)
+    )
+
+
+def missing_answer_requirements(answer: str, requirements: List[str]) -> List[str]:
+    """Return requested dimensions not visibly addressed by an answer."""
+    answer_text = answer or ""
+    return [
+        requirement
+        for requirement in requirements
+        if requirement in _ANSWER_REQUIREMENT_PATTERNS
+        and not _ANSWER_REQUIREMENT_PATTERNS[requirement].search(answer_text)
+    ]
 
 # Audit / deep analysis trigger patterns
 _DEEP_PATTERNS = re.compile(
@@ -133,6 +216,11 @@ def classify_query_tier(query: str, intent: Optional[str] = None) -> tuple:
 
     # ----- 4. Fast factual — short query targeting a known financial field -----
     # ----- 4. Fast factual — short query targeting a single known financial field -----
+    if is_compound_query(q):
+        # Compound questions need retrieval plus a checklist-aware answer;
+        # returning one LoanFact here silently drops requested sub-answers.
+        return QueryTier.STANDARD_RAG, None
+
     matched_fields = []
     for pattern, field_name in _FACTUAL_FIELD_PATTERNS:
         if pattern.search(q) and field_name not in matched_fields:

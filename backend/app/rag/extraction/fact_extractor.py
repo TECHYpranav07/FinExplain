@@ -57,6 +57,25 @@ Return ONLY the JSON array — no commentary.
 """
 
 
+def _parse_fact_payload(raw: str) -> List[Dict[str, Any]]:
+    """Parse common fenced/prefixed JSON responses without accepting junk."""
+    content = raw.strip()
+    match = re.search(r"\[\s*\{.*\}\s*\]", content, re.DOTALL)
+    if match:
+        content = match.group(0)
+    elif "```" in content:
+        blocks = content.split("```")
+        content = blocks[1] if len(blocks) > 1 else content
+        if content.lstrip().startswith("json"):
+            content = content.lstrip()[4:]
+        content = content.strip()
+
+    parsed = json.loads(content)
+    if not isinstance(parsed, list):
+        parsed = [parsed]
+    return parsed
+
+
 def extract_structured_facts(
     chunks: List[Dict[str, Any]],
     product_name: Optional[str] = None,
@@ -120,22 +139,26 @@ def extract_structured_facts(
             max_tokens=2048,
         )
         raw = response.choices[0].message.content.strip()
-        # Robust JSON array extraction (handles markdown fences, prefixes, etc.)
-        match = re.search(r'\[\s*\{.*\}\s*\]', raw, re.DOTALL)
-
-        if match:
-            parsed = json.loads(match.group(0))
-        elif "```" in raw:
-            parts = raw.split("```")
-            block = parts[1] if len(parts) > 1 else raw
-            if block.startswith("json"):
-                block = block[4:]
-            parsed = json.loads(block.strip())
-        else:
-            parsed = json.loads(raw)
-
-        if not isinstance(parsed, list):
-            parsed = [parsed]
+        try:
+            parsed = _parse_fact_payload(raw)
+        except (json.JSONDecodeError, TypeError, ValueError) as parse_error:
+            logger.warning(f"[FactExtractor] Invalid JSON; requesting one structured retry: {parse_error}")
+            repair_response = client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Return only a valid compact JSON array. Do not truncate strings.",
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Repair this malformed extraction into the required JSON schema:\n{raw[:12000]}",
+                    },
+                ],
+                temperature=0.0,
+                max_tokens=2048,
+            )
+            raw = repair_response.choices[0].message.content.strip()
+            parsed = _parse_fact_payload(raw)
 
     except Exception as e:
         logger.warning(f"[FactExtractor] LLM extraction failed: {e} | Raw preview: {raw[:150] if 'raw' in locals() else 'None'}")

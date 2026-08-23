@@ -165,6 +165,20 @@ class LLMClient:
                     )
                     raise e
 
+                # A daily/project quota cannot recover within this request.
+                # Retrying it blocks the whole RAG query and can make a
+                # benchmark hang for several minutes without changing the
+                # outcome. Transient per-minute 429s still use backoff below.
+                if any(
+                    marker in err_str
+                    for marker in (
+                        "generaterequestsperday",
+                        "daily quota",
+                    )
+                ):
+                    logger.error(f"[LLMClient] Daily quota exhausted; failing fast: {e}")
+                    raise e
+
                 if attempt < self.max_retries:
                     # Dynamically parse retryDelay from Gemini 429 quota failure
                     import re
