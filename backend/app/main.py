@@ -20,7 +20,7 @@ import logging
 
 from app.core.config import settings
 
-from app.api.routes.v1 import documents, queries, hilt, products, feedback, analysis, auth
+from app.api.routes.v1 import documents, queries, hilt, products, feedback, analysis, auth, admin
 
 app = FastAPI(
     title="FinExplain API",
@@ -99,6 +99,7 @@ app.include_router(hilt.router, prefix="/api/v1/hilt", tags=["HILT"])
 app.include_router(products.router, prefix="/api/v1/products", tags=["Products"])
 app.include_router(feedback.router, prefix="/api/v1/feedback", tags=["Feedback"])
 app.include_router(analysis.router, prefix="/api/v1/analysis", tags=["Analysis"])
+app.include_router(admin.router, prefix="/api/v1", tags=["Admin"])
 
 import os
 from fastapi.staticfiles import StaticFiles

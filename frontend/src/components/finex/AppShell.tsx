@@ -4,7 +4,15 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/authContext";
 import { GlobalSearch } from "@/components/finex/GlobalSearch";
 
-const NAV = [
+interface NavItem {
+  to: string;
+  label: string;
+  icon: string;
+  exact?: boolean;
+  isAdmin?: boolean;
+}
+
+const NAV: NavItem[] = [
   { to: "/app", label: "Dashboard", icon: "fa-solid fa-gauge-high", exact: true },
   { to: "/app/documents", label: "Documents", icon: "fa-regular fa-file-lines" },
   { to: "/app/query", label: "Ask AI", icon: "fa-solid fa-magnifying-glass" },
@@ -18,9 +26,20 @@ const NAV = [
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
+  const { user } = useAuth();
+
+  const isAdmin = user?.role === "admin" || user?.email?.toLowerCase().trim() === "samadhanmane2324@gmail.com";
+
+  const navItems = [
+    ...NAV,
+    ...(isAdmin
+      ? [{ to: "/app/admin", label: "Admin Panel", icon: "fa-solid fa-user-shield", exact: false, isAdmin: true }]
+      : []),
+  ];
+
   return (
     <nav className="flex flex-col gap-1 p-3" aria-label="Application Navigation">
-      {NAV.map((item) => {
+      {navItems.map((item) => {
         const active = item.exact
           ? location.pathname === item.to
           : location.pathname.startsWith(item.to);
@@ -33,12 +52,28 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
               active
-                ? "bg-surface-3 text-white shadow-sm font-semibold"
-                : "text-muted-foreground hover:bg-surface-2 hover:text-white"
+                ? item.isAdmin
+                  ? "bg-violet-600/30 text-violet-200 border border-violet-500/30 shadow-sm font-semibold"
+                  : "bg-surface-3 text-white shadow-sm font-semibold"
+                : item.isAdmin
+                  ? "text-violet-400/80 hover:bg-violet-500/10 hover:text-violet-300"
+                  : "text-muted-foreground hover:bg-surface-2 hover:text-white"
             )}
           >
-            <i className={cn(item.icon, "w-4 text-center text-[12px]", active ? "text-white" : "text-muted-foreground")} aria-hidden="true" />
-            {item.label}
+            <i
+              className={cn(
+                item.icon,
+                "w-4 text-center text-[12px]",
+                active ? (item.isAdmin ? "text-violet-300" : "text-white") : (item.isAdmin ? "text-violet-400" : "text-muted-foreground")
+              )}
+              aria-hidden="true"
+            />
+            <span>{item.label}</span>
+            {item.isAdmin && (
+              <span className="ml-auto rounded bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-violet-300 border border-violet-500/30">
+                Admin
+              </span>
+            )}
           </NavLink>
         );
       })}

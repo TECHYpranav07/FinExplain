@@ -18,6 +18,7 @@ import { ComparePage } from "@/pages/ComparePage";
 import { HITLPage } from "@/pages/HITLPage";
 import { FeedbackPage } from "@/pages/FeedbackPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { AdminPage } from "@/pages/AdminPage";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "333830843232-example.apps.googleusercontent.com";
 
@@ -47,6 +48,7 @@ export function App() {
             <Route path="hitl" element={<HITLPage />} />
             <Route path="feedback" element={<FeedbackPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="admin" element={<AdminPage />} />
           </Route>
         </Route>
 

@@ -88,6 +88,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         "/api/v1/auth": 20,       # 20 req/min for auth endpoints (prevents brute-force)
         "/api/v1/queries": 40,    # 40 req/min for AI queries (protects LLM compute & cost)
         "/api/v1/analysis": 40,   # 40 req/min for document analysis
+        "/api/v1/admin": 30,      # 30 req/min for admin panel endpoints
         "default": 120,           # 120 req/min for general API endpoints
     }
 

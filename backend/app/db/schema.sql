@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     email VARCHAR(255) UNIQUE NOT NULL,
     hashed_password VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
+    role VARCHAR(20) DEFAULT 'user',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
